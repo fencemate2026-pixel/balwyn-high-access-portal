@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { AIRecommendationPanel } from "@/components/AIRecommendationPanel";
 import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,6 +83,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toaster } from "@/components/ui/sonner";
+import { createConfidenceScenario, type ScenarioKind } from "@/lib/confidence/demo-scenarios";
+import { apply_operator_decision } from "@/lib/confidence/escalation-logic";
 
 type GroupKey = "sports" | "staff" | "front";
 type ViewKey = "dashboard" | "gates" | "schedule" | "automation" | "access" | "activity" | "settings";
@@ -290,6 +293,7 @@ export default function DashboardClient({ user, signOutHref = "/", onSignOut }: 
   const [automationName, setAutomationName] = useState("");
   const [automationTrigger, setAutomationTrigger] = useState("At a scheduled time");
   const [automationAction, setAutomationAction] = useState("Notify authorised operators");
+  const [scenarioKind, setScenarioKind] = useState<ScenarioKind>("high-confidence");
   const selectedVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const voiceModeRef = useRef<"browser" | "recorded" | null>(null);
   const fallbackAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -340,6 +344,10 @@ export default function DashboardClient({ user, signOutHref = "/", onSignOut }: 
 
   const selectedScheduleGate = gates.find((gate) => gate.id === selectedScheduleGateId) ?? gates[0];
   const selectedWeek = schedules[selectedScheduleGate.id];
+  const confidenceScenario = useMemo(
+    () => createConfidenceScenario(scenarioKind),
+    [scenarioKind],
+  );
 
   function getPosition(gate: Gate): GatePosition {
     if (systemMode === "lockdown") return "closed";
@@ -520,6 +528,54 @@ export default function DashboardClient({ user, signOutHref = "/", onSignOut }: 
     }
   }
 
+  function applyScenarioDecision(decision: "APPROVED" | "ESCALATED" | "CANCELLED" | "CONFIRM_LOCKDOWN" | "INVESTIGATE_FURTHER") {
+    const result = apply_operator_decision(decision, confidenceScenario.escalation);
+    if (!result.executed) {
+      addActivity("Operator decision recorded", result.audit_entry);
+      toast.info("No gate action executed", { description: result.audit_entry });
+      return;
+    }
+
+    if (result.resulting_mode === "lockdown") {
+      setSystemMode("lockdown");
+      setGateOverrides(Object.fromEntries(gates.map((gate) => [gate.id, "closed" as const])));
+      setActiveView("gates");
+      addActivity("Full lockdown confirmed", result.audit_entry);
+      toast.warning("Full lockdown confirmed", {
+        description: "The operator approved the campus-wide secure response.",
+      });
+      return;
+    }
+
+    if (result.resulting_mode === "fire") {
+      setSystemMode("fire");
+      setGateOverrides(Object.fromEntries(gates.map((gate) => [gate.id, "open" as const])));
+      setActiveView("gates");
+      addActivity("Fire evacuation approved", result.audit_entry);
+      toast.warning("Fire evacuation approved", {
+        description: "All gates are opening and classroom projectors can broadcast route guidance.",
+      });
+      return;
+    }
+
+    setSystemMode("normal");
+    setGateOverrides((current) => {
+      const next = { ...current };
+      result.gates_to_lock.forEach((gateId) => {
+        next[gateId] = "closed";
+      });
+      result.gates_to_keep_open.forEach((gateId) => {
+        next[gateId] = "open";
+      });
+      return next;
+    });
+    setActiveView("gates");
+    addActivity("Targeted containment approved", result.audit_entry);
+    toast.success("Recommendation approved", {
+      description: `${result.gates_to_lock.length} gates closed and ${result.gates_to_keep_open.length} guiding route(s) kept open.`,
+    });
+  }
+
   function navItem(view: ViewKey, Icon: typeof LayoutDashboard, badge?: string) {
     return (
       <SidebarMenuItem key={view}>
@@ -594,6 +650,28 @@ export default function DashboardClient({ user, signOutHref = "/", onSignOut }: 
                 <article className="summary-card"><span>Secured now</span><strong>{positionMonitoring ? closedCount : "—"}</strong><small>{positionMonitoring ? "Closed and access controlled" : "Position monitoring paused"}</small></article>
                 <article className="summary-card"><span>System state</span><strong className={`mode-word ${systemMode}`}>{systemMode === "normal" ? "Normal" : systemMode === "fire" ? "Fire" : "Lockdown"}</strong><small>{systemMode === "normal" ? "Schedules and credentials active" : "Priority command overrides active"}</small></article>
               </section>
+              <section className="confidence-command-strip" aria-label="Confidence scenario controls">
+                <div>
+                  <strong>Confidence workflow</strong>
+                  <small>AI can only recommend actions at 98%+ confidence and still requires human approval for every action.</small>
+                </div>
+                <div className="confidence-command-actions">
+                  <Button variant={scenarioKind === "high-confidence" ? "default" : "outline"} onClick={() => setScenarioKind("high-confidence")}>High confidence</Button>
+                  <Button variant={scenarioKind === "moved-threat" ? "default" : "outline"} onClick={() => setScenarioKind("moved-threat")}>Threat moved</Button>
+                  <Button variant={scenarioKind === "low-confidence" ? "default" : "outline"} onClick={() => setScenarioKind("low-confidence")}>Low confidence</Button>
+                  <Button variant={scenarioKind === "fire" ? "default" : "outline"} onClick={() => setScenarioKind("fire")}>Fire routes</Button>
+                </div>
+              </section>
+              <AIRecommendationPanel
+                threat={confidenceScenario.threat}
+                score={confidenceScenario.finalConfidence}
+                escalation={confidenceScenario.escalation}
+                operatorName={user.displayName}
+                onApprove={() => applyScenarioDecision(confidenceScenario.escalation.status === "AUTO_ESCALATED_TO_FULL_LOCKDOWN" ? "CONFIRM_LOCKDOWN" : "APPROVED")}
+                onEscalate={() => applyScenarioDecision("ESCALATED")}
+                onCancel={() => applyScenarioDecision("CANCELLED")}
+                onInvestigate={() => applyScenarioDecision("INVESTIGATE_FURTHER")}
+              />
               <section className="dashboard-panels">
                 <article className="panel area-panel"><div className="panel-heading"><div><h2>Controlled areas</h2><small>Estate status</small></div><Button variant="ghost" onClick={() => setActiveView("gates")}>View all gates <ChevronRight /></Button></div><div className="area-list">{groupSummary.map(({ group, total, open }) => { const sampleGate = gates.find((gate) => gate.group === group) ?? gates[0]; return <button key={group} onClick={() => setActiveView("gates")}><span className="area-icon"><GateIcon gate={sampleGate} position={getPosition(sampleGate)} /></span><span><strong>{groupConfig[group].name}</strong><small>{total} automated access points</small></span><span className="area-state"><strong>{positionMonitoring ? `${open} open` : "Paused"}</strong><small>{positionMonitoring ? `${total - open} secured` : "Monitoring"}</small></span><ChevronRight /></button>; })}</div></article>
                 <article className="panel next-schedule-panel"><div className="panel-heading"><div><h2>Schedule</h2><small>Today · operating plan</small></div><CalendarDays /></div><div className="schedule-highlight"><Clock3 /><div><strong>07:00 — 18:00</strong><small>Weekday access window</small><span>Individual times can be set per gate</span></div></div><Button className="schedule-button" onClick={() => setActiveView("schedule")}>Manage gate schedules <ChevronRight /></Button></article>
