@@ -37,8 +37,11 @@ export default function DemoLogin() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    setSignedIn(sessionStorage.getItem(DEMO_SESSION_KEY) === "paul-sutton");
-    setHydrated(true);
+    const timer = window.setTimeout(() => {
+      setSignedIn(sessionStorage.getItem(DEMO_SESSION_KEY) === "paul-sutton");
+      setHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -108,7 +111,7 @@ export default function DemoLogin() {
         </div>
 
         <div className="demo-brand-status" aria-label="System overview">
-          <span><CheckCircle2 /><span><strong>17 access points</strong><small>Single control view</small></span></span>
+          <span><CheckCircle2 /><span><strong>18 access points</strong><small>Single control view</small></span></span>
           <span><RadioTower /><span><strong>Campus-wide response</strong><small>Coordinated automation</small></span></span>
         </div>
 
