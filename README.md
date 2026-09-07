@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # vinext-starter
 
 A clean full-stack starter running on
@@ -125,3 +126,7 @@ The timeout defaults can be overridden for a controlled canary with `SITES_INSTA
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)
 - [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+=======
+# balwyn-high-access-portal
+Balwyn High School Integrated Access Control demonstration portal by RJL Commercial Fencing &amp; Gates
+>>>>>>> 4e6b4fe920d224a3551019c5ed33f5eaa11e205a
