@@ -1296,3 +1296,31 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+
+
+/* Open-only ACB-004 trigger; separate from position feedback and demo state. */
+.remote-open-panel { display: grid; gap: .85rem; margin-top: 1.5rem; padding: 1.1rem; border: 1px solid var(--border, #d1d5db); border-radius: .8rem; text-align: left; }
+.remote-open-panel h3 { font-size: 1rem; font-weight: 700; }
+.remote-open-panel p { font-size: 1rem; line-height: 1.5; overflow-wrap: anywhere; }
+.remote-open-panel small, .remote-open-panel label { font-size: .875rem; line-height: 1.5; }
+.remote-open-panel label { display: grid; gap: .4rem; }
+.remote-open-panel button { white-space: normal; height: auto; min-height: 2.5rem; }
+
+.compass-wiring-reference { margin-bottom: 1.25rem; }
+.compass-wiring-reference h3 { margin: 1.5rem 0 .6rem; font-size: 1.125rem; line-height: 1.4; font-weight: 600; }
+.compass-wiring-reference p { font-size: 1rem; line-height: 1.6; margin: .8rem 0; }
+.compass-wiring-reference ul { padding-left: 1.25rem; list-style: disc; }
+.compass-wiring-reference li { margin: .6rem 0; font-size: 1rem; line-height: 1.6; }
+.compass-wiring-isolation { padding: 1rem 1.25rem; margin: 1rem 0; border-left: 3px solid #1367aa; background: #edf5fe; color: #173d57; }
+.compass-wiring-isolation > strong { font-size: 1rem; }
+.compass-wiring-isolation p { margin-bottom: 0; }
+.compass-wiring-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
+.compass-wiring-steps > section { min-width: 0; }
+.compass-wiring-reference summary { cursor: pointer; font-weight: 600; font-size: 1rem; padding: .7rem 0; }
+.compass-wiring-reference td, .compass-wiring-reference th { white-space: normal; vertical-align: top; min-width: 10rem; font-size: .875rem; line-height: 1.5; }
+.compass-wiring-reference .compass-source { font-size: .875rem; }
+@media (max-width: 900px) {
+  .compass-wiring-steps { grid-template-columns: 1fr; gap: 0; }
+}
+.compass-source a { text-decoration: underline; }

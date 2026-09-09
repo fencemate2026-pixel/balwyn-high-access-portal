@@ -2,7 +2,7 @@
 
 **For Copilot & AI Development Agents**  
 RJL Commercial Group · September 2026  
-**Status:** Production reference. Two systems, one AI knowledge base.
+**Status:** Development reference. Distinguish demonstration behaviour, optional relay pulses and independently verified physical feedback.
 
 ---
 
@@ -10,8 +10,61 @@ RJL Commercial Group · September 2026
 
 | System | Repository | Purpose | Status |
 |--------|------------|---------|--------|
-| **Magic Keys Portal** | `balwyn-high-access-portal` | Gate automation & emergency controls | ✅ Live (Netlify) |
+| **Magic Keys Portal** | `balwyn-high-access-portal` | Gate demonstration and optional open-only trigger | Demo; hardware requires configuration |
 | **Sentinel Wayfinding** | `sg-pro-sentinel` | Evacuation routing (synthetic-only) | ✅ Staged development |
+
+---
+
+## Current checked reference
+
+Start with [BALWYN_INTEGRATION_STATUS.md](BALWYN_INTEGRATION_STATUS.md). It records
+the current wiring corrections, implementation limits, website changes, tests
+and live-connection status. Use it to distinguish this static demonstration
+from the separately hosted Sites portal. Repository updates make information
+available for ingestion; they do not automatically train or refresh an AI model.
+
+## Compass ACB-004 integration contract
+
+The ACB-004 is the existing four-door access board onsite, associated with the
+school's Compass installation. It is retained. The supplied S4A manuals describe
+native Ethernet management, but do not supply a verified Magic Keys API.
+
+The implemented path is authenticated HTTPS to an onsite Pi service, then one
+isolated relay contact to a verified ACB-004 request-to-exit input. This replaces
+any proposed TCP/IP protocol adapter description; no proprietary ACB packet
+protocol, reader database sync or controller network commands are implemented.
+
+- Service: `pi-door-service/door_service.py`, `POST /doors/{1-4}/open` only.
+- Fixed 300–800 ms pulse on exactly one mapped BCM relay pin; default 500 ms.
+- Mock/dry-run by default; explicit verified hardware configuration required.
+- One-way open-only trigger: no closing, toggling, hold-open or emergency actuation.
+- No live door, lock-release or safety feedback. `pulsed` acknowledges the relay
+  output only; `dry_run` means no hardware operation. Position remains unknown.
+- Durable request IDs prevent replay after retries/restarts. Do not auto-retry
+  ambiguous outcomes or turn relay acknowledgements into green/open status.
+- The static Netlify demo retains its simulations when unconfigured. Its separate
+  operator token is required for real requests; demo login is not hardware auth.
+- Sites uses existing server-verified operator permissions and emergency priority.
+  Its separate sensor-equipped agent must not be conflated with this ACB path.
+- A board has four door channels; do not invent mappings for the 17 campus gates.
+
+### Maglock and Roger F70/IPU36 constraints
+
+A powered maglock relay COM and a Roger dry-contact input must stay electrically
+separate. Never use the same powered COM/NO side to inject lock voltage into the
+motor controller. Use a correctly rated local interface/sequencer with isolated
+contacts; the Pi service itself does not sequence lock release and motor motion.
+
+The referenced Roger installer manual pairs **34 AP with 32 COM** for open, and
+**36 PP with 38 COM** for step-by-step. PP is excluded from the open-only design.
+Check the actual installed model/revision before wiring. The Pi pulse duration
+is separate from the lock-release period; 3–5 seconds is not an approved default.
+Local release-before-motion, relocking and emergency release must be validated
+onsite. See `pi-door-service/README.md` and the System Settings wiring reference.
+
+Never use real students, footage, secrets or live relay hardware in tests.
+Run `npm run test:doors` for the mocked integration tests, plus the relevant
+hosting build before committing. Test results do not certify field wiring.
 
 ---
 
@@ -20,9 +73,9 @@ RJL Commercial Group · September 2026
 ### **System 1: Magic Keys Portal**
 
 **What it does:**
-- Controls 17 automated gates across Balwyn High School campus
-- Manages emergency lockdown (close all perimeter gates)
-- Manages fire/evacuation (open all gates + dynamic routing)
+- Demonstrates 17 gate positions across the campus; these are simulated, not live sensor readings
+- Demonstrates emergency lockdown (no physical command through the open-only service)
+- Demonstrates fire/evacuation (no physical emergency operation through the open-only service)
 - Weekly scheduling per gate
 - Activity logging with audit trail
 - Operator authentication (demo: paul sutton / magic-keys)
@@ -37,7 +90,7 @@ RJL Commercial Group · September 2026
 - **Staff Car Park:** 12 boom gates
 - **Front Property:** 3 double-swing gates
 
-**Emergency modes:**
+**Simulated emergency modes:**
 - **LOCKDOWN:** Close all gates, repeat voice warnings every 6.5s
 - **FIRE/EVACUATION:** Open all gates, PA announcement, dynamic routing
 
@@ -137,7 +190,7 @@ sentinel-wayfinding --scenarios examples/scenarios.json
    - Human-approved (every change reviewed)
 
 3. **Safety-Critical Design**
-   - Fail-safe (doors unlock on fire, power loss)
+   - Verify the installed local fail-safe and emergency-release design; do not infer it from a simulation
    - Human-in-the-loop (verification before actuation)
    - Audit trail (every action logged)
 
@@ -151,8 +204,8 @@ sentinel-wayfinding --scenarios examples/scenarios.json
 
 ## ✨ FINAL WORDS
 
-Your AI is now learning from two production systems:
-1. **Magic Keys Portal** — Live gate automation system
+This reference covers two development surfaces:
+1. **Magic Keys Portal** — Demonstration with an optional, authenticated open-only relay path
 2. **Sentinel Wayfinding** — Research prototype for safe evacuation routing
 
 **The AI should understand:**

@@ -1,0 +1,13 @@
+# Copy outside the repository to /etc/compass-door-open.env (root:root, mode 600).
+# Generate a private token: python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
+DOOR_API_TOKEN=REPLACE_WITH_A_UNIQUE_RANDOM_TOKEN
+DOOR_MODE=mock
+DOOR_BIND=127.0.0.1
+DOOR_PORT=8080
+DOOR_PULSE_MS=500
+# EXAMPLE BCM pin order for dry-run only: door 1, door 2, door 3, door 4.
+# Replace with the verified relay wiring before selecting hardware mode.
+DOOR_GPIO_PINS=17,27,22,23
+DOOR_ACTIVE_LOW=true
+DOOR_GPIO_CHIP=0
+DOOR_JOURNAL=/var/lib/compass-door-open/requests.sqlite3

@@ -38,3 +38,10 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+
+
+# Local relay credentials, journal and Python cache
+/pi-door-service/*.sqlite3*
+/pi-door-service/.env
+__pycache__/
+*.pyc
