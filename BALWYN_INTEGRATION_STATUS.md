@@ -1,6 +1,6 @@
 # Balwyn integration status and wiring reference
 
-Updated 2026-09-08 UTC for `fencemate2026-pixel/balwyn-high-access-portal`.
+Updated 2026-09-09 UTC for `fencemate2026-pixel/balwyn-high-access-portal`.
 Read this with `README.md`, `AI_REFERENCE_MASTER.md` and the actual source.
 
 ## Current status
@@ -10,10 +10,10 @@ Read this with `README.md`, `AI_REFERENCE_MASTER.md` and the actual source.
 | Repository dashboard | Existing static demonstration retained; its gate positions, schedules and emergency modes are simulated |
 | Optional Compass opening | Python Pi service, isolated relay request, browser control, authenticated gateway, logging and mock tests implemented |
 | Hosted Sites portal | Separate, newer implementation with server-verified operators and an independent sensor-controller workflow |
-| Live Pi connection | No `DOOR_SERVICE_URL`, `DOOR_SERVICE_TOKEN` or `DOOR_GATE_MAP` variables were configured on the Sites portal when checked |
+| Live Pi connection | No `DOOR_SERVICE_URL`, `DOOR_SERVICE_TOKEN` or `DOOR_GATE_MAP` variables were configured on the Sites portal when checked on 2026-09-08 UTC |
 | Physical operation | No live relay, gate, lock or emergency operation was tested during this update |
 | Cameras, AI and projectors | Do not treat interface screens or guidance previews as evidence of commissioned hardware or a connected trained model |
-| Publication | Sites update saved; this GitHub synchronization does not itself publish that Sites version |
+| Publication | Sites version 42 published successfully on 2026-09-09 at 00:08 UTC: [open the updated site](https://balwyn-gate-automation.info581042.chatgpt.site) |
 | AI learning | Documentation is available to an authorised ingestion process after this push. No model training, retrieval refresh or model deployment was run |
 
 ## Implemented open-only interface
