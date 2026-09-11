@@ -86,7 +86,7 @@ hosting build before committing. Test results do not certify field wiring.
 - **Deployment:** Netlify (static export)
 
 **Gate system:**
-- **Tom Frizza Sports Area:** 2 sliding gates
+- **Tony Frizza Stadium:** 2 sliding gates
 - **Staff Car Park:** 12 boom gates
 - **Front Property:** 3 double-swing gates
 

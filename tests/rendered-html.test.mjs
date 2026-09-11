@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+// The client build must NOT advertise itself as a development preview. This
+// page is shown to the client; a "development" marker (and the name of the
+// tool that generated it) has no place in the shipped HTML.
 const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
+  /<meta(?=[^>]*\bname=["']codex-preview["'])[^>]*>/i;
 
-test("renders development preview metadata", async () => {
+test("does not leak development preview metadata into the rendered page", async () => {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
@@ -29,5 +32,5 @@ test("renders development preview metadata", async () => {
     response.headers.get("content-type") ?? "",
     /^text\/html\b/i,
   );
-  assert.match(await response.text(), developmentPreviewMeta);
+  assert.doesNotMatch(await response.text(), developmentPreviewMeta);
 });
