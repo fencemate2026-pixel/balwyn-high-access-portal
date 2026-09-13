@@ -23,7 +23,7 @@ The product combines gate-specific controls, weekly schedules, authenticated ope
 
 - The sales demonstration opens with a branded operator login for Paul Sutton, then keeps his name and session role visible throughout the dashboard.
 - This client-side credential screen is presentation-only. Production deployment requires server-backed Magic Keys identity, secure password storage and auditable access control.
-- The main workspace covers 17 proposed automated access points across the Tom Frizza Sports Area, Staff Car Park and front boundary.
+- The main workspace covers 17 proposed automated access points across the Tony Frizza Stadium, Staff Car Park and front boundary.
 - Daily work includes checking live positions, opening or closing individual gates, managing weekly schedules and reviewing the current session's activity.
 - Emergency lockdown closes all automated access points. Fire and evacuation mode unlocks and opens all automated access points.
 

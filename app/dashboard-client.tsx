@@ -113,14 +113,14 @@ type DashboardClientProps = {
 };
 
 const groupConfig = {
-  sports: { name: "Tom Frizza Sports Area", short: "Sports area", icon: Fence },
+  sports: { name: "Tony Frizza Stadium", short: "Sports area", icon: Fence },
   staff: { name: "Staff Car Park", short: "Staff car park", icon: CarFront },
   front: { name: "Front of Property", short: "Front boundary", icon: DoorOpen },
 } satisfies Record<GroupKey, { name: string; short: string; icon: typeof Fence }>;
 
 const gates: Gate[] = [
-  { id: "TF-ENTRY", name: "Sports Entry Gate", area: "Tom Frizza Sports Area", type: "Automated sliding entry gate", group: "sports", defaultPosition: "open" },
-  { id: "TF-EXIT", name: "Sports Exit Gate", area: "Tom Frizza Sports Area", type: "Automated sliding exit gate", group: "sports", defaultPosition: "open" },
+  { id: "TF-ENTRY", name: "Sports Entry Gate", area: "Tony Frizza Stadium", type: "Automated sliding entry gate", group: "sports", defaultPosition: "open" },
+  { id: "TF-EXIT", name: "Sports Exit Gate", area: "Tony Frizza Stadium", type: "Automated sliding exit gate", group: "sports", defaultPosition: "open" },
   ...Array.from({ length: 12 }, (_, index) => ({
     id: `SCP-B${String(index + 1).padStart(2, "0")}`,
     name: `Staff Boom Gate ${String(index + 1).padStart(2, "0")}`,
