@@ -8,6 +8,8 @@ type GatewayOptions = {
   log?: (event: Record<string, unknown>) => void;
 };
 
+const GATE_ID = /^(TF-(ENTRY|EXIT)|SIDE-ENTRY|SCP-B(0[1-9]|1[0-2])|FRONT-DG0[1-3])$/;
+
 export function readDoorConfiguration(read: EnvironmentReader) {
   const url = read("DOOR_SERVICE_URL")?.trim() ?? "";
   const token = read("DOOR_SERVICE_TOKEN") ?? "";
@@ -22,7 +24,7 @@ export function readDoorConfiguration(read: EnvironmentReader) {
   if (!gateMap || Array.isArray(gateMap) || typeof gateMap !== "object") throw new Error("Invalid door mapping");
   const entries = Object.entries(gateMap);
   if (entries.length < 1 || entries.length > 4 || new Set(entries.map(([, door]) => door)).size !== entries.length ||
-      entries.some(([gate, door]) => !/^(TF-(ENTRY|EXIT)|SCP-B(0[1-9]|1[0-2])|FRONT-DG0[1-3])$/.test(gate) || !Number.isInteger(door) || door < 1 || door > 4)) {
+      entries.some(([gate, door]) => !GATE_ID.test(gate) || !Number.isInteger(door) || door < 1 || door > 4)) {
     throw new Error("Map one to four distinct verified gates to unique door numbers 1..4");
   }
   return { origin: base.origin, token, gateMap };
