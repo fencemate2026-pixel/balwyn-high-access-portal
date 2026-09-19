@@ -8,10 +8,15 @@ const token = "test-pi-secret-longer-than-32-characters";
 const requestId = "01b09e77-2f6a-42c6-ab9b-16cf0a93097a";
 const environment = { DOOR_SERVICE_URL: "https://pi.example.test", DOOR_SERVICE_TOKEN: token, DOOR_GATE_MAP: '{"TF-ENTRY":1,"TF-EXIT":4}' };
 const readEnv = (key) => environment[key];
+const gates = [
+  { id: "TF-ENTRY", active: true },
+  { id: "TF-EXIT", active: true },
+  { id: "SCP-B01", active: true },
+];
 const req = (body = { gateId: "TF-EXIT" }, overrides = {}) => new Request(`${origin}/api/doors/open`, {
   method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "Idempotency-Key": requestId }, body: JSON.stringify(body), ...overrides,
 });
-const options = (fetcher) => ({ readEnv, authorize: async () => null, fetcher, log: () => {} });
+const options = (fetcher) => ({ readEnv, gates, authorize: async () => null, fetcher, log: () => {} });
 
 test("unconfigured and legacy static demo paths make no hardware calls", async () => {
   let calls = 0;
@@ -30,6 +35,14 @@ test("configuration exposes mapping but never the Pi token or address", async ()
   assert.ok(!text.includes("pi.example.test"));
 });
 
+test("inactive gates are omitted from the GET mapping", async () => {
+  const inactiveGates = [{ id: "TF-ENTRY", active: true }, { id: "TF-EXIT", active: false }];
+  const response = await handleDoorRequest(new Request(`${origin}/api/doors/open`), { ...options(), gates: inactiveGates });
+  const body = await response.json();
+  assert.ok(Object.hasOwn(body.gateMap, "TF-ENTRY"));
+  assert.ok(!Object.hasOwn(body.gateMap, "TF-EXIT"));
+});
+
 test("invalid or partial configuration cannot select live channels", () => {
   for (const changes of [
     { DOOR_SERVICE_URL: "http://pi.example.test" }, { DOOR_SERVICE_URL: "https://user:pass@pi.example.test" },
@@ -37,7 +50,7 @@ test("invalid or partial configuration cannot select live channels", () => {
     { DOOR_GATE_MAP: '{"TF-ENTRY":1,"TF-EXIT":1}' }, { DOOR_GATE_MAP: '{"TF-ENTRY":5}' },
     { DOOR_GATE_MAP: '{"TF-ENTRY":"1"}' }, { DOOR_GATE_MAP: '{}' }, { DOOR_GATE_MAP: '[]' },
     { DOOR_GATE_MAP: '{"NOT-A-GATE":1}' },
-  ]) assert.throws(() => readDoorConfiguration((key) => ({ ...environment, ...changes })[key]));
+  ]) assert.throws(() => readDoorConfiguration((key) => ({ ...environment, ...changes })[key], gates));
 });
 
 test("authorisation, cross-origin, unknown gates and body overrides never call the Pi", async () => {
@@ -48,6 +61,14 @@ test("authorisation, cross-origin, unknown gates and body overrides never call t
   for (const body of [{ gateId: "SCP-B01" }, { gateId: "TF-ENTRY", door: 4 }, { gateId: "TF-ENTRY", position: "closed" }, { gateId: "__proto__" }]) {
     assert.equal((await handleDoorRequest(req(body), opts)).status, 400);
   }
+  assert.equal(calls, 0);
+});
+
+test("inactive gates are rejected on POST even when mapped", async () => {
+  let calls = 0;
+  const inactiveGates = [{ id: "TF-ENTRY", active: true }, { id: "TF-EXIT", active: false }];
+  const response = await handleDoorRequest(req(), { ...options(async () => { calls++; }), gates: inactiveGates });
+  assert.equal(response.status, 403);
   assert.equal(calls, 0);
 });
 
