@@ -1,0 +1,1682 @@
+From ddf5cfc240b47ad339786177023a317b2a9b689e Mon Sep 17 00:00:00 2001
+From: Codex <codex@openai.com>
+Date: Tue, 8 Sep 2026 19:51:45 -0400
+Subject: [PATCH] Remove duplicate hero logo and complete Compass wiring and
+ open-only service
+
+---
+ .gitignore                                 |   6 +
+ AI_REFERENCE_MASTER.md                     | 217 ++++++++++++++++++
+ README.md                                  | 235 +++++++++----------
+ app/api/doors/open/route.ts                |  26 +++
+ app/brand-artwork.tsx                      |  10 +-
+ app/compass-wiring-reference.tsx           |  70 ++++++
+ app/dashboard-client.tsx                   |   9 +-
+ app/globals.css                            |  27 +++
+ app/remote-open-panel.tsx                  |  58 +++++
+ lib/door-open-gateway.ts                   |  80 +++++++
+ lib/remote-open-client.ts                  |  32 +++
+ package.json                               |   5 +-
+ pi-door-service/README.md                  | 134 +++++++++++
+ pi-door-service/compass-door-open.service  |  24 ++
+ pi-door-service/config.example             |  13 ++
+ pi-door-service/door_service.py            | 253 +++++++++++++++++++++
+ pi-door-service/tests/test_door_service.py | 179 +++++++++++++++
+ tests/remote-open.test.mjs                 | 105 +++++++++
+ 18 files changed, 1352 insertions(+), 131 deletions(-)
+ create mode 100644 AI_REFERENCE_MASTER.md
+ create mode 100644 app/api/doors/open/route.ts
+ create mode 100644 app/compass-wiring-reference.tsx
+ create mode 100644 app/remote-open-panel.tsx
+ create mode 100644 lib/door-open-gateway.ts
+ create mode 100644 lib/remote-open-client.ts
+ create mode 100644 pi-door-service/README.md
+ create mode 100644 pi-door-service/compass-door-open.service
+ create mode 100644 pi-door-service/config.example
+ create mode 100644 pi-door-service/door_service.py
+ create mode 100644 pi-door-service/tests/test_door_service.py
+ create mode 100644 tests/remote-open.test.mjs
+
+diff --git a/.gitignore b/.gitignore
+index b7e1d0c..a1c9b7b 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -43,3 +43,9 @@ next-env.d.ts
+ /work/
+ __pycache__/
+ *.pyc
++
++# Local relay credentials, journal and Python cache
++/pi-door-service/*.sqlite3*
++/pi-door-service/.env
++__pycache__/
++*.pyc
+diff --git a/AI_REFERENCE_MASTER.md b/AI_REFERENCE_MASTER.md
+new file mode 100644
+index 0000000..a344144
+--- /dev/null
++++ b/AI_REFERENCE_MASTER.md
+@@ -0,0 +1,217 @@
++# 🤖 MASTER AI REFERENCE — Magic Keys Portal & Sentinel Wayfinding
++
++**For Copilot & AI Development Agents**  
++RJL Commercial Group · September 2026  
++**Status:** Development reference. Distinguish demonstration behaviour, optional relay pulses and independently verified physical feedback.
++
++---
++
++## 📋 QUICK NAVIGATION
++
++| System | Repository | Purpose | Status |
++|--------|------------|---------|--------|
++| **Magic Keys Portal** | `balwyn-high-access-portal` | Gate demonstration and optional open-only trigger | Demo; hardware requires configuration |
++| **Sentinel Wayfinding** | `sg-pro-sentinel` | Evacuation routing (synthetic-only) | ✅ Staged development |
++
++---
++
++## Compass ACB-004 integration contract
++
++The ACB-004 is the existing four-door access board onsite, associated with the
++school's Compass installation. It is retained. The supplied S4A manuals describe
++native Ethernet management, but do not supply a verified Magic Keys API.
++
++The implemented path is authenticated HTTPS to an onsite Pi service, then one
++isolated relay contact to a verified ACB-004 request-to-exit input. This replaces
++any proposed TCP/IP protocol adapter description; no proprietary ACB packet
++protocol, reader database sync or controller network commands are implemented.
++
++- Service: `pi-door-service/door_service.py`, `POST /doors/{1-4}/open` only.
++- Fixed 300–800 ms pulse on exactly one mapped BCM relay pin; default 500 ms.
++- Mock/dry-run by default; explicit verified hardware configuration required.
++- One-way open-only trigger: no closing, toggling, hold-open or emergency actuation.
++- No live door, lock-release or safety feedback. `pulsed` acknowledges the relay
++  output only; `dry_run` means no hardware operation. Position remains unknown.
++- Durable request IDs prevent replay after retries/restarts. Do not auto-retry
++  ambiguous outcomes or turn relay acknowledgements into green/open status.
++- The static Netlify demo retains its simulations when unconfigured. Its separate
++  operator token is required for real requests; demo login is not hardware auth.
++- Sites uses existing server-verified operator permissions and emergency priority.
++  Its separate sensor-equipped agent must not be conflated with this ACB path.
++- A board has four door channels; do not invent mappings for the 17 campus gates.
++
++### Maglock and Roger F70/IPU36 constraints
++
++A powered maglock relay COM and a Roger dry-contact input must stay electrically
++separate. Never use the same powered COM/NO side to inject lock voltage into the
++motor controller. Use a correctly rated local interface/sequencer with isolated
++contacts; the Pi service itself does not sequence lock release and motor motion.
++
++The referenced Roger installer manual pairs **34 AP with 32 COM** for open, and
++**36 PP with 38 COM** for step-by-step. PP is excluded from the open-only design.
++Check the actual installed model/revision before wiring. The Pi pulse duration
++is separate from the lock-release period; 3–5 seconds is not an approved default.
++Local release-before-motion, relocking and emergency release must be validated
++onsite. See `pi-door-service/README.md` and the System Settings wiring reference.
++
++Never use real students, footage, secrets or live relay hardware in tests.
++Run `npm run test:doors` for the mocked integration tests, plus the relevant
++hosting build before committing. Test results do not certify field wiring.
++
++---
++
++## 🎯 WHAT YOU'RE LEARNING
++
++### **System 1: Magic Keys Portal**
++
++**What it does:**
++- Demonstrates 17 gate positions across the campus; these are simulated, not live sensor readings
++- Demonstrates emergency lockdown (no physical command through the open-only service)
++- Demonstrates fire/evacuation (no physical emergency operation through the open-only service)
++- Weekly scheduling per gate
++- Activity logging with audit trail
++- Operator authentication (demo: paul sutton / magic-keys)
++
++**Tech stack:**
++- **Frontend:** React 19, Next.js 16, TypeScript, Tailwind CSS, shadcn/ui
++- **Build:** Vite + Vinext
++- **Deployment:** Netlify (static export)
++
++**Gate system:**
++- **Tom Frizza Sports Area:** 2 sliding gates
++- **Staff Car Park:** 12 boom gates
++- **Front Property:** 3 double-swing gates
++
++**Simulated emergency modes:**
++- **LOCKDOWN:** Close all gates, repeat voice warnings every 6.5s
++- **FIRE/EVACUATION:** Open all gates, PA announcement, dynamic routing
++
++---
++
++### **System 2: Sentinel Wayfinding (SG-PRO)**
++
++**What it does:**
++- Provides safe evacuation routes for each classroom
++- Integrates with fire panel signals
++- Logs all scenarios synthetically (no real data)
++- Human-approved learning only (no autonomous changes)
++
++**Current scope:** Stage 1 synthetic prototype only
++- ✅ Route planning from synthetic floor plans
++- ✅ Scenario replay & testing
++- ✅ Local-only run logging
++- ✅ Human-review improvement reports
++- ❌ Real CCTV/footage
++- ❌ Automatic learning from live data
++
++---
++
++## 📊 WHAT DATA YOUR AI CAN ACCESS
++
++### ✅ **SAFE — AI can see and learn from:**
++
++**Magic Keys:**
++- All source code (React, Next.js, TypeScript)
++- Component architecture
++- Configuration files
++- Public assets
++- Test files
++- Documentation
++
++**Sentinel:**
++- Synthetic layout JSON
++- Synthetic scenarios
++- Python CLI code
++- Test suite
++- Documentation
++- Compliance constraints
++
++### ❌ **OFF-LIMITS — AI must never see:**
++
++- Real student/staff names or IDs
++- Real CCTV footage or camera locations
++- Real emergency procedures
++- Real access control credentials
++- Real incident data
++- Passwords, API keys, tokens
++- Student/staff biometric data
++
++---
++
++## 🚀 QUICK START FOR AI LEARNING
++
++### **Step 1: Understand Magic Keys Portal**
++
++```bash
++cd ~/Downloads/balwyn-high-access-portal
++npm install
++npm run dev
++# Open http://localhost:5173
++# Login: paul sutton / magic-keys
++```
++
++### **Step 2: Understand Sentinel Wayfinding**
++
++```bash
++cd ~/cocoapi/PythonAPI/sg-pro-sentinel
++source .venv/Scripts/activate
++sentinel-wayfinding --scenarios examples/scenarios.json
++# See: 3/3 scenarios PASS
++```
++
++### **Step 3: Ask Your AI to Learn**
++
++- "Explain how the emergency lockdown loop works"
++- "Design 3 new synthetic evacuation scenarios"
++- "How could we integrate Sentinel routing into Magic Keys?"
++
++---
++
++## 🎓 WHAT YOUR AI SHOULD UNDERSTAND
++
++### **Core Concepts**
++
++1. **Gate Automation (Magic Keys)**
++   - 3 gate types, 3 campus areas
++   - Normal, lockdown, fire modes
++   - Emergency overrides everything
++
++2. **Evacuation Routing (Sentinel)**
++   - Deterministic (no ML randomness)
++   - Synthetic-only (no real data)
++   - Human-approved (every change reviewed)
++
++3. **Safety-Critical Design**
++   - Verify the installed local fail-safe and emergency-release design; do not infer it from a simulation
++   - Human-in-the-loop (verification before actuation)
++   - Audit trail (every action logged)
++
++4. **AI Limitations**
++   - Cannot detect concealed weapons
++   - Cannot assess intent
++   - Cannot replace fire detection
++   - False alarms are inevitable (design for them)
++
++---
++
++## ✨ FINAL WORDS
++
++This reference covers two development surfaces:
++1. **Magic Keys Portal** — Demonstration with an optional, authenticated open-only relay path
++2. **Sentinel Wayfinding** — Research prototype for safe evacuation routing
++
++**The AI should understand:**
++- ✅ How to extend both systems
++- ✅ Why safety-critical systems need human approval
++- ✅ Why synthetic-only is mandatory until compliance approval
++- ✅ How to write testable, deployable, auditable code
++
++**The AI should NOT:**
++- ❌ Use real school data
++- ❌ Bypass human verification
++- ❌ Make autonomous safety decisions
++- ❌ Commit code without tests passing
++
++---
++
++**You built this. Your AI will help you make it better. Let's go.** 🚀
+diff --git a/README.md b/README.md
+index 6561f10..51c0506 100644
+--- a/README.md
++++ b/README.md
+@@ -1,127 +1,112 @@
+-# vinext-starter
+-
+-A clean full-stack starter running on
+-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
+-Drizzle support.
+-
+-## Prerequisites
+-
+-- Node.js `>=22.13.0`
+-- Linux with `flock`, `curl`, and GNU `timeout`
+-
+-## Sites Lifecycle
+-
+-The Sites lifecycle CLI runs the locked dependency install before returning this checkout. Edit the source under `app/`, then checkpoint when a coherent milestone is ready to inspect or share. The remote Sites builder runs `npm run build` against the pushed commit. Do not repeat install or build as a normal pre-checkpoint step.
+-
+-This starter does not use `wrangler.jsonc`.
+-
+-`install:ci` is intentionally a single, non-retrying `npm ci`. It refuses a concurrent install for the same project, consumes a matching image-seeded npm cache with `--prefer-offline` while retaining registry fallback for a missing cache object, otherwise downloads and verifies the complete vinext tarball recorded in `package-lock.json`, limits npm to one socket, and terminates a stalled install. `build` applies a short timeout. These helpers target Linux and use GNU `timeout`; they are not native macOS scripts.
+-
+-Scripts that need writable project-scoped home, npm, XDG, and temporary paths use `scripts/sites-env.sh`. The `dev` and `start` scripts honor the caller's runtime environment and keep Wrangler logs inside the checkout. The generated `.sites-runtime/` directory is disposable and ignored by Git.
+-
+-## Included Shape
+-
+-- edit site code under `app/`
+-- `app/chatgpt-auth.ts` provides optional dispatch-owned ChatGPT sign-in helpers
+-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
+-- `vite.config.ts` simulates declared bindings for local development
+-- `db/index.ts` reads the D1 binding from the Cloudflare Worker environment
+-- `db/schema.ts` starts intentionally empty
+-- `examples/d1/` contains an optional D1 example surface
+-- `drizzle.config.ts` supports local migration generation when needed
+-
+-## Workspace Auth Headers
+-
+-OpenAI workspace sites can read the current user's email from
+-`oai-authenticated-user-email`.
+-
+-SIWC-authenticated workspace sites may also receive
+-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
+-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
+-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+-
+-Treat the full name as optional and fall back to email when it is absent:
+-
+-```tsx
+-import { headers } from "next/headers";
+-
+-export default async function Home() {
+-  const requestHeaders = await headers();
+-  const email = requestHeaders.get("oai-authenticated-user-email");
+-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
+-  const fullName =
+-    encodedFullName &&
+-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
+-      "percent-encoded-utf-8"
+-      ? decodeURIComponent(encodedFullName)
+-      : null;
+-
+-  const displayName = fullName ?? email;
+-  // ...
+-}
++# Magic Keys – Balwyn High School
++
++The Sites portal manages operator access and the campus interface. Its separate
++sensor-equipped controller workflow is retained. The school's existing
++**Compass ACB-004 four-door access board** now has an optional **one-way,
++open-only Pi relay trigger**, independent of that feedback workflow.
++
++## What the ACB-004 integration does
++
++- `POST /doors/{1-4}/open` on the Pi pulses exactly one configured GPIO relay
++  channel for 300–800 ms (default 500 ms).
++- Mock/dry-run mode is the default and never imports or operates GPIO.
++- Bearer authentication, fixed local pin/polarity configuration, durable
++  duplicate protection, logging and tests are included.
++- The dashboard gate panel has a separate **Remote open · Compass ACB-004**
++  control. It appears only when the service mapping is configured. Existing
++  controls and unconfigured behaviour are retained.
++- A successful pulse leaves physical position **unknown**. No live sensor,
++  lock-release, safety, closing or emergency feedback is produced by this path.
++
++This implementation replaces any proposed ACB-004 TCP/IP protocol adapter with
++an HTTP-to-Pi-to-isolated-relay path. It contains no proprietary controller
++protocol, packet-format assumptions, direct database access or card syncing.
++The ACB-004's native Ethernet capability does not establish an API connection.
++
++## Software setup and verification
++
++Use Node.js 22.13+ and the committed npm lockfile.
++
++```bash
++npm run install:ci
++npm run dev
++npm run test:doors
++npm run build
+ ```
+ 
+-## Optional Dispatch-Owned ChatGPT Sign-In
+-
+-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
+-optional or required ChatGPT sign-in:
+-
+-- Use `getChatGPTUser()` for optional signed-in UI.
+-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
+-  anonymous visitors through Sign in with ChatGPT.
+-- In a Server Component, start sign-in with
+-  `<a href={chatGPTSignInPath(returnTo)} target="_top">`. The auth helper
+-  module is server-only; do not import it into a Client Component.
+-- Do not use `fetch`, XHR, a client-side router, or a framework link that can
+-  prefetch the sign-in route. SIWC must start as a top-level navigation.
+-- Never request the AuthAPI authorization endpoint directly. The dispatch-owned
+-  `/signin-with-chatgpt` route must start the SIWC flow.
+-- Use `chatGPTSignOutPath(returnTo)` for browser sign-out links or actions.
+-- Pass a same-origin relative `returnTo` path for the destination after sign-in
+-  or sign-out. The helper validates and safely encodes it.
+-- Mark protected pages with `export const dynamic = "force-dynamic"` because
+-  they depend on per-request identity headers.
+-
+-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
+-OAuth cookies, and identity header injection. Do not implement app routes for
+-those reserved paths. Routes that do not import and call the helper remain
+-anonymous-compatible.
+-
+-SIWC establishes identity only; it does not prove workspace membership. Use the
+-Sites hosting platform's access policy controls for workspace-wide restrictions,
+-or enforce explicit server-side membership or allowlist checks.
+-
+-Use SIWC for account pages, user-specific dashboards, saved records, and write
+-actions tied to the current ChatGPT user. Leave public content anonymous.
+-
+-## Diagnostic Commands
+-
+-- `npm run install:ci`: perform the one bounded lockfile install
+-- `npm run dev`: start the Vite/Vinext development server
+-- `npm run build`: build the deployable Sites artifact
+-- `npm run start`: start the built Vinext application
+-- `npm test`: build and verify the rendered development-preview metadata
+-- `npm run db:generate`: generate Drizzle migrations after schema changes
+-
+-## Deploy to Netlify
+-
+-The repository includes `netlify.toml` and a separate standard Next.js build so
+-the same source can be deployed outside the Sites/Vinext runtime.
+-
+-1. Upload the extracted project to a Git repository and import it in Netlify, or
+-   run `netlify deploy --build --prod` from the project directory.
+-2. Netlify will use Node.js 22, run `npm run build:netlify`, and publish `.next`.
+-3. No environment variables are required for the demonstration dashboard.
+-
+-The included Paul Sutton credential screen is client-side demonstration access,
+-not production authentication. Replace it with server-backed Magic Keys identity
+-before using the application to operate real equipment or protect sensitive data.
+-
+-Use build commands for targeted diagnosis after a remote failure, not as part of the normal checkpoint path.
+-
+-The timeout defaults can be overridden for a controlled canary with `SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT`, and `SITES_BUILD_KILL_AFTER`. A timeout fails the command; the helpers never retry an unchanged install or build.
+-
+-## Learn More
+-
+-- [vinext Documentation](https://github.com/cloudflare/vinext)
+-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
++`npm run test:doors` runs the HTTP/relay and browser-gateway contract tests.
++`npm test` also runs existing repository tests. No test actuates real equipment.
++See [the Pi service guide](pi-door-service/README.md) for its mock run, systemd
++installation, HTTP responses, GPIO configuration and wiring reference.
++
++## Configure the Sites server
++
++Set these **server-side runtime variables** only after confirming the field
++mapping and access path:
++
++| Variable | Value |
++| --- | --- |
++| `DOOR_SERVICE_URL` | Reachable HTTPS origin of the approved Pi gateway, without a path |
++| `DOOR_SERVICE_TOKEN` | Private random token matching the Pi's `DOOR_API_TOKEN` |
++| `DOOR_GATE_MAP` | JSON mapping existing gate IDs to unique board channels 1–4 |
++
++For example, `{"TF-ENTRY":1,"TF-EXIT":2}` demonstrates the JSON format only; it
++is **not** the verified onsite allocation. There are no default live mappings.
++All three variables absent means unconfigured; partial/invalid configuration is
++rejected. One board supports at most four mapped gate IDs, not all 17 gates.
++
++The client calls the same-origin `/api/doors/open` route. The server checks the
++existing operator session, permissions, exact request origin and current normal
++operating priority before sending a request. The Pi token stays on the server.
++The new path does not mark any sensor-equipped controller commissioned and
++does not write simulated or reported gate positions.
++
++Do not use `NEXT_PUBLIC_*`, browser storage or source files for the Pi secret.
++There are no automatic retries after an ambiguous network failure. Local
++inspection is required before issuing a fresh request.
++
++## Existing GitHub demonstration
++
++`fencemate2026-pixel/balwyn-high-access-portal` has an older static demonstration.
++It receives the same service and optional remote-open client separately; its
++simulated gate controls retain their original behaviour when unconfigured.
++Its Netlify function requires a distinct remote-open operator token because a
++demo login is not authorisation to actuate school hardware. Refer to that
++repository's README for its hosting setup. This change does not replace the
++newer Sites portal with the older demo.
++
++## Maglock and Roger F70/IPU36
++
++System Settings contains a Wiring section with the magnetic-lock connections,
++isolated Roger open trigger, connection matrix, timing and commissioning scope.
++The lock power circuit and Roger dry-contact command require electrically
++separate contacts. **Never connect a +12 V lock relay COM to the Roger command
++COM.** For the referenced F70/IPU36 manual, the open command is **34 AP / 32 COM**.
++The **36 PP / 38 COM** step-by-step input is excluded from this open-only design.
++
++The Pi's short request pulse does not determine maglock release time. The
++approved local controller/interface must release the lock before movement and
++restore it at the correct point; do not substitute a blanket 3–5-second timer.
++The service does not implement that local lock/motor sequence. Confirm the
++installed board revision, ratings, relay isolation, emergency release and
++mechanical behaviour onsite. Full references and details are in the
++[Pi wiring guide](pi-door-service/README.md#maglock-and-roger-f70ipu36-interface).
++
++Commissioning covers permissions/readers, schedules, hold-open and return to
++secure operation, remote commands, independently verified gate-state feedback,
++emergency behaviour, safety functions, and recovery after power or communication
++failure. The manuals describe the contact functions; they do not certify the
++installed system. Holding Roger AP active inhibits automatic reclosing until
++the command is released, so the local trigger period must also be verified.
++
++## Implementation map
++
++| File | Purpose |
++| --- | --- |
++| `pi-door-service/door_service.py` | Four-channel Pi HTTP service and persistent pulse journal |
++| `app/remote-open-panel.tsx` | Explicit operator confirmation and pulse-only acknowledgement |
++| `lib/remote-open-client.ts` | Same-origin client requests; no device token or sensor updates |
++| `lib/door-open-gateway.ts` | Server configuration, door mapping and single upstream request |
++| `app/api/doors/open/route.ts` | Sites session/role and emergency-priority enforcement |
++| `app/compass-wiring-reference.tsx` | Existing board and corrected installation notes |
++| `AI_REFERENCE_MASTER.md` | Scope and limitations for future development |
+diff --git a/app/api/doors/open/route.ts b/app/api/doors/open/route.ts
+new file mode 100644
+index 0000000..e769512
+--- /dev/null
++++ b/app/api/doors/open/route.ts
+@@ -0,0 +1,26 @@
++import { env } from "cloudflare:workers";
++import { requireOperator } from "@/lib/portal-auth";
++import { getPortalSnapshot } from "@/lib/portal-store";
++import { handleDoorRequest } from "@/lib/door-open-gateway";
++
++export const dynamic = "force-dynamic";
++
++async function handle(request: Request) {
++  return handleDoorRequest(request, {
++    readEnv: (key) => { const value = (env as unknown as Record<string, unknown>)[key]; return typeof value === "string" ? value : undefined; },
++    authorize: async (req) => {
++      const auth = await requireOperator(req, req.method === "GET" ? "viewer" : "operator");
++      if (!auth.user) return auth.response;
++      if (req.method === "POST") {
++        try {
++          const snapshot = await getPortalSnapshot(auth.user);
++          if (snapshot.systemMode !== "normal") return Response.json({ error: "Manual remote open is blocked by emergency priority" }, { status: 409 });
++        } catch { return Response.json({ error: "Operating priority could not be verified" }, { status: 503 }); }
++      }
++      return null;
++    },
++  });
++}
++
++export const GET = handle;
++export const POST = handle;
+diff --git a/app/brand-artwork.tsx b/app/brand-artwork.tsx
+index 67e87a4..0b2cf9b 100644
+--- a/app/brand-artwork.tsx
++++ b/app/brand-artwork.tsx
+@@ -1,13 +1,21 @@
++import { useId } from "react";
+ import BrandLogo from "./brand-logo";
+ 
+ // Lay out the existing logo and AI artwork independently so neither is stretched
+ // or confined to the old split-screen Balwyn background.
+ export default function BrandArtwork({ className = "" }: { className?: string }) {
++  const aiHeadClipId = useId();
++
+   return (
+     <div className={`magic-wide-artwork ${className}`}>
+       <BrandLogo className="magic-wide-wordmark" />
+       <svg className="magic-wide-ai-head" viewBox="800 0 463 984" preserveAspectRatio="xMaxYMid meet" aria-hidden="true" focusable="false">
+-        <image href="/magic-keys-brand-background.png" width="1263" height="984" />
++        <defs>
++          <clipPath id={aiHeadClipId} clipPathUnits="userSpaceOnUse">
++            <rect x="800" y="0" width="463" height="984" />
++          </clipPath>
++        </defs>
++        <image href="/magic-keys-brand-background.png" width="1263" height="984" clipPath={`url(#${aiHeadClipId})`} />
+       </svg>
+     </div>
+   );
+diff --git a/app/compass-wiring-reference.tsx b/app/compass-wiring-reference.tsx
+new file mode 100644
+index 0000000..56d220c
+--- /dev/null
++++ b/app/compass-wiring-reference.tsx
+@@ -0,0 +1,70 @@
++import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
++
++export default function CompassWiringReference() {
++  return (
++    <section className="settings-card compass-wiring-reference" aria-labelledby="compass-wiring-title">
++      <div className="panel-heading">
++        <div>
++          <h2 id="compass-wiring-title">Wiring</h2>
++          <small>Compass ACB-004 · Magnetic lock · Roger F70/IPU36</small>
++        </div>
++      </div>
++      <p>The existing four-door Compass controller remains in place. This reference describes the lock-power and gate-command connections; the installed board, lock ratings and local release sequence must be checked during commissioning.</p>
++
++      <div className="compass-wiring-isolation">
++        <strong>Keep lock power separate from the gate command.</strong>
++        <p>NC and NO on one changeover relay share COM. Once that COM carries the lock’s +12 V supply, its NO is a switched power output. It cannot also provide the Roger’s voltage-free command. Use a correctly rated local interface or sequencer with electrically isolated contacts.</p>
++      </div>
++
++      <div className="compass-wiring-steps">
++        <section aria-labelledby="maglock-wiring-title">
++          <h3 id="maglock-wiring-title">1. Magnetic lock (fail-safe)</h3>
++          <p>A fail-safe maglock stays locked while powered and releases when power is interrupted. Use 12 V DC only when specified on the installed lock.</p>
++          <ul>
++            <li><strong>Lock negative (−):</strong> connect to the dedicated lock power supply’s negative terminal.</li>
++            <li><strong>Lock positive (+):</strong> connect to NC on the assigned ACB-004 door relay.</li>
++            <li><strong>Lock supply positive:</strong> connect to COM on that same door relay, through the approved protected supply and emergency-release arrangement.</li>
++          </ul>
++          <p>An authorised access request opens the NC path and removes lock power. Confirm contact ratings and retain the installed emergency power-release circuit.</p>
++        </section>
++        <section aria-labelledby="roger-wiring-title">
++          <h3 id="roger-wiring-title">2. Roger F70/IPU36 open command</h3>
++          <p>The local interface must release the lock before requesting movement. Its separate, isolated normally-open contact then connects the following Roger inputs:</p>
++          <ul>
++            <li><strong>Isolated contact COM:</strong> connect to terminal 32 (COM).</li>
++            <li><strong>Isolated contact NO:</strong> connect to terminal 34 (AP / opening).</li>
++          </ul>
++          <p>Terminal 36 is PP (step-by-step), paired with 38 COM. PP can perform different actions depending on configuration and is excluded from this open-only design. Verify the terminal labels on the installed revision.</p>
++        </section>
++      </div>
++
++      <h3>Summary connection matrix</h3>
++      <Table>
++        <TableCaption>Proposed connections, subject to the installed equipment and local interface being verified.</TableCaption>
++        <TableHeader><TableRow><TableHead>Device / wire</TableHead><TableHead>ACB-004 / lock supply</TableHead><TableHead>Separate isolated interface</TableHead><TableHead>F70/IPU36</TableHead></TableRow></TableHeader>
++        <TableBody>
++          <TableRow><TableCell>Maglock positive (+)</TableCell><TableCell>Assigned door-relay NC</TableCell><TableCell>—</TableCell><TableCell>—</TableCell></TableRow>
++          <TableRow><TableCell>Maglock negative (−)</TableCell><TableCell>Lock power supply negative</TableCell><TableCell>—</TableCell><TableCell>—</TableCell></TableRow>
++          <TableRow><TableCell>Lock supply positive (+12 V if rated)</TableCell><TableCell>Assigned door-relay COM, via the approved supply / emergency-release circuit</TableCell><TableCell>—</TableCell><TableCell>—</TableCell></TableRow>
++          <TableRow><TableCell>Gate trigger wire 1</TableCell><TableCell>No direct connection to the powered door-relay COM</TableCell><TableCell>Voltage-free contact COM</TableCell><TableCell>32 (COM)</TableCell></TableRow>
++          <TableRow><TableCell>Gate trigger wire 2</TableCell><TableCell>No direct connection to the powered door-relay NO</TableCell><TableCell>Voltage-free contact NO</TableCell><TableCell>34 (AP / opening)</TableCell></TableRow>
++        </TableBody>
++      </Table>
++
++      <h3>Unlock timing and return to secure operation</h3>
++      <p>The access-controller unlock period and the gate activation pulse are separate settings. A 3–5-second unlock period is a commissioning candidate only, not a confirmed site setting or a universal requirement for residual magnetism. Measure lock release, bracket clearance and gate travel, then set the local sequence so the lock releases before movement and re-energises at the appropriate point.</p>
++      <p>The Roger manual states that holding AP active prevents automatic reclosing; the reclose timer resumes when AP is released. Verify the intended hold-open and return-to-secure behaviour locally.</p>
++
++      <details>
++        <summary>Magic Keys Pi remote-open interface</summary>
++        <p>The Pi requests access through one isolated relay NO/COM contact across the verified ACB-004 door exit input P1–P4 and its matching GND. Each request pulses only its assigned channel for 300–800 ms. Never connect GPIO directly to the board.</p>
++        <p>This pulse does not determine the lock-release period or sequence the lock and motor. The service provides no close, hold-open, fire or lockdown command. Acknowledgement confirms only the pulse; it provides no live gate-position, lock-release or safety feedback.</p>
++      </details>
++
++      <h3>Commissioning and testing</h3>
++      <p>Testing will cover permissions and readers, operating schedules, hold-open and return to secure operation, remote commands, required gate-state feedback, emergency behaviour, safety functions and recovery after a power or communications failure. Required feedback must be independently verified; the open-only Pi path supplies none.</p>
++      <p>The manuals describe the contact functions. They do not verify the installed interface or certify the complete system; the installed configuration and local safety operation will be confirmed through commissioning.</p>
++      <p className="compass-source">References: supplied S4A ACB-00 wiring manual, ACB-004 diagram (PDF sheet 3); supplied software guide §§2.2, 2.5, 3.2.2 and 3.3.1; <a href="https://www.manualslib.com/manual/3373474/Roger-Technology-F70-Ipu36.html?page=23" target="_blank" rel="noreferrer">Roger F70/IPU36 installer manual, command terminals</a>.</p>
++    </section>
++  );
++}
+diff --git a/app/dashboard-client.tsx b/app/dashboard-client.tsx
+index c557df5..2a6a6d6 100644
+--- a/app/dashboard-client.tsx
++++ b/app/dashboard-client.tsx
+@@ -52,6 +52,8 @@ import {
+   Zap,
+ } from "lucide-react";
+ import { toast } from "sonner";
++import RemoteOpenPanel from "./remote-open-panel";
++import CompassWiringReference from "./compass-wiring-reference";
+ 
+ import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+ import { Badge } from "@/components/ui/badge";
+@@ -939,7 +941,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/",
+           {activeView === "access" && <>
+             <section className="identity-layout"><article className="identity-card"><div className="identity-card-head"><span><KeyRound /></span><div><h2>Signed-in operator</h2><small>Magic Keys server-verified identity</small></div></div><div className="identity-profile"><Avatar size="lg"><AvatarImage src="/operator-avatar.webp" alt="Operator profile" /><AvatarFallback>{initials(user.displayName)}</AvatarFallback><AvatarBadge /></Avatar><div><strong>{user.displayName}</strong><span>{user.email}</span></div><Badge><ShieldCheck /> Authenticated</Badge></div><div className="identity-rows"><div><span>Access role</span><strong>{isAdministrator ? "System administrator" : canOperate ? "Authorised operator" : "View-only operator"}</strong></div><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Session</span><strong>Signed, HTTP-only, 8-hour maximum</strong></div><div><span>Audit</span><strong>Commands and changes retained centrally</strong></div></div></article><article className="permissions-card"><div className="panel-heading"><div><h2>Operator permissions</h2><small>Current role</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> View physical gate feedback</span>{canOperate && <span><CheckCircle2 /> Queue authorised relay commands</span>}{canOperate && <span><CheckCircle2 /> Manage approved schedules</span>}{isAdministrator && <span><CheckCircle2 /> Issue emergency gate responses</span>}{isAdministrator && <span><CheckCircle2 /> Configure controllers and system policy</span>}<span><CheckCircle2 /> Review and export the audit trail</span></div><p>Gate-specific roles, a second emergency approver and school identity integration can be added before final production handover.</p></article></section>
+             <section className="authorised-user-directory"><div className="view-panel-heading"><div><h2>Authorised administrators</h2><small>Server-verified Google accounts · approved-email allowlist</small></div><Badge variant="outline"><Users /> Controlled access</Badge></div><div className="authorised-user-list"><article><Avatar><AvatarFallback>PS</AvatarFallback></Avatar><span><strong>Paul Sutton</strong><small>School administrator · Google email to be approved before access</small></span><Badge variant="outline">Approval required</Badge></article><article><Avatar><AvatarFallback>JA</AvatarFallback><AvatarBadge /></Avatar><span><strong>Jarrod Alebakis</strong><small>RJL system administrator · approved Google account</small></span><Badge variant="outline">Google verified</Badge></article></div><p><ShieldCheck /> Google signs the identity response, Magic Keys verifies it on the server, and access is granted only when the verified email is on the portal allowlist.</p></section>
+-            <section className="controller-commissioning"><div className="view-panel-heading"><div><h2>Compass relay integration commissioning</h2><small>Per-gate output mapping · the school’s existing Compass control system remains in place</small></div><Badge variant="outline"><Network /> {commissionedCount} commissioned · {credentialCount} issued</Badge></div>{controllerCredential && <div className="credential-issued" role="status"><ShieldCheck /><span><strong>{controllerCredential.gateId} interface credential ready</strong><small>Transfer it once to the approved Compass interface gateway. It will be removed from this screen after download.</small></span><Button onClick={downloadControllerCredential}><Download /> Download setup file</Button><Button variant="ghost" onClick={() => setControllerCredential(null)}>Close</Button></div>}<div className="controller-list">{gates.map((gate) => { const runtime = runtimeFor(gate); return <article key={gate.id}><span className={`controller-state-dot is-${runtime?.controllerState ?? "uncommissioned"}`} /><span><strong>{gate.name}</strong><small>{gate.id} · {runtime?.commissioned ? runtime.controllerState : runtime?.credentialIssued ? "interface credential issued · awaiting verified Compass output and position feedback" : "Compass relay output not mapped"}{runtime?.lastSeen ? ` · last contact ${activityTime(runtime.lastSeen)}` : ""}</small></span><span className="controller-safety">{runtime?.controllerState === "online" && runtime.safetyOk === true ? <><ShieldCheck /> Current safety healthy</> : runtime?.safetyOk === false ? <><AlertTriangle /> Safety fault</> : <><Radio /> No current safety feedback</>}</span><Button variant="outline" disabled={!isAdministrator || busyAction === `provision-${gate.id}`} onClick={() => provisionController(gate.id)}>{busyAction === `provision-${gate.id}` ? "Issuing…" : runtime?.credentialIssued ? "Rotate credential" : "Issue credential"}</Button></article>; })}</div><p className="module-disclaimer">Magic Keys will integrate with the existing Compass system and use its approved relay outputs. Each output, pulse mode, interlock, safety input and physical position signal must be mapped and witnessed onsite before commands are enabled.</p></section>
++            <section className="controller-commissioning"><div className="view-panel-heading"><div><h2>Separate controller commissioning</h2><small>Sensor-equipped controller path · separate from the ACB-004 open-only trigger</small></div><Badge variant="outline"><Network /> {commissionedCount} commissioned · {credentialCount} issued</Badge></div>{controllerCredential && <div className="credential-issued" role="status"><ShieldCheck /><span><strong>{controllerCredential.gateId} interface credential ready</strong><small>Transfer it once to the approved Compass interface gateway. It will be removed from this screen after download.</small></span><Button onClick={downloadControllerCredential}><Download /> Download setup file</Button><Button variant="ghost" onClick={() => setControllerCredential(null)}>Close</Button></div>}<div className="controller-list">{gates.map((gate) => { const runtime = runtimeFor(gate); return <article key={gate.id}><span className={`controller-state-dot is-${runtime?.controllerState ?? "uncommissioned"}`} /><span><strong>{gate.name}</strong><small>{gate.id} · {runtime?.commissioned ? runtime.controllerState : runtime?.credentialIssued ? "interface credential issued · awaiting verified Compass output and position feedback" : "Compass relay output not mapped"}{runtime?.lastSeen ? ` · last contact ${activityTime(runtime.lastSeen)}` : ""}</small></span><span className="controller-safety">{runtime?.controllerState === "online" && runtime.safetyOk === true ? <><ShieldCheck /> Current safety healthy</> : runtime?.safetyOk === false ? <><AlertTriangle /> Safety fault</> : <><Radio /> No current safety feedback</>}</span><Button variant="outline" disabled={!isAdministrator || busyAction === `provision-${gate.id}`} onClick={() => provisionController(gate.id)}>{busyAction === `provision-${gate.id}` ? "Issuing…" : runtime?.credentialIssued ? "Rotate credential" : "Issue credential"}</Button></article>; })}</div><p className="module-disclaimer">The existing Compass ACB-004 open-only trigger is configured separately and supplies no sensor feedback. This controller list is for the separate sensor-equipped OPEN/CLOSE agent; it must not be used to infer ACB-004 position or commissioning status.</p></section>
+           </>}
+ 
+           {activeView === "activity" && <section className="activity-panel"><div className="view-panel-heading"><div><h2>Permanent activity record</h2><small>Operator requests, settings and controller acknowledgements</small></div><div className="activity-heading-actions"><Badge variant="outline"><UserRound /> {user.displayName}</Badge><Button variant="outline" disabled={!activity.length} onClick={exportActivity}><Download /> Export CSV</Button></div></div>{activity.length === 0 ? <div className="activity-empty"><Activity /><h3>No activity recorded yet</h3><p>Authorised commands, controller acknowledgements, automation changes and schedule saves will appear here.</p></div> : <div className="activity-list">{activity.map((record) => <article key={record.id}><span className="activity-record-icon"><Activity /></span><div><strong>{record.action}</strong><p>{record.detail}</p><small>{record.actorName} · {record.category}</small></div><time>{activityTime(record.createdAt)}</time></article>)}</div>}</section>}
+@@ -1017,8 +1019,9 @@ export default function DashboardClient({ user, initialData, signOutHref = "/",
+           {activeView === "settings" && (
+             <>
+               <section className="plan-summary"><div><span>Current plan</span><h2>{plan?.name ?? "Gate Operations"}</h2><p>{advancedFeaturesEnabled ? "Advanced features included. Connected equipment requires commissioning." : "CCTV, PTZ tracking, emergency guidance and projector broadcasts require an upgrade."}</p></div>{!advancedFeaturesEnabled && <Button onClick={() => setUpgradeOpen(true)}><LockKeyhole /> Upgrade plan <ChevronRight /></Button>}</section>
++              <CompassWiringReference />
+               <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Monitoring</h2><small>Persistent system behaviour · administrator only</small></div><Gauge /></div><label><span><strong>Gate-position monitoring</strong><small>Display independent open and closed inputs</small></span><Switch checked={positionMonitoring} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ positionMonitoring: value }, "setting-position")} /></label><label><span><strong>Fault and offline alerts</strong><small>Highlight controllers that stop reporting</small></span><Switch checked={faultAlerts} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ faultAlerts: value }, "setting-faults")} /></label><label><span><strong>Australian English announcements</strong><small>{voiceStatus}</small></span><Switch checked={voiceAnnouncements} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ voiceAnnouncements: value }, "setting-voice")} /></label></article><article className="settings-card"><div className="panel-heading"><div><h2>Magic Keys</h2><small>System information</small></div><Power /></div><div className="setting-info"><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Access points</span><strong>17</strong></div><div><span>Portal</span><strong className="online-text"><i /> Secure service online</strong></div><div><span>Controllers</span><strong>{onlineCount} online · {commissionedCount} commissioned · {credentialCount} credentials</strong></div><div><span>Position feedback</span><strong>{17 - unknownCount} of 17 confirmed</strong></div><div><span>Emergency integration</span><strong>Not complete until school-approved commissioning</strong></div></div></article></section>
+-              <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Compass integration</h2><small>Existing school control system · retained</small></div><Network /></div><div className="setting-info"><div><span>Control platform</span><strong>Compass</strong></div><div><span>Interface method</span><strong>Approved Compass relay outputs</strong></div><div><span>Output mapping</span><strong>Awaiting onsite schedule and terminal verification</strong></div><div><span>Command policy</span><strong>Blocked until each output is commissioned</strong></div></div></article><article className="settings-card"><div className="panel-heading"><div><h2>Integration safeguards</h2><small>Required before live relay control</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> Document each Compass output and served gate</span><span><CheckCircle2 /> Verify NO/NC state and pulse or maintained mode</span><span><CheckCircle2 /> Retain local gate safety and manual controls</span><span><CheckCircle2 /> Confirm independent open and closed feedback</span><span><CheckCircle2 /> Witness normal, fire and lockdown scenarios</span></div></article></section>
++              <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Compass ACB-004 integration</h2><small>Existing school control system · retained</small></div><Network /></div><div className="setting-info"><div><span>Control platform</span><strong>Existing Compass ACB-004 · four doors</strong></div><div><span>Interface method</span><strong>Pi isolated relay · open-only trigger</strong></div><div><span>ACB-004 feedback</span><strong>No live position or safety feedback</strong></div><div><span>Output mapping</span><strong>Awaiting onsite schedule and terminal verification</strong></div><div><span>Command policy</span><strong>Blocked until each output is commissioned</strong></div></div></article><article className="settings-card"><div className="panel-heading"><div><h2>Integration safeguards</h2><small>Required before live relay control</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> Document each Compass output and served gate</span><span><CheckCircle2 /> Verify NO/NC state and pulse or maintained mode</span><span><CheckCircle2 /> Retain local gate safety and manual controls</span><span><CheckCircle2 /> Confirm independent open and closed feedback</span><span><CheckCircle2 /> Witness normal, fire and lockdown scenarios</span></div></article></section>
+               <section className="module-marketplace">
+                 <div className="module-heading"><div><h2>Platform modules</h2><p>Add capabilities as the school’s operational requirements expand.</p></div><Badge variant="outline">{enabledModules.size} of {platformModules.length} configured</Badge></div>
+                 <div className="module-list">{platformModules.map((module) => { const Icon = module.icon; const locked = module.key === "video" && !advancedFeaturesEnabled; const enabled = !locked && enabledModules.has(module.key); return <article className={`module-row ${enabled ? "is-enabled" : ""}`} key={module.key}><span className="module-icon"><Icon /></span><div><strong>{module.name}</strong><p>{module.description}</p></div><span className="module-status"><i />{module.core ? "Core service" : locked ? "Upgrade required" : enabled ? "Enabled in portal" : "Available"}</span><Button variant={enabled ? "outline" : "default"} disabled={!isAdministrator || Boolean(module.core) || busyAction === `module-${module.key}`} onClick={() => toggleModule(module)}>{locked ? <><LockKeyhole /> Upgrade plan</> : module.core ? "Active" : enabled ? "Disable" : "Enable"}</Button></article>; })}</div>
+@@ -1053,7 +1056,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/",
+             const status = gateStatus(selectedGate);
+             const commandInFlight = ["queued", "dispatched"].includes(runtime?.lastCommandState ?? "idle");
+             const canControl = canOperate && systemMode === "normal" && runtime?.controllerState === "online" && runtime.safetyOk === true && !commandInFlight && !busyAction;
+-            return <><SheetHeader className="gate-sheet-header"><SheetTitle>{selectedGate.name}</SheetTitle><SheetDescription>{selectedGate.type}</SheetDescription><span className="sheet-overline">{selectedGate.area} · {selectedGate.id}</span></SheetHeader><Tabs defaultValue="control" className="gate-tabs"><TabsList variant="line" className="gate-tabs-list"><TabsTrigger value="control">Control</TabsTrigger><TabsTrigger value="schedule">Schedule</TabsTrigger><TabsTrigger value="details">Details</TabsTrigger></TabsList><TabsContent value="control" className="sheet-tab-content"><div className="sheet-gate-visual"><GateIcon gate={selectedGate} position={getPosition(selectedGate)} /><strong>{positionMonitoring ? status.label : "Position monitoring paused"}</strong><span>{positionMonitoring ? status.detail : "Physical feedback is hidden by the current portal setting."}</span></div><div className="command-packet-path" aria-label="Gate command packet path"><span><strong>1 · Portal</strong><small>Authorised request stored</small></span><ChevronRight /><span><strong>2 · Controller</strong><small>Encrypted poll retrieves packet</small></span><ChevronRight /><span><strong>3 · Relay</strong><small>Local safety permits pulse</small></span><ChevronRight /><span><strong>4 · Feedback</strong><small>Limit input confirms result</small></span></div><div className="command-packet-state"><Network /><span><strong>{runtime?.lastCommandId ? `Packet #${runtime.lastCommandId} · ${runtime.lastCommandState}` : "No command packet issued"}</strong><small>{runtime?.lastCommandId ? runtime.lastError || "Physical result remains separate from the requested direction." : "Opening this screen or reviewing a command does not signal the gate."}</small></span></div>{!canControl && <p className="control-blocked-note"><AlertTriangle /> {systemMode !== "normal" ? "Manual controls are blocked by emergency priority." : !canOperate ? "Your current role is view-only and cannot issue relay commands." : commandInFlight ? "A command packet is already awaiting controller or physical confirmation." : !runtime?.commissioned ? "Issue this controller's credential and complete onsite commissioning first." : runtime?.safetyOk !== true ? "Relay commands are blocked until the local safety circuit reports healthy." : "Relay commands are blocked while the controller is offline."}</p>}<div className="sheet-actions"><Button className="open-gate-command" onClick={() => setPendingGateCommand({ gate: selectedGate, position: "open" })} disabled={!canControl}><UnlockKeyhole /> Review open command</Button><Button variant="outline" onClick={() => setPendingGateCommand({ gate: selectedGate, position: "closed" })} disabled={!canControl}><LockKeyhole /> Review close command</Button></div></TabsContent><TabsContent value="schedule" className="sheet-tab-content"><div className="sheet-schedule-summary"><CalendarDays /><h3>Weekly operating schedule</h3><p>{Object.values(schedules[selectedGate.id]).filter((plan) => plan.enabled).length} scheduled days are enabled. Controller-side schedule execution stays disabled until commissioning sign-off.</p><Button onClick={() => { setSelectedScheduleGateId(selectedGate.id); setSelectedGate(null); setActiveView("schedule"); }}>Edit full schedule <ChevronRight /></Button></div></TabsContent><TabsContent value="details" className="sheet-tab-content"><div className="identity-rows"><div><span>Asset ID</span><strong>{selectedGate.id}</strong></div><div><span>Controlled area</span><strong>{selectedGate.area}</strong></div><div><span>Gate type</span><strong>{selectedGate.type}</strong></div><div><span>Controller</span><strong>{runtime?.controllerState ?? "uncommissioned"}</strong></div><div><span>Safety input</span><strong>{runtime?.safetyOk === true ? "Healthy" : runtime?.safetyOk === false ? "Fault / blocked" : "No feedback"}</strong></div><div><span>Last physical contact</span><strong>{runtime?.lastSeen ? activityTime(runtime.lastSeen) : "Never"}</strong></div><div><span>Last command packet</span><strong>{runtime?.lastCommandId ? `#${runtime.lastCommandId} · ${runtime.lastCommandState}` : "None issued"}</strong></div></div></TabsContent></Tabs></>;
++            return <><SheetHeader className="gate-sheet-header"><SheetTitle>{selectedGate.name}</SheetTitle><SheetDescription>{selectedGate.type}</SheetDescription><span className="sheet-overline">{selectedGate.area} · {selectedGate.id}</span></SheetHeader><Tabs defaultValue="control" className="gate-tabs"><TabsList variant="line" className="gate-tabs-list"><TabsTrigger value="control">Control</TabsTrigger><TabsTrigger value="schedule">Schedule</TabsTrigger><TabsTrigger value="details">Details</TabsTrigger></TabsList><TabsContent value="control" className="sheet-tab-content"><div className="sheet-gate-visual"><GateIcon gate={selectedGate} position={getPosition(selectedGate)} /><strong>{positionMonitoring ? status.label : "Position monitoring paused"}</strong><span>{positionMonitoring ? status.detail : "Physical feedback is hidden by the current portal setting."}</span></div><div className="command-packet-path" aria-label="Gate command packet path"><span><strong>1 · Portal</strong><small>Authorised request stored</small></span><ChevronRight /><span><strong>2 · Controller</strong><small>Encrypted poll retrieves packet</small></span><ChevronRight /><span><strong>3 · Relay</strong><small>Local safety permits pulse</small></span><ChevronRight /><span><strong>4 · Feedback</strong><small>Limit input confirms result</small></span></div><div className="command-packet-state"><Network /><span><strong>{runtime?.lastCommandId ? `Packet #${runtime.lastCommandId} · ${runtime.lastCommandState}` : "No command packet issued"}</strong><small>{runtime?.lastCommandId ? runtime.lastError || "Physical result remains separate from the requested direction." : "Opening this screen or reviewing a command does not signal the gate."}</small></span></div>{!canControl && <p className="control-blocked-note"><AlertTriangle /> {systemMode !== "normal" ? "Manual controls are blocked by emergency priority." : !canOperate ? "Your current role is view-only and cannot issue relay commands." : commandInFlight ? "A command packet is already awaiting controller or physical confirmation." : !runtime?.commissioned ? "Issue this controller's credential and complete onsite commissioning first." : runtime?.safetyOk !== true ? "Relay commands are blocked until the local safety circuit reports healthy." : "Relay commands are blocked while the controller is offline."}</p>}<div className="sheet-actions"><Button className="open-gate-command" onClick={() => setPendingGateCommand({ gate: selectedGate, position: "open" })} disabled={!canControl}><UnlockKeyhole /> Review open command</Button><Button variant="outline" onClick={() => setPendingGateCommand({ gate: selectedGate, position: "closed" })} disabled={!canControl}><LockKeyhole /> Review close command</Button></div><RemoteOpenPanel key={selectedGate.id} endpoint="/api/doors/open" gateId={selectedGate.id} allowed={canOperate && systemMode === "normal"} /></TabsContent><TabsContent value="schedule" className="sheet-tab-content"><div className="sheet-schedule-summary"><CalendarDays /><h3>Weekly operating schedule</h3><p>{Object.values(schedules[selectedGate.id]).filter((plan) => plan.enabled).length} scheduled days are enabled. Controller-side schedule execution stays disabled until commissioning sign-off.</p><Button onClick={() => { setSelectedScheduleGateId(selectedGate.id); setSelectedGate(null); setActiveView("schedule"); }}>Edit full schedule <ChevronRight /></Button></div></TabsContent><TabsContent value="details" className="sheet-tab-content"><div className="identity-rows"><div><span>Asset ID</span><strong>{selectedGate.id}</strong></div><div><span>Controlled area</span><strong>{selectedGate.area}</strong></div><div><span>Gate type</span><strong>{selectedGate.type}</strong></div><div><span>Controller</span><strong>{runtime?.controllerState ?? "uncommissioned"}</strong></div><div><span>Safety input</span><strong>{runtime?.safetyOk === true ? "Healthy" : runtime?.safetyOk === false ? "Fault / blocked" : "No feedback"}</strong></div><div><span>Last physical contact</span><strong>{runtime?.lastSeen ? activityTime(runtime.lastSeen) : "Never"}</strong></div><div><span>Last command packet</span><strong>{runtime?.lastCommandId ? `#${runtime.lastCommandId} · ${runtime.lastCommandState}` : "None issued"}</strong></div></div></TabsContent></Tabs></>;
+           })()}
+         </SheetContent>
+       </Sheet>
+diff --git a/app/globals.css b/app/globals.css
+index 681c2f8..a3c7385 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -1833,3 +1833,30 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
+   .plan-upgrade-sheet { padding: 20px; }
+   .plan-upgrade-sheet [data-slot='button'] { white-space: normal; height: auto; padding: 12px; }
+ }
++
++
++/* Open-only ACB-004 trigger; separate from position feedback and demo state. */
++.remote-open-panel { display: grid; gap: .85rem; margin-top: 1.5rem; padding: 1.1rem; border: 1px solid var(--border, #d1d5db); border-radius: .8rem; text-align: left; }
++.remote-open-panel h3 { font-size: 1rem; font-weight: 700; }
++.remote-open-panel p { font-size: 1rem; line-height: 1.5; overflow-wrap: anywhere; }
++.remote-open-panel small, .remote-open-panel label { font-size: .875rem; line-height: 1.5; }
++.remote-open-panel label { display: grid; gap: .4rem; }
++.remote-open-panel button { white-space: normal; height: auto; min-height: 2.5rem; }
++
++.compass-wiring-reference { margin-bottom: 1.25rem; }
++.compass-wiring-reference h3 { margin: 1.5rem 0 .6rem; font-size: 1.125rem; line-height: 1.4; font-weight: 600; }
++.compass-wiring-reference p { font-size: 1rem; line-height: 1.6; margin: .8rem 0; }
++.compass-wiring-reference ul { padding-left: 1.25rem; list-style: disc; }
++.compass-wiring-reference li { margin: .6rem 0; font-size: 1rem; line-height: 1.6; }
++.compass-wiring-isolation { padding: 1rem 1.25rem; margin: 1rem 0; border-left: 3px solid #1367aa; background: #edf5fe; color: #173d57; }
++.compass-wiring-isolation > strong { font-size: 1rem; }
++.compass-wiring-isolation p { margin-bottom: 0; }
++.compass-wiring-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
++.compass-wiring-steps > section { min-width: 0; }
++.compass-wiring-reference summary { cursor: pointer; font-weight: 600; font-size: 1rem; padding: .7rem 0; }
++.compass-wiring-reference td, .compass-wiring-reference th { white-space: normal; vertical-align: top; min-width: 10rem; font-size: .875rem; line-height: 1.5; }
++.compass-wiring-reference .compass-source { font-size: .875rem; }
++@media (max-width: 900px) {
++  .compass-wiring-steps { grid-template-columns: 1fr; gap: 0; }
++}
++.compass-source a { text-decoration: underline; }
+diff --git a/app/remote-open-panel.tsx b/app/remote-open-panel.tsx
+new file mode 100644
+index 0000000..b007e15
+--- /dev/null
++++ b/app/remote-open-panel.tsx
+@@ -0,0 +1,58 @@
++"use client";
++
++import { useEffect, useRef, useState } from "react";
++import { UnlockKeyhole } from "lucide-react";
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
++import { loadRemoteOpenConfig, requestRemoteOpen, type RemoteOpenConfig } from "@/lib/remote-open-client";
++
++export default function RemoteOpenPanel({ endpoint, gateId, allowed = true, demo = false }: { endpoint: string; gateId: string; allowed?: boolean; demo?: boolean }) {
++  const [config, setConfig] = useState<RemoteOpenConfig | null>(null);
++  const [operatorToken, setOperatorToken] = useState("");
++  const [confirm, setConfirm] = useState(false);
++  const [busy, setBusy] = useState(false);
++  const [message, setMessage] = useState("");
++  const running = useRef(false);
++  useEffect(() => {
++    let active = true;
++    loadRemoteOpenConfig(endpoint).then((value) => { if (active) setConfig(value); }).catch(() => { if (active) setMessage("Remote open unavailable. Contact the administrator."); });
++    return () => { active = false; };
++  }, [endpoint]);
++  useEffect(() => { setMessage(""); setConfirm(false); setOperatorToken(""); }, [gateId]);
++  if (config?.configured === false || (!config && !message)) return null;
++  const door = config?.gateMap?.[gateId];
++
++  async function open() {
++    if (running.current || !door || !allowed) return;
++    running.current = true;
++    setBusy(true);
++    setMessage("");
++    setConfirm(false);
++    try {
++      const result = await requestRemoteOpen(endpoint, gateId, operatorToken);
++      setMessage(result.status === "dry_run" ? `Dry run recorded for door ${result.door}. No hardware was operated.` : `Door ${result.door}: ${result.pulseMs} ms relay pulse acknowledged. Physical position is unknown.`);
++    } catch (error) {
++      setMessage(error instanceof Error ? error.message : "Pulse outcome unknown. Inspect locally before retrying.");
++    } finally {
++      running.current = false;
++      setBusy(false);
++      setOperatorToken("");
++    }
++  }
++
++  return <section className="remote-open-panel" aria-label="Compass ACB-004 remote open">
++    <h3>Remote open · Compass ACB-004</h3>
++    <p>{demo ? "The controls above are simulated. " : ""}This sends one open-only relay pulse to the existing board. It provides no position or safety feedback.</p>
++    {door ? <>
++      <small>{gateId} · Door {door} · Physical position unknown</small>
++      {config?.operatorTokenRequired && <label>Remote-open operator token<Input type="password" autoComplete="off" value={operatorToken} onChange={(event) => setOperatorToken(event.target.value)} placeholder="Enter your separate operator token" disabled={busy} /></label>}
++      <Button className="open-gate-command" disabled={!allowed || busy || (!!config?.operatorTokenRequired && operatorToken.length < 32)} onClick={() => setConfirm(true)}><UnlockKeyhole /> {busy ? "Sending pulse…" : "Review remote open"}</Button>
++      {!allowed && <p>Remote open is unavailable under the current operator permissions or emergency priority.</p>}
++    </> : config?.configured && <p>No verified ACB-004 channel is assigned to this gate.</p>}
++    {message && <p role="status">{message}</p>}
++    <AlertDialog open={confirm} onOpenChange={setConfirm}>
++      <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Send open pulse to door {door}?</AlertDialogTitle><AlertDialogDescription>Confirm the gate area is supervised and clear. This is a one-way request through the existing Compass ACB-004. Local safety controls remain in charge. A relay acknowledgement cannot confirm that the door opened.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction disabled={!allowed || busy} onClick={() => void open()}>Send open pulse</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
++    </AlertDialog>
++  </section>;
++}
+diff --git a/lib/door-open-gateway.ts b/lib/door-open-gateway.ts
+new file mode 100644
+index 0000000..4aa7644
+--- /dev/null
++++ b/lib/door-open-gateway.ts
+@@ -0,0 +1,80 @@
++/** Server-only bridge to the Pi HTTP service. Never import this into a client component. */
++type EnvironmentReader = (key: string) => string | undefined;
++type GatewayOptions = {
++  readEnv: EnvironmentReader;
++  authorize: (request: Request) => Promise<Response | null>;
++  operatorTokenRequired?: boolean;
++  fetcher?: typeof fetch;
++  log?: (event: Record<string, unknown>) => void;
++};
++
++export function readDoorConfiguration(read: EnvironmentReader) {
++  const url = read("DOOR_SERVICE_URL")?.trim() ?? "";
++  const token = read("DOOR_SERVICE_TOKEN") ?? "";
++  const rawMap = read("DOOR_GATE_MAP")?.trim() ?? "";
++  if (!url && !token && !rawMap) return null;
++  const base = new URL(url);
++  if (base.protocol !== "https:" || base.username || base.password || base.search || base.hash || base.pathname !== "/") {
++    throw new Error("Configure an HTTPS service origin without credentials, path, query or fragment");
++  }
++  if (!/^[\x21-\x7e]{32,}$/.test(token)) throw new Error("Configure the private Pi token");
++  const gateMap = JSON.parse(rawMap) as Record<string, number>;
++  if (!gateMap || Array.isArray(gateMap) || typeof gateMap !== "object") throw new Error("Invalid door mapping");
++  const entries = Object.entries(gateMap);
++  if (entries.length < 1 || entries.length > 4 || new Set(entries.map(([, door]) => door)).size !== entries.length ||
++      entries.some(([gate, door]) => !/^(TF-(ENTRY|EXIT)|SCP-B(0[1-9]|1[0-2])|FRONT-DG0[1-3])$/.test(gate) || !Number.isInteger(door) || door < 1 || door > 4)) {
++    throw new Error("Map one to four distinct verified gates to unique door numbers 1..4");
++  }
++  return { origin: base.origin, token, gateMap };
++}
++
++const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
++
++export async function handleDoorRequest(request: Request, options: GatewayOptions): Promise<Response> {
++  if (!["GET", "POST"].includes(request.method)) return json({ error: "Method not allowed" }, 405);
++  if (request.method === "POST" && (new URL(request.url).protocol !== "https:" || request.headers.get("Origin") !== new URL(request.url).origin || ["cross-site", "same-site", "none"].includes(request.headers.get("Sec-Fetch-Site") ?? ""))) {
++    return json({ error: "Request rejected" }, 403);
++  }
++  const denied = await options.authorize(request);
++  if (denied) return denied;
++  let config;
++  try { config = readDoorConfiguration(options.readEnv); }
++  catch { return json({ error: "Remote open configuration is incomplete; contact the administrator" }, 503); }
++  if (request.method === "GET") {
++    return json(config ? { configured: true, gateMap: config.gateMap, operatorTokenRequired: options.operatorTokenRequired === true, sensorFeedback: false } : { configured: false });
++  }
++  if (!config) return json({ error: "Remote open is not configured" }, 503);
++  const requestId = request.headers.get("Idempotency-Key") ?? "";
++  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(requestId)) return json({ error: "A request ID is required" }, 400);
++  let gateId: string;
++  try {
++    if (Number(request.headers.get("Content-Length")) > 1024) throw new Error();
++    const text = await request.text();
++    if (text.length > 1024) throw new Error();
++    const body = JSON.parse(text);
++    if (!body || Object.keys(body).length !== 1 || typeof body.gateId !== "string") throw new Error();
++    gateId = body.gateId;
++  } catch { return json({ error: "Supply a gateId only" }, 400); }
++  if (!Object.hasOwn(config.gateMap, gateId)) return json({ error: "No verified door channel is assigned to this gate" }, 400);
++  const door = config.gateMap[gateId];
++  const log = options.log ?? ((event) => console.info("remote_open", event));
++  log({ event: "requested", gateId, door, requestId });
++  try {
++    // One HTTP request, no redirects and no automatic retry. A timeout may follow a physical pulse.
++    const response = await (options.fetcher ?? fetch)(`${config.origin}/doors/${door}/open`, {
++      method: "POST", redirect: "error", signal: AbortSignal.timeout(5000),
++      headers: { Authorization: `Bearer ${config.token}`, "Idempotency-Key": requestId },
++    });
++    if (!response.ok) {
++      log({ event: "rejected_or_uncertain", gateId, door, requestId, status: response.status });
++      return json({ error: "Remote open was rejected or its outcome is unknown. Inspect locally before another request", requestId }, response.status === 409 ? 409 : 502);
++    }
++    const result = await response.json();
++    if (!["pulsed", "dry_run"].includes(result.status) || result.door !== door || result.position !== "unknown" || result.sensor_feedback !== false || result.request_id !== requestId || !Number.isInteger(result.pulse_ms) || result.pulse_ms < 300 || result.pulse_ms > 800) throw new Error("Invalid pulse acknowledgement");
++    log({ event: result.status, gateId, door, requestId });
++    return json({ status: result.status, door, pulseMs: result.pulse_ms, position: "unknown", sensorFeedback: false, requestId, replayed: result.replayed === true });
++  } catch {
++    log({ event: "outcome_unknown", gateId, door, requestId });
++    return json({ error: "No verified pulse acknowledgement. The door may have received the trigger; inspect locally before retrying", requestId }, 502);
++  }
++}
+diff --git a/lib/remote-open-client.ts b/lib/remote-open-client.ts
+new file mode 100644
+index 0000000..802e1ef
+--- /dev/null
++++ b/lib/remote-open-client.ts
+@@ -0,0 +1,32 @@
++export type RemoteOpenConfig = { configured: boolean; gateMap?: Record<string, number>; operatorTokenRequired?: boolean };
++export type RemoteOpenResult = { status: "pulsed" | "dry_run"; door: number; pulseMs: number; position: "unknown"; sensorFeedback: false; requestId: string };
++
++function localEndpoint(endpoint: string) {
++  if (!/^\/(?!\/)[a-zA-Z0-9_/.\-]+$/.test(endpoint)) throw new Error("Remote open requires a same-origin endpoint");
++  return endpoint;
++}
++
++export async function loadRemoteOpenConfig(endpoint: string, fetcher: typeof fetch = fetch): Promise<RemoteOpenConfig> {
++  const response = await fetcher(localEndpoint(endpoint), { cache: "no-store", credentials: "same-origin" });
++  // The older static demo has no gateway in ordinary local preview.
++  if (response.status === 404) return { configured: false };
++  if (!response.ok) throw new Error("Remote open configuration is unavailable");
++  const result = await response.json();
++  if (result.configured === false) return { configured: false };
++  if (result.configured !== true || !result.gateMap || typeof result.gateMap !== "object" || Array.isArray(result.gateMap)) throw new Error("Invalid remote open configuration");
++  return result;
++}
++
++export async function requestRemoteOpen(endpoint: string, gateId: string, operatorToken = "", fetcher: typeof fetch = fetch): Promise<RemoteOpenResult> {
++  const requestId = crypto.randomUUID();
++  const target = localEndpoint(endpoint);
++  const response = await fetcher(target, {
++    method: "POST", credentials: "same-origin", redirect: "error", signal: AbortSignal.timeout(8000),
++    headers: { "Content-Type": "application/json", "Idempotency-Key": requestId, ...(operatorToken ? { Authorization: `Bearer ${operatorToken}` } : {}) },
++    body: JSON.stringify({ gateId }),
++  }).catch(() => { throw new Error("Pulse outcome unknown after a connection failure. Inspect locally before retrying"); });
++  const result = await response.json().catch(() => { throw new Error("Pulse acknowledgement could not be read. Inspect locally before retrying"); });
++  if (!response.ok) throw new Error(result.error || "Pulse outcome unknown; inspect locally before retrying");
++  if (!["pulsed", "dry_run"].includes(result.status) || result.position !== "unknown" || result.sensorFeedback !== false || result.requestId !== requestId) throw new Error("Pulse acknowledgement could not be verified; inspect locally");
++  return result;
++}
+diff --git a/package.json b/package.json
+index 008e6d5..7290cd7 100644
+--- a/package.json
++++ b/package.json
+@@ -12,9 +12,10 @@
+     "build:netlify": "NETLIFY=true next build",
+     "build:netlify:static": "NETLIFY=true NETLIFY_STATIC=true next build",
+     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
+-    "test": "npm run build && node --test tests/*.test.mjs && python3 -m unittest discover -s controller-agent/tests -p 'test_*.py'",
++    "test": "npm run build && node --test tests/*.test.mjs && python3 -m unittest discover -s controller-agent/tests -p 'test_*.py' && python3 -m unittest discover -s pi-door-service/tests -v",
+     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
+-    "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
++    "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
++    "test:doors": "node --test tests/remote-open.test.mjs && python3 -m unittest discover -s pi-door-service/tests -v"
+   },
+   "dependencies": {
+     "@base-ui/react": "^1.7.0",
+diff --git a/pi-door-service/README.md b/pi-door-service/README.md
+new file mode 100644
+index 0000000..f6dc47c
+--- /dev/null
++++ b/pi-door-service/README.md
+@@ -0,0 +1,134 @@
++# Compass ACB-004 open-only relay service
++
++The existing Compass ACB-004 is a four-door access controller. This Python 3.10+
++service drives an isolated Pi relay contact for an assigned request-to-exit
++input. It does not speak the ACB-004 TCP/IP protocol, read cards, change its
++database, or provide door/lock/safety feedback. One channel corresponds to one
++of the board's four door inputs; a single board is not a mapping of all 17 gates.
++
++## HTTP contract
++
++`POST /doors/1/open` through `POST /doors/4/open`, with:
++
++- `Authorization: Bearer <DOOR_API_TOKEN>` (a random, private token).
++- `Idempotency-Key: <canonical UUID>` (a fresh key for a deliberate new request).
++- An empty body. Pins, duration, and polarity cannot be changed by a request.
++
++There are no close, hold-open, toggle, bulk, sensor or emergency endpoints.
++Successful responses have `status: pulsed` in hardware mode or `status: dry_run`
++in mock/dry-run mode, plus `door`, `pulse_ms`, `request_id`, `position: unknown`
++and `sensor_feedback: false`. A pulse acknowledgement is not proof of movement.
++
++401 rejects unauthorised calls; 400 rejects malformed requests; 404 rejects
++unsupported paths/doors; 405 rejects unsupported methods; 409 rejects concurrent
++or ambiguous/reused requests; 503 reports local faults. No request is queued or
++automatically retried. On a timeout the physical outcome may be unknown: inspect
++locally before a new request. Reusing a completed key returns the original
++acknowledgement without pulsing; the same key for a different door is rejected.
++
++The SQLite journal is committed before energising a relay. A request interrupted
++by a restart stays reserved and cannot replay. Preserve this journal during
++upgrades; deleting it removes duplicate protection. Logs contain request IDs,
++door numbers, modes and outcomes, never tokens. Only one pulse runs at a time.
++GPIO exceptions latch a fault until an operator investigates and restarts.
++
++## Dry run on a development machine
++
++No third-party Python packages or GPIO hardware are needed for mock mode.
++
++```bash
++cd pi-door-service
++export DOOR_API_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
++export DOOR_MODE=mock
++python3 door_service.py
++```
++
++The service binds to `127.0.0.1:8080` by default. From another terminal with the
++same token securely loaded:
++
++```bash
++curl --fail-with-body -X POST http://127.0.0.1:8080/doors/1/open \
++  -H "Authorization: Bearer $DOOR_API_TOKEN" \
++  -H "Idempotency-Key: $(python3 -c 'import uuid; print(uuid.uuid4())')"
++```
++
++`DOOR_MODE=dry-run` is equivalent to mock mode. Neither imports `lgpio` or touches
++physical GPIO. Example pins 17,27,22,23 are mock examples, not an onsite pin map.
++
++## Pi installation
++
++1. Verify the relay module accepts the Pi's 3.3 V logic, its isolation and active
++   polarity. Use voltage-free contacts on the board side. Never wire GPIO to an
++   ACB terminal, a maglock, mains or a motor input directly.
++2. Install the Raspberry Pi OS `python3-lgpio` package. Create an unprivileged
++   `compass-door` service account with access to the `gpio` group. Install
++   `door_service.py` in `/opt/compass-door-open/`.
++3. Copy `config.example` to `/etc/compass-door-open.env`, owned by root with mode
++   600. Replace the placeholder token. Start with `DOOR_MODE=mock`.
++4. Install `compass-door-open.service` in `/etc/systemd/system/`, then run
++   `sudo systemctl daemon-reload` and `sudo systemctl enable --now compass-door-open`.
++   Inspect logs with `sudo journalctl -u compass-door-open`.
++5. Record the verified four BCM pins in door 1,2,3,4 order as `DOOR_GPIO_PINS`.
++   Each pin must be distinct. Explicitly set `DOOR_ACTIVE_LOW=true` or `false`
++   and the correct `DOOR_GPIO_CHIP`. Confirm the hardware starts with all relays
++   inactive. Only after commissioning, select `DOOR_MODE=hardware` and restart.
++
++`DOOR_PULSE_MS` is a fixed integer from 300 through 800 (default 500). It is a
++request pulse, not a lock-release timer. Linux scheduling is not a hard real-time
++guarantee; verify measured pulse length and fail-off behaviour on the installed
++relay hardware. Software cannot guarantee contact release after a welded relay,
++power fault, forced process kill or hardware failure.
++
++Place the loopback HTTP service behind the school's approved TLS gateway or
++reverse proxy for access from the hosted portal. `DOOR_SERVICE_URL` must be a
++reachable HTTPS origin. A cloud-hosted portal cannot reach a private Pi IP just
++because it is entered in an environment variable. Keep tokens out of URLs,
++client bundles and proxy/access logs. Do not expose an unauthenticated Pi port.
++
++## Maglock and Roger F70/IPU36 interface
++
++The supplied ACB-004 diagram shows door exit inputs P1–P4/GND and per-door
++COM/NO/NC lock contacts. Have the installer confirm labels and current usage
++onsite. The intended Pi path is one isolated normally-open contact across the
++assigned ACB request-to-exit input and its matching ground; existing local
++access-control logic handles the release.
++
++| Circuit | Connection | Isolation / timing requirement |
++| --- | --- | --- |
++| Lock supply positive | Dedicated lock PSU positive to ACB door-relay COM | Voltage must match the maglock nameplate; check contact/current ratings |
++| Maglock positive | ACB door-relay NC to lock positive | Interrupts lock power to release a fail-safe maglock |
++| Maglock negative | Lock negative to the lock PSU negative | Preserve the installed emergency power-release arrangement |
++| Roger open trigger | Separate isolated dry-contact COM to 32 COM; NO to 34 AP | No external lock voltage on this contact; verify local unlock-before-motion sequence |
++| Roger PP reference | 36 PP with 38 COM | Not used: step-by-step is not an open-only command |
++
++**Do not reuse a powered lock relay's COM/NO to command the Roger board.** NC and
++NO share COM on a changeover relay. Feeding +12 V to that COM makes its NO side
++a switched +12 V output, not an isolated dry contact. Use separately isolated
++contacts and a correctly rated local interface/sequencer. Simply using another
++door relay does not establish correct sequencing.
++
++The Python service pulses one channel only; it does not separately release a
++maglock and then energise a motor. The approved local controller/interface must
++release the lock before gate movement and restore locking at the appropriate
++point. No generic 3–5-second setting or blanket residual-magnetism delay is
++specified here. Confirm the installed lock, suppression, controller release
++time, gate travel, emergency release, and applicable local safety circuits.
++The 300–800 ms Pi pulse must not be extended to substitute for this sequence.
++
++Sources: user-supplied S4A ACB-00 wiring PDF, sheet 3 (ACB-004) and sheet 4
++(optional ACB-EA05 module); software guide pp. 15–18, 32–34, 45–46 and 61.
++The wiring guide's optional fire expansion is not evidence it is installed.
++Roger terminal references are from the manufacturer-authored
++[F70/IPU36 IS247 R1.50 installer manual, command table](https://www.manualslib.com/manual/3373474/Roger-Technology-F70-Ipu36.html?page=23),
++reproduced by ManualsLib. Verify the model/revision against the installed board.
++
++## Tests
++
++```bash
++python3 -m unittest discover -s pi-door-service/tests -v
++```
++
++Run from the repository root. Tests exercise the HTTP routes and authentication,
++four-channel isolation, bounds/polarity, mock operation, concurrent requests,
++GPIO failure cleanup, shutdown, durable duplicate protection and log redaction.
++They use mock outputs and cannot certify field wiring or real gate movement.
+diff --git a/pi-door-service/compass-door-open.service b/pi-door-service/compass-door-open.service
+new file mode 100644
+index 0000000..fc2c85d
+--- /dev/null
++++ b/pi-door-service/compass-door-open.service
+@@ -0,0 +1,24 @@
++[Unit]
++Description=Compass ACB-004 open-only relay trigger
++After=network.target
++
++[Service]
++Type=simple
++User=compass-door
++SupplementaryGroups=gpio
++WorkingDirectory=/opt/compass-door-open
++EnvironmentFile=/etc/compass-door-open.env
++ExecStart=/usr/bin/python3 /opt/compass-door-open/door_service.py
++Restart=on-failure
++RestartSec=3
++TimeoutStopSec=5
++StateDirectory=compass-door-open
++UMask=0077
++NoNewPrivileges=true
++ProtectSystem=strict
++ProtectHome=true
++PrivateTmp=true
++ReadWritePaths=/var/lib/compass-door-open
++
++[Install]
++WantedBy=multi-user.target
+diff --git a/pi-door-service/config.example b/pi-door-service/config.example
+new file mode 100644
+index 0000000..9812e48
+--- /dev/null
++++ b/pi-door-service/config.example
+@@ -0,0 +1,13 @@
++# Copy outside the repository to /etc/compass-door-open.env (root:root, mode 600).
++# Generate a private token: python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
++DOOR_API_TOKEN=REPLACE_WITH_A_UNIQUE_RANDOM_TOKEN
++DOOR_MODE=mock
++DOOR_BIND=127.0.0.1
++DOOR_PORT=8080
++DOOR_PULSE_MS=500
++# EXAMPLE BCM pin order for dry-run only: door 1, door 2, door 3, door 4.
++# Replace with the verified relay wiring before selecting hardware mode.
++DOOR_GPIO_PINS=17,27,22,23
++DOOR_ACTIVE_LOW=true
++DOOR_GPIO_CHIP=0
++DOOR_JOURNAL=/var/lib/compass-door-open/requests.sqlite3
+diff --git a/pi-door-service/door_service.py b/pi-door-service/door_service.py
+new file mode 100644
+index 0000000..ecc0f62
+--- /dev/null
++++ b/pi-door-service/door_service.py
+@@ -0,0 +1,253 @@
++#!/usr/bin/env python3
++"""Compass ACB-004 isolated relay triggers. Open only; no position feedback."""
++from __future__ import annotations
++
++import hmac
++import json
++import logging
++import os
++import re
++import signal
++import sqlite3
++import threading
++import uuid
++from contextlib import contextmanager
++from dataclasses import dataclass
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from pathlib import Path
++
++LOG = logging.getLogger("compass-door-open")
++
++
++@dataclass(frozen=True)
++class Config:
++    token: str
++    pins: tuple[int, ...]
++    pulse_ms: int = 500
++    mode: str = "mock"
++    active_low: bool = True
++    chip: int = 0
++    journal: str = "door-open-state.sqlite3"
++
++    def __post_init__(self):
++        if len(self.token) < 32 or not self.token.isascii() or any(c.isspace() for c in self.token) or self.token.startswith("REPLACE_"):
++            raise ValueError("DOOR_API_TOKEN must be an ASCII token of at least 32 characters")
++        if len(self.pins) != 4 or len(set(self.pins)) != 4 or any(type(p) is not int or not 2 <= p <= 27 for p in self.pins):
++            raise ValueError("DOOR_GPIO_PINS requires four distinct BCM pins in door 1,2,3,4 order (2..27)")
++        if type(self.pulse_ms) is not int or not 300 <= self.pulse_ms <= 800:
++            raise ValueError("DOOR_PULSE_MS must be an integer between 300 and 800")
++        if self.mode not in {"mock", "dry-run", "hardware"}:
++            raise ValueError("DOOR_MODE must be mock, dry-run or hardware")
++        if type(self.active_low) is not bool or type(self.chip) is not int or self.chip < 0:
++            raise ValueError("Invalid GPIO polarity or chip")
++
++    @classmethod
++    def from_env(cls):
++        mode = os.environ.get("DOOR_MODE", "mock")
++        if mode == "hardware" and (not os.environ.get("DOOR_GPIO_PINS") or os.environ.get("DOOR_ACTIVE_LOW") not in {"true", "false"}):
++            raise ValueError("Hardware mode requires explicit verified DOOR_GPIO_PINS and DOOR_ACTIVE_LOW")
++        return cls(
++            token=os.environ.get("DOOR_API_TOKEN", ""),
++            pins=tuple(int(p.strip()) for p in os.environ.get("DOOR_GPIO_PINS", "17,27,22,23").split(",")),
++            pulse_ms=int(os.environ.get("DOOR_PULSE_MS", "500")), mode=mode,
++            active_low=os.environ.get("DOOR_ACTIVE_LOW", "true") == "true",
++            chip=int(os.environ.get("DOOR_GPIO_CHIP", "0")),
++            journal=os.environ.get("DOOR_JOURNAL", "door-open-state.sqlite3"),
++        )
++
++
++class MockOutputs:
++    def __init__(self, config: Config):
++        self.states = {pin: False for pin in config.pins}
++
++    def write(self, pin: int, active: bool):
++        self.states[pin] = active
++
++    def close(self):
++        for pin in self.states:
++            self.write(pin, False)
++
++
++class GpioOutputs:
++    def __init__(self, config: Config):
++        import lgpio  # Imported only for an explicitly configured hardware run.
++        self.gpio, self.config, self.claimed = lgpio, config, []
++        self.handle = lgpio.gpiochip_open(config.chip)
++        try:
++            for pin in config.pins:
++                lgpio.gpio_claim_output(self.handle, pin, int(config.active_low))
++                self.claimed.append(pin)
++        except BaseException:
++            self.close()
++            raise
++
++    def write(self, pin: int, active: bool):
++        level = int(not active) if self.config.active_low else int(active)
++        self.gpio.gpio_write(self.handle, pin, level)
++
++    def close(self):
++        error = None
++        for pin in self.claimed:
++            try:
++                self.write(pin, False)
++                self.gpio.gpio_free(self.handle, pin)
++            except Exception as exc:
++                error = exc
++        self.claimed.clear()
++        self.gpio.gpiochip_close(self.handle)
++        if error:
++            raise RuntimeError("GPIO cleanup failed; inspect relay outputs locally") from error
++
++
++class DoorController:
++    def __init__(self, config: Config, outputs=None):
++        self.config = config
++        self.outputs = outputs or (GpioOutputs(config) if config.mode == "hardware" else MockOutputs(config))
++        self.lock = threading.Lock()
++        self.stopping = threading.Event()
++        self.faulted = False
++        try:
++            Path(config.journal).parent.mkdir(parents=True, exist_ok=True)
++            with self.database() as db:
++                db.execute("CREATE TABLE IF NOT EXISTS requests (id TEXT PRIMARY KEY, door INTEGER NOT NULL, result TEXT)")
++            os.chmod(config.journal, 0o600)
++        except BaseException:
++            self.outputs.close()
++            raise
++
++    @contextmanager
++    def database(self):
++        db = sqlite3.connect(self.config.journal, timeout=2)
++        try:
++            with db:
++                yield db
++        finally:
++            db.close()
++
++    def open(self, door: int, request_id: str):
++        if type(door) is not int or door not in range(1, 5):
++            return 404, {"error": "Door must be 1, 2, 3 or 4"}
++        try:
++            if str(uuid.UUID(request_id)) != request_id:
++                raise ValueError()
++        except (ValueError, AttributeError):
++            return 400, {"error": "A canonical UUID Idempotency-Key is required"}
++        if not self.lock.acquire(blocking=False):
++            return 409, {"error": "A relay pulse is already in progress; no command was queued"}
++        try:
++            if self.stopping.is_set() or self.faulted:
++                return 503, {"error": "Relay service stopped or faulted; inspect locally"}
++            with self.database() as db:
++                row = db.execute("SELECT door, result FROM requests WHERE id = ?", (request_id,)).fetchone()
++                if row:
++                    if row[0] != door or row[1] is None:
++                        return 409, {"error": "Request already reserved; no repeat pulse. Inspect the original result locally"}
++                    code, result = json.loads(row[1])
++                    return code, {**result, "replayed": True}
++                # Commit before touching hardware, including across a Pi restart.
++                db.execute("INSERT INTO requests (id, door) VALUES (?, ?)", (request_id, door))
++            pin = self.config.pins[door - 1]
++            LOG.info("event=open_started request_id=%s door=%d mode=%s pulse_ms=%d", request_id, door, self.config.mode, self.config.pulse_ms)
++            try:
++                try:
++                    self.outputs.write(pin, True)
++                    interrupted = self.stopping.wait(self.config.pulse_ms / 1000)
++                finally:
++                    self.outputs.write(pin, False)
++                if interrupted:
++                    raise RuntimeError("Shutdown interrupted the pulse")
++                code = 200
++                result = {"status": "pulsed" if self.config.mode == "hardware" else "dry_run", "door": door,
++                          "pulse_ms": self.config.pulse_ms, "position": "unknown", "sensor_feedback": False,
++                          "request_id": request_id}
++            except Exception:
++                self.faulted = True
++                code, result = 503, {"error": "Pulse failed or interrupted; physical outcome unknown. Inspect locally", "request_id": request_id}
++                LOG.error("event=open_failed request_id=%s door=%d", request_id, door)
++            with self.database() as db:
++                db.execute("UPDATE requests SET result = ? WHERE id = ?", (json.dumps([code, result]), request_id))
++            LOG.info("event=open_finished request_id=%s door=%d http_status=%d", request_id, door, code)
++            return code, result
++        except sqlite3.Error:
++            self.faulted = True
++            LOG.error("event=journal_failed request_id=%s door=%d", request_id, door)
++            return 503, {"error": "Execution journal unavailable; no automatic retry. Inspect locally"}
++        finally:
++            self.lock.release()
++
++    def close(self):
++        self.stopping.set()
++        with self.lock:
++            self.outputs.close()
++
++
++def make_handler(controller: DoorController):
++    class Handler(BaseHTTPRequestHandler):
++        server_version = "DoorOpen/1"
++
++        def setup(self):
++            super().setup()
++            self.connection.settimeout(5)
++
++        def log_message(self, *args):
++            pass  # Never log raw URLs, tokens or user-supplied headers.
++
++        def respond(self, status: int, payload: dict):
++            encoded = json.dumps(payload).encode()
++            self.send_response(status)
++            self.send_header("Content-Type", "application/json")
++            self.send_header("Content-Length", str(len(encoded)))
++            self.send_header("Cache-Control", "no-store")
++            self.send_header("Connection", "close")
++            self.end_headers()
++            self.wfile.write(encoded)
++
++        def do_POST(self):
++            headers = self.headers.get_all("Authorization", [])
++            valid = len(headers) == 1 and hmac.compare_digest(headers[0].encode(), ("Bearer " + controller.config.token).encode())
++            if not valid:
++                LOG.warning("event=unauthorized")
++                return self.respond(401, {"error": "Unauthorized"})
++            match = re.fullmatch(r"/doors/([1-4])/open", self.path)
++            if not match:
++                return self.respond(404, {"error": "Only POST /doors/{1-4}/open is supported"})
++            # Commands have no tunable request body: pin, duration and polarity are local configuration.
++            if self.headers.get("Transfer-Encoding") or self.headers.get("Content-Length", "0") != "0":
++                return self.respond(400, {"error": "Send an empty body"})
++            status, payload = controller.open(int(match[1]), self.headers.get("Idempotency-Key", ""))
++            self.respond(status, payload)
++
++        def do_GET(self):
++            self.respond(405, {"error": "POST required; no sensor endpoint is available"})
++
++        do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_GET
++
++    return Handler
++
++
++def main():
++    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
++    controller = DoorController(Config.from_env())
++    try:
++        server = ThreadingHTTPServer((os.environ.get("DOOR_BIND", "127.0.0.1"), int(os.environ.get("DOOR_PORT", "8080"))), make_handler(controller))
++    except BaseException:
++        controller.close()
++        raise
++    server.daemon_threads = False
++
++    def stop(*_):
++        controller.stopping.set()
++        threading.Thread(target=server.shutdown, daemon=True).start()
++
++    signal.signal(signal.SIGTERM, stop)
++    signal.signal(signal.SIGINT, stop)
++    LOG.info("event=service_started mode=%s", controller.config.mode)
++    try:
++        server.serve_forever(poll_interval=0.2)
++    finally:
++        server.server_close()
++        controller.close()
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/pi-door-service/tests/test_door_service.py b/pi-door-service/tests/test_door_service.py
+new file mode 100644
+index 0000000..7a9d209
+--- /dev/null
++++ b/pi-door-service/tests/test_door_service.py
+@@ -0,0 +1,179 @@
++import http.client
++import importlib.util
++import json
++import sqlite3
++import sys
++import tempfile
++import threading
++import time
++import unittest
++import uuid
++from pathlib import Path
++from unittest.mock import patch, Mock
++
++spec = importlib.util.spec_from_file_location("door_service", Path(__file__).parents[1] / "door_service.py")
++service = importlib.util.module_from_spec(spec)
++sys.modules[spec.name] = service
++spec.loader.exec_module(service)
++TOKEN = "test-only-token-that-is-longer-than-32-chars"
++PINS = (17, 27, 22, 23)
++
++
++class RecordingOutputs(service.MockOutputs):
++    def __init__(self, config):
++        super().__init__(config)
++        self.writes = []
++        self.activated = threading.Event()
++        self.fail = False
++
++    def write(self, pin, active):
++        self.writes.append((pin, active, time.monotonic()))
++        super().write(pin, active)
++        if active:
++            self.activated.set()
++            if self.fail:
++                raise OSError("Injected GPIO failure")
++
++
++class DoorServiceTests(unittest.TestCase):
++    def setUp(self):
++        self.temp = tempfile.TemporaryDirectory()
++        self.config = service.Config(TOKEN, PINS, pulse_ms=300, mode="hardware", journal=str(Path(self.temp.name) / "requests.sqlite3"))
++        self.outputs = RecordingOutputs(self.config)
++        self.controller = service.DoorController(self.config, self.outputs)
++        self.server = service.ThreadingHTTPServer(("127.0.0.1", 0), service.make_handler(self.controller))
++        self.thread = threading.Thread(target=lambda: self.server.serve_forever(poll_interval=0.01))
++        self.thread.start()
++
++    def tearDown(self):
++        self.server.shutdown()
++        self.thread.join()
++        self.server.server_close()
++        self.controller.close()
++        self.temp.cleanup()
++
++    def request(self, path="/doors/1/open", token=TOKEN, method="POST", request_id=None, body=None):
++        conn = http.client.HTTPConnection(*self.server.server_address, timeout=3)
++        headers = {"Idempotency-Key": request_id if request_id is not None else str(uuid.uuid4())}
++        if token is not None:
++            headers["Authorization"] = "Bearer " + token
++        conn.request(method, path, body=body, headers=headers)
++        response = conn.getresponse()
++        result = response.status, json.loads(response.read())
++        conn.close()
++        return result
++
++    def test_each_route_pulses_only_its_own_channel_and_reports_unknown(self):
++        for door, pin in enumerate(PINS, 1):
++            with self.subTest(door=door):
++                start = len(self.outputs.writes)
++                status, body = self.request(f"/doors/{door}/open")
++                self.assertEqual(status, 200)
++                self.assertEqual(body["door"], door)
++                self.assertEqual(body["status"], "pulsed")
++                self.assertEqual(body["position"], "unknown")
++                self.assertFalse(body["sensor_feedback"])
++                writes = self.outputs.writes[start:]
++                self.assertEqual([(p, on) for p, on, _ in writes], [(pin, True), (pin, False)])
++                self.assertGreaterEqual(writes[1][2] - writes[0][2], 0.29)
++                self.assertLess(writes[1][2] - writes[0][2], 0.8)
++                self.assertFalse(any(self.outputs.states.values()))
++
++    def test_rejected_requests_never_touch_gpio(self):
++        for token in [None, "incorrect"]:
++            self.assertEqual(self.request(token=token)[0], 401)
++        for path in ["/doors/0/open", "/doors/5/open", "/doors/-1/open", "/doors/1/close", "/doors/1/open?pin=23", "/doors/01/open"]:
++            self.assertEqual(self.request(path)[0], 404)
++        self.assertEqual(self.request(method="GET")[0], 405)
++        self.assertEqual(self.request(body='{"pin":23,"pulse_ms":999}')[0], 400)
++        self.assertEqual(self.request(request_id="")[0], 400)
++        self.assertEqual(self.outputs.writes, [])
++
++    def test_concurrent_command_is_rejected_without_queueing(self):
++        first = threading.Thread(target=self.request)
++        first.start()
++        self.assertTrue(self.outputs.activated.wait(1))
++        self.assertEqual(self.request("/doors/2/open")[0], 409)
++        first.join()
++        self.assertEqual([(p, on) for p, on, _ in self.outputs.writes], [(17, True), (17, False)])
++
++    def test_gpio_exception_deenergises_channel_and_latches_fault(self):
++        self.outputs.fail = True
++        self.assertEqual(self.request()[0], 503)
++        self.assertFalse(any(self.outputs.states.values()))
++        self.assertEqual(self.request("/doors/2/open")[0], 503)
++        self.assertEqual(len(self.outputs.writes), 2)
++
++    def test_replay_and_restart_do_not_repeat_pulse(self):
++        key = str(uuid.uuid4())
++        self.assertEqual(self.request(request_id=key)[0], 200)
++        self.assertTrue(self.request(request_id=key)[1]["replayed"])
++        self.assertEqual(self.request("/doors/2/open", request_id=key)[0], 409)
++        outputs = RecordingOutputs(self.config)
++        restarted = service.DoorController(self.config, outputs)
++        self.assertTrue(restarted.open(1, key)[1]["replayed"])
++        self.assertEqual(outputs.writes, [])
++        restarted.close()
++        self.assertEqual(len(self.outputs.writes), 2)
++
++    def test_interrupted_journal_entry_never_replays(self):
++        key = str(uuid.uuid4())
++        with sqlite3.connect(self.config.journal) as db:
++            db.execute("INSERT INTO requests VALUES (?, 1, NULL)", (key,))
++        self.assertEqual(self.request(request_id=key)[0], 409)
++        self.assertEqual(self.outputs.writes, [])
++
++    def test_shutdown_interrupts_pulse_and_turns_output_off(self):
++        result = []
++        thread = threading.Thread(target=lambda: result.append(self.request()))
++        thread.start()
++        self.assertTrue(self.outputs.activated.wait(1))
++        self.controller.stopping.set()
++        thread.join()
++        self.assertEqual(result[0][0], 503)
++        self.assertFalse(any(self.outputs.states.values()))
++
++    def test_mock_mode_never_imports_gpio_and_reports_dry_run(self):
++        config = service.Config(TOKEN, PINS, 300, "dry-run", journal=str(Path(self.temp.name) / "mock.sqlite3"))
++        with patch.dict(sys.modules, {"lgpio": None}):
++            controller = service.DoorController(config)
++            self.assertIsInstance(controller.outputs, service.MockOutputs)
++            self.assertEqual(controller.open(4, str(uuid.uuid4()))[1]["status"], "dry_run")
++            controller.close()
++
++    def test_active_low_and_high_hardware_start_inactive(self):
++        for low in [True, False]:
++            gpio = Mock()
++            gpio.gpiochip_open.return_value = 9
++            config = service.Config(TOKEN, PINS, active_low=low)
++            with patch.dict(sys.modules, {"lgpio": gpio}):
++                outputs = service.GpioOutputs(config)
++                self.assertEqual([c.args for c in gpio.gpio_claim_output.call_args_list], [(9, p, int(low)) for p in PINS])
++                outputs.write(22, True)
++                gpio.gpio_write.assert_called_with(9, 22, int(not low))
++                outputs.close()
++                self.assertEqual([c.args for c in gpio.gpio_write.call_args_list][-4:], [(9, p, int(low)) for p in PINS])
++
++    def test_configuration_rejects_unsafe_values(self):
++        for pulse in [299, 801, 500.5, True]:
++            with self.assertRaises(ValueError):
++                service.Config(TOKEN, PINS, pulse_ms=pulse)
++        for pins in [(17, 17, 22, 23), (17, 22), (0, 27, 22, 23)]:
++            with self.assertRaises(ValueError):
++                service.Config(TOKEN, pins)
++        with patch.dict("os.environ", {"DOOR_MODE": "hardware", "DOOR_API_TOKEN": TOKEN}, clear=True):
++            with self.assertRaises(ValueError):
++                service.Config.from_env()
++        with self.assertRaises(ValueError):
++            service.Config("REPLACE_WITH_A_UNIQUE_RANDOM_TOKEN", PINS)
++
++    def test_auth_token_is_never_logged(self):
++        with self.assertLogs(service.LOG, level="INFO") as logs:
++            self.request(token="bad-token-in-log-check")
++            self.request()
++        self.assertNotIn(TOKEN, " ".join(logs.output))
++        self.assertNotIn("bad-token-in-log-check", " ".join(logs.output))
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/remote-open.test.mjs b/tests/remote-open.test.mjs
+new file mode 100644
+index 0000000..7e430ad
+--- /dev/null
++++ b/tests/remote-open.test.mjs
+@@ -0,0 +1,105 @@
++import assert from "node:assert/strict";
++import test from "node:test";
++import { handleDoorRequest, readDoorConfiguration } from "../lib/door-open-gateway.ts";
++import { loadRemoteOpenConfig, requestRemoteOpen } from "../lib/remote-open-client.ts";
++
++const origin = "https://portal.example.test";
++const token = "test-pi-secret-longer-than-32-characters";
++const requestId = "01b09e77-2f6a-42c6-ab9b-16cf0a93097a";
++const environment = { DOOR_SERVICE_URL: "https://pi.example.test", DOOR_SERVICE_TOKEN: token, DOOR_GATE_MAP: '{"TF-ENTRY":1,"TF-EXIT":4}' };
++const readEnv = (key) => environment[key];
++const req = (body = { gateId: "TF-EXIT" }, overrides = {}) => new Request(`${origin}/api/doors/open`, {
++  method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "Idempotency-Key": requestId }, body: JSON.stringify(body), ...overrides,
++});
++const options = (fetcher) => ({ readEnv, authorize: async () => null, fetcher, log: () => {} });
++
++test("unconfigured and legacy static demo paths make no hardware calls", async () => {
++  let calls = 0;
++  const config = await handleDoorRequest(new Request(`${origin}/api/doors/open`), { ...options(() => { calls++; }), readEnv: () => undefined });
++  assert.deepEqual(await config.json(), { configured: false });
++  assert.equal(calls, 0);
++  assert.deepEqual(await loadRemoteOpenConfig("/.netlify/functions/remote-open", async () => new Response("", { status: 404 })), { configured: false });
++  assert.deepEqual(await loadRemoteOpenConfig("/api/doors/open", async () => Response.json({ configured: false })), { configured: false });
++});
++
++test("configuration exposes mapping but never the Pi token or address", async () => {
++  const response = await handleDoorRequest(new Request(`${origin}/api/doors/open`), options());
++  const text = await response.text();
++  assert.equal(JSON.parse(text).gateMap["TF-EXIT"], 4);
++  assert.ok(!text.includes(token));
++  assert.ok(!text.includes("pi.example.test"));
++});
++
++test("invalid or partial configuration cannot select live channels", () => {
++  for (const changes of [
++    { DOOR_SERVICE_URL: "http://pi.example.test" }, { DOOR_SERVICE_URL: "https://user:pass@pi.example.test" },
++    { DOOR_SERVICE_URL: "https://pi.example.test/other" }, { DOOR_SERVICE_TOKEN: "short" },
++    { DOOR_GATE_MAP: '{"TF-ENTRY":1,"TF-EXIT":1}' }, { DOOR_GATE_MAP: '{"TF-ENTRY":5}' },
++    { DOOR_GATE_MAP: '{"TF-ENTRY":"1"}' }, { DOOR_GATE_MAP: '{}' }, { DOOR_GATE_MAP: '[]' },
++    { DOOR_GATE_MAP: '{"NOT-A-GATE":1}' },
++  ]) assert.throws(() => readDoorConfiguration((key) => ({ ...environment, ...changes })[key]));
++});
++
++test("authorisation, cross-origin, unknown gates and body overrides never call the Pi", async () => {
++  let calls = 0;
++  const opts = options(async () => { calls++; throw new Error("Must not call"); });
++  assert.equal((await handleDoorRequest(req(), { ...opts, authorize: async () => new Response("", { status: 401 }) })).status, 401);
++  assert.equal((await handleDoorRequest(req({}, { headers: { Origin: "https://other.example.test" } }), opts)).status, 403);
++  for (const body of [{ gateId: "SCP-B01" }, { gateId: "TF-ENTRY", door: 4 }, { gateId: "TF-ENTRY", position: "closed" }, { gateId: "__proto__" }]) {
++    assert.equal((await handleDoorRequest(req(body), opts)).status, 400);
++  }
++  assert.equal(calls, 0);
++});
++
++test("a mapped gate sends exactly one empty POST to the correct door with server token", async () => {
++  const requests = [];
++  const response = await handleDoorRequest(req(), options(async (url, init) => {
++    requests.push([url, init]);
++    return Response.json({ status: "pulsed", door: 4, pulse_ms: 500, position: "unknown", sensor_feedback: false, request_id: requestId });
++  }));
++  assert.equal(response.status, 200);
++  assert.equal(requests.length, 1);
++  assert.equal(requests[0][0], "https://pi.example.test/doors/4/open");
++  assert.equal(requests[0][1].headers.Authorization, `Bearer ${token}`);
++  assert.equal(requests[0][1].headers["Idempotency-Key"], requestId);
++  assert.equal(requests[0][1].redirect, "error");
++  assert.equal(requests[0][1].body, undefined);
++  const result = await response.json();
++  assert.equal(result.position, "unknown");
++  assert.equal(result.sensorFeedback, false);
++});
++
++test("timeouts and malformed acknowledgements never retry or claim open position", async () => {
++  for (const outcome of ["timeout", "wrong_door", "false_position"]) {
++    let calls = 0;
++    const response = await handleDoorRequest(req(), options(async () => {
++      calls++;
++      if (outcome === "timeout") throw new Error("timeout");
++      return Response.json({ status: "pulsed", door: outcome === "wrong_door" ? 1 : 4, pulse_ms: 500, position: outcome === "false_position" ? "open" : "unknown", sensor_feedback: false, request_id: requestId });
++    }));
++    assert.equal(calls, 1);
++    assert.equal(response.status, 502);
++    assert.match((await response.json()).error, /inspect locally/i);
++  }
++});
++
++test("dry-run acknowledgements stay explicitly dry-run", async () => {
++  const response = await handleDoorRequest(req(), options(async () => Response.json({ status: "dry_run", door: 4, pulse_ms: 800, position: "unknown", sensor_feedback: false, request_id: requestId })));
++  assert.equal((await response.json()).status, "dry_run");
++});
++
++test("client sends an explicit same-origin request, no retries, and keeps result unknown", async () => {
++  const calls = [];
++  const result = await requestRemoteOpen("/api/doors/open", "TF-EXIT", "operator-token", async (url, init) => {
++    calls.push([url, init]);
++    return Response.json({ status: "pulsed", door: 4, pulseMs: 500, position: "unknown", sensorFeedback: false, requestId: init.headers["Idempotency-Key"] });
++  });
++  assert.equal(calls.length, 1);
++  assert.equal(calls[0][1].credentials, "same-origin");
++  assert.deepEqual(JSON.parse(calls[0][1].body), { gateId: "TF-EXIT" });
++  assert.equal(result.position, "unknown");
++  await assert.rejects(() => requestRemoteOpen("https://other.example.test", "TF-EXIT", "operator-token"), /same-origin/);
++  let failures = 0;
++  await assert.rejects(() => requestRemoteOpen("/api/doors/open", "TF-EXIT", "", async () => { failures++; throw new Error("Disconnected"); }));
++  assert.equal(failures, 1);
++});
+-- 
+2.51.1
+
