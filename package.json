@@ -11,12 +11,12 @@
     "build": "bash scripts/build-verified.sh",
     "build:netlify": "NETLIFY=true next build",
     "build:netlify:static": "NETLIFY=true NETLIFY_STATIC=true next build",
-    "build:netlify:verified": "bash scripts/build-netlify-verified.sh",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "test": "npm run build && node --test tests/*.test.mjs && python3 -m unittest discover -s pi-door-service/tests -v",
+    "test": "npm run build && node --test tests/*.test.mjs && python3 -m unittest discover -s controller-agent/tests -p 'test_*.py' && python3 -m unittest discover -s pi-door-service/tests -v",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
-    "test:doors": "node --test tests/remote-open.test.mjs tests/netlify-remote-open.test.mjs && python3 -m unittest discover -s pi-door-service/tests -v",
+    "test:doors": "node --test tests/remote-open.test.mjs && python3 -m unittest discover -s pi-door-service/tests -v",
+    "build:netlify:verified": "bash scripts/build-netlify-verified.sh",
     "test:netlify-gate": "python3 -m unittest discover -s tests -p 'test_netlify_gate.py' -v"
   },
   "dependencies": {
@@ -65,5 +65,5 @@
     "wrangler": "4.92.0"
   },
   "type": "module",
-  "displayName": "Balwyn High School Gate Automation Concept"
+  "displayName": "Balwyn High School Gate Operations"
 }

@@ -1,5 +1,55 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1788521865446,
+      "tag": "0000_smooth_stellaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788522693439,
+      "tag": "0001_worthless_barracuda",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788524251175,
+      "tag": "0002_talented_edwin_jarvis",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788702916382,
+      "tag": "0003_complete_turbo",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788710212567,
+      "tag": "0004_puzzling_squirrel_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1788982873419,
+      "tag": "0005_stormy_madame_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788983446336,
+      "tag": "0006_known_leech",
+      "breakpoints": true
+    }
+  ]
 }

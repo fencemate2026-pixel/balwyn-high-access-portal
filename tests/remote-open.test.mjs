@@ -1,17 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { handleDoorRequest, readDoorConfiguration } from "../lib/door-open-gateway.ts";
+import { GATES } from "../lib/portal-model.ts";
 import { loadRemoteOpenConfig, requestRemoteOpen } from "../lib/remote-open-client.ts";
 
 const origin = "https://portal.example.test";
-const token = "test-pi-secret-longer-than-32-characters";
+const token = "REDACTED";
 const requestId = "01b09e77-2f6a-42c6-ab9b-16cf0a93097a";
-const environment = { DOOR_SERVICE_URL: "https://pi.example.test", DOOR_SERVICE_TOKEN: token, DOOR_GATE_MAP: '{"TF-ENTRY":1,"TF-EXIT":4}' };
+const environment = { DOOR_SERVICE_URL: "https://pi.example.test", DOOR_SERVICE_TOKEN: token, DOOR_GATE_MAP: '{"TF-ENTRY":1,"SIDE-ENTRY":4}' };
 const readEnv = (key) => environment[key];
-const req = (body = { gateId: "TF-EXIT" }, overrides = {}) => new Request(`${origin}/api/doors/open`, {
+const req = (body = { gateId: "SIDE-ENTRY" }, overrides = {}) => new Request(`${origin}/api/doors/open`, {
   method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "Idempotency-Key": requestId }, body: JSON.stringify(body), ...overrides,
 });
-const options = (fetcher) => ({ readEnv, authorize: async () => null, fetcher, log: () => {} });
+const options = (fetcher) => ({ readEnv, gates: GATES, authorize: async () => null, fetcher, log: () => {} });
 
 test("unconfigured and legacy static demo paths make no hardware calls", async () => {
   let calls = 0;
@@ -25,19 +26,19 @@ test("unconfigured and legacy static demo paths make no hardware calls", async (
 test("configuration exposes mapping but never the Pi token or address", async () => {
   const response = await handleDoorRequest(new Request(`${origin}/api/doors/open`), options());
   const text = await response.text();
-  assert.equal(JSON.parse(text).gateMap["TF-EXIT"], 4);
+  assert.equal(JSON.parse(text).gateMap["SIDE-ENTRY"], 4);
   assert.ok(!text.includes(token));
   assert.ok(!text.includes("pi.example.test"));
 });
 
 test("invalid or partial configuration cannot select live channels", () => {
   for (const changes of [
-    { DOOR_SERVICE_URL: "http://pi.example.test" }, { DOOR_SERVICE_URL: "https://user:pass@pi.example.test" },
-    { DOOR_SERVICE_URL: "https://pi.example.test/other" }, { DOOR_SERVICE_TOKEN: "short" },
-    { DOOR_GATE_MAP: '{"TF-ENTRY":1,"TF-EXIT":1}' }, { DOOR_GATE_MAP: '{"TF-ENTRY":5}' },
+    { DOOR_SERVICE_URL: "http://pi.example.test" }, { DOOR_SERVICE_URL: "REDACTED" },
+    { DOOR_SERVICE_URL: "https://pi.example.test/other" }, { DOOR_SERVICE_TOKEN: "REDACTED" },
+    { DOOR_GATE_MAP: '{"TF-ENTRY":1,"SIDE-ENTRY":1}' }, { DOOR_GATE_MAP: '{"TF-ENTRY":5}' },
     { DOOR_GATE_MAP: '{"TF-ENTRY":"1"}' }, { DOOR_GATE_MAP: '{}' }, { DOOR_GATE_MAP: '[]' },
     { DOOR_GATE_MAP: '{"NOT-A-GATE":1}' },
-  ]) assert.throws(() => readDoorConfiguration((key) => ({ ...environment, ...changes })[key]));
+  ]) assert.throws(() => readDoorConfiguration((key) => ({ ...environment, ...changes })[key], GATES));
 });
 
 test("authorisation, cross-origin, unknown gates and body overrides never call the Pi", async () => {
@@ -90,16 +91,28 @@ test("dry-run acknowledgements stay explicitly dry-run", async () => {
 
 test("client sends an explicit same-origin request, no retries, and keeps result unknown", async () => {
   const calls = [];
-  const result = await requestRemoteOpen("/api/doors/open", "TF-EXIT", "operator-token", async (url, init) => {
+  const result = await requestRemoteOpen("/api/doors/open", "SIDE-ENTRY", "REDACTED", async (url, init) => {
     calls.push([url, init]);
     return Response.json({ status: "pulsed", door: 4, pulseMs: 500, position: "unknown", sensorFeedback: false, requestId: init.headers["Idempotency-Key"] });
   });
   assert.equal(calls.length, 1);
   assert.equal(calls[0][1].credentials, "same-origin");
-  assert.deepEqual(JSON.parse(calls[0][1].body), { gateId: "TF-EXIT" });
+  assert.deepEqual(JSON.parse(calls[0][1].body), { gateId: "SIDE-ENTRY" });
   assert.equal(result.position, "unknown");
-  await assert.rejects(() => requestRemoteOpen("https://other.example.test", "TF-EXIT", "operator-token"), /same-origin/);
+  await assert.rejects(() => requestRemoteOpen("https://other.example.test", "SIDE-ENTRY", "REDACTED"), /same-origin/);
   let failures = 0;
-  await assert.rejects(() => requestRemoteOpen("/api/doors/open", "TF-EXIT", "", async () => { failures++; throw new Error("Disconnected"); }));
+  await assert.rejects(() => requestRemoteOpen("/api/doors/open", "SIDE-ENTRY", "", async () => { failures++; throw new Error("Disconnected"); }));
   assert.equal(failures, 1);
+});
+
+
+test("inactive gates stay hidden from remote-open controls and cannot pulse a mapped channel", async () => {
+  let calls = 0;
+  const opts = { ...options(async () => { calls++; }), readEnv: (key) => ({ ...environment, DOOR_GATE_MAP: '{"TF-ENTRY":1,"TF-EXIT":4}' })[key] };
+  const config = await handleDoorRequest(new Request(`${origin}/api/doors/open`), opts);
+  assert.deepEqual((await config.json()).gateMap, { "TF-ENTRY": 1 });
+  const response = await handleDoorRequest(req({ gateId: "TF-EXIT" }), opts);
+  assert.equal(response.status, 403);
+  assert.match((await response.json()).error, /inactive/i);
+  assert.equal(calls, 0);
 });

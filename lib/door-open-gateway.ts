@@ -1,7 +1,9 @@
 /** Server-only bridge to the Pi HTTP service. Never import this into a client component. */
 type EnvironmentReader = (key: string) => string | undefined;
+type GateRegistration = { id: string; active: boolean };
 type GatewayOptions = {
   readEnv: EnvironmentReader;
+  gates: readonly GateRegistration[];
   authorize: (request: Request) => Promise<Response | null>;
   operatorTokenRequired?: boolean;
   fetcher?: typeof fetch;
@@ -40,10 +42,11 @@ export async function handleDoorRequest(request: Request, options: GatewayOption
   const denied = await options.authorize(request);
   if (denied) return denied;
   let config;
-  try { config = readDoorConfiguration(options.readEnv); }
+  try { config = readDoorConfiguration(options.readEnv, options.gates); }
   catch { return json({ error: "Remote open configuration is incomplete; contact the administrator" }, 503); }
   if (request.method === "GET") {
-    return json(config ? { configured: true, gateMap: config.gateMap, operatorTokenRequired: options.operatorTokenRequired === true, sensorFeedback: false } : { configured: false });
+    const gateMap = config && Object.fromEntries(Object.entries(config.gateMap).filter(([id]) => options.gates.some((gate) => gate.id === id && gate.active)));
+    return json(config ? { configured: true, gateMap, operatorTokenRequired: options.operatorTokenRequired === true, sensorFeedback: false } : { configured: false });
   }
   if (!config) return json({ error: "Remote open is not configured" }, 503);
   const requestId = request.headers.get("Idempotency-Key") ?? "";
@@ -58,6 +61,7 @@ export async function handleDoorRequest(request: Request, options: GatewayOption
     gateId = body.gateId;
   } catch { return json({ error: "Supply a gateId only" }, 400); }
   if (!Object.hasOwn(config.gateMap, gateId)) return json({ error: "No verified door channel is assigned to this gate" }, 400);
+  if (!options.gates.some((gate) => gate.id === gateId && gate.active)) return json({ error: "This gate is inactive. Remote open is blocked until activation." }, 403);
   const door = config.gateMap[gateId];
   const log = options.log ?? ((event) => console.info("remote_open", event));
   log({ event: "requested", gateId, door, requestId });
