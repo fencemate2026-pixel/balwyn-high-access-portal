@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { Maximize2, ShieldCheck } from 'lucide-react';
+import { Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import BrandLogo from './brand-logo';
+import GuidanceProjection, { EXAMPLE_ROUTE } from './guidance-projection';
 import { CONCEPT_SCENES, type ScreenCorners } from '@/lib/concept-scenes';
 function screenStyle(corners:ScreenCorners,width:number,height:number):CSSProperties {
  const [[x0,y0],[x1,y1],[x2,y2],[x3,y3]]=corners;
@@ -20,7 +21,7 @@ function ConceptStage({variant}:{variant:keyof typeof CONCEPT_SCENES}) {
   <div className="operations-concept-overlays" aria-hidden="true" inert style={{width:scene.width,height:scene.height,transform:`scale(${width/scene.width})`,visibility:width?'visible':'hidden'}}>
    {scene.dashboard&&<iframe className="concept-screen-frame" style={screenStyle(scene.dashboard,1440,1200)} src="/dashboard-illustration.html" title="Illustrative Magic Keys dashboard" width="1440" height="1200" tabIndex={-1} sandbox="allow-same-origin" loading="lazy" />}
    {scene.campus&&<div className="concept-screen-frame concept-campus-screen" style={screenStyle(scene.campus,1100,900)}><div className="concept-campus-heading"><strong>Balwyn High School</strong><span>School site plan</span></div><div className="concept-campus-image"><img src="/balwyn-school-aerial.png" alt="" /></div><div className="concept-campus-footer">Supplied traffic plan · concept demonstration</div></div>}
-   {scene.projection&&<div className="concept-screen-frame concept-guidance-projection" style={screenStyle(scene.projection,1440,900)}><div className="concept-projection-heading"><BrandLogo /><span>EMERGENCY GUIDANCE</span></div><div className="concept-projection-message"><ShieldCheck /><strong>Follow your teacher</strong><p>Use the school-approved evacuation route.</p><p>Keep clear of the affected area.</p></div><div className="concept-projection-footer">DEMONSTRATION · NO LIVE INCIDENT</div></div>}
+   {scene.projection&&<div className="concept-screen-frame" style={screenStyle(scene.projection,1440,900)}><GuidanceProjection route={EXAMPLE_ROUTE} /></div>}
   </div>
  </div>;
 }
