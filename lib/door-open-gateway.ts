@@ -30,25 +30,6 @@ export function readDoorConfiguration(read: EnvironmentReader, gates: readonly G
   return { origin: base.origin, token, gateMap };
 }
 
-/**
- * Pulse bounds, in milliseconds. These MIRROR balwyn_gate/config.py
- * (PULSE_MIN_MS / PULSE_MAX_MS). Balwyn's gates take one momentary pulse of
- * about six seconds to run a full cycle, so the old 800 ms ceiling rejected
- * every real open. Change these only together with the Pi.
- */
-const PULSE_MIN_MS = 300;
-const PULSE_MAX_MS = 10000;
-
-/**
- * The Pi holds the relay for the whole pulse and answers afterwards, so this
- * request is open for at least PULSE_MAX_MS. Below that, the abort fires
- * BEFORE the acknowledgement arrives and a gate that physically moved is
- * reported to the operator as an unknown outcome - who then presses again and
- * reverses a gate that is mid-travel. The margin covers network and Worker
- * scheduling, and stays under the Cloudflare Workers subrequest ceiling.
- */
-const PI_RESPONSE_TIMEOUT_MS = PULSE_MAX_MS + 5000;
-
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
 export async function handleDoorRequest(request: Request, options: GatewayOptions): Promise<Response> {
@@ -85,7 +66,7 @@ export async function handleDoorRequest(request: Request, options: GatewayOption
   try {
     // One HTTP request, no redirects and no automatic retry. A timeout may follow a physical pulse.
     const response = await (options.fetcher ?? fetch)(`${config.origin}/doors/${door}/open`, {
-      method: "POST", redirect: "error", signal: AbortSignal.timeout(PI_RESPONSE_TIMEOUT_MS),
+      method: "POST", redirect: "error", signal: AbortSignal.timeout(5000),
       headers: { Authorization: `Bearer ${config.token}`, "Idempotency-Key": requestId },
     });
     if (!response.ok) {
@@ -93,7 +74,7 @@ export async function handleDoorRequest(request: Request, options: GatewayOption
       return json({ error: "Remote open was rejected or its outcome is unknown. Inspect locally before another request", requestId }, response.status === 409 ? 409 : 502);
     }
     const result = await response.json();
-    if (!["pulsed", "dry_run"].includes(result.status) || result.door !== door || result.position !== "unknown" || result.sensor_feedback !== false || result.request_id !== requestId || !Number.isInteger(result.pulse_ms) || result.pulse_ms < PULSE_MIN_MS || result.pulse_ms > PULSE_MAX_MS) throw new Error("Invalid pulse acknowledgement");
+    if (!["pulsed", "dry_run"].includes(result.status) || result.door !== door || result.position !== "unknown" || result.sensor_feedback !== false || result.request_id !== requestId || !Number.isInteger(result.pulse_ms) || result.pulse_ms < 300 || result.pulse_ms > 800) throw new Error("Invalid pulse acknowledgement");
     log({ event: result.status, gateId, door, requestId });
     return json({ status: result.status, door, pulseMs: result.pulse_ms, position: "unknown", sensorFeedback: false, requestId, replayed: result.replayed === true });
   } catch {

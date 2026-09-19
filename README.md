@@ -1,14 +1,12 @@
 # Magic Keys – Balwyn High School
 
-This repository contains the original static gate-control demonstration. Its
-existing simulated behaviour is preserved. The school's existing
-**Compass ACB-004 four-door access board** now has an optional **one-way,
-open-only Pi relay trigger**, alongside the demonstration controls.
+For the current login methods, administrator password protection, editable user
+profiles and photo storage, see [LOGIN_AND_ADMIN_SETUP.md](LOGIN_AND_ADMIN_SETUP.md).
 
-Read [Balwyn integration status](BALWYN_INTEGRATION_STATUS.md) for the current
-implementation, corrected wiring, verification results and remaining commissioning.
-The exact newer Sites changes, including the duplicate-logo fix, are retained in
-[the source patch](docs/sites/2026-09-08-compass-and-branding.patch).
+The Sites portal manages operator access and the campus interface. Its separate
+sensor-equipped controller workflow is retained. The school's existing
+**Compass ACB-004 four-door access board** now has an optional **one-way,
+open-only Pi relay trigger**, independent of that feedback workflow.
 
 ## What the ACB-004 integration does
 
@@ -44,57 +42,46 @@ npm run build
 See [the Pi service guide](pi-door-service/README.md) for its mock run, systemd
 installation, HTTP responses, GPIO configuration and wiring reference.
 
-## Configure the optional Netlify gateway
+## Configure the Sites server
 
-The existing static export stays in place. `netlify/functions/remote-open.mts`
-adds a server function at `/.netlify/functions/remote-open`; no dynamic Next.js
-API route is added to the static export. Set these variables in Netlify's
-server function environment (not in browser build variables):
+Set these **server-side runtime variables** only after confirming the field
+mapping and access path:
 
 | Variable | Value |
 | --- | --- |
 | `DOOR_SERVICE_URL` | Reachable HTTPS origin of the approved Pi gateway, without a path |
 | `DOOR_SERVICE_TOKEN` | Private random token matching the Pi's `DOOR_API_TOKEN` |
 | `DOOR_GATE_MAP` | JSON mapping existing gate IDs to unique board channels 1–4 |
-| `DOOR_OPERATOR_TOKEN` | A different random token, at least 32 characters, issued to authorised remote-open operators |
 
-Example format only: `{"TF-ENTRY":1,"TF-EXIT":2}`. This is not a verified onsite
-allocation; no live mapping is supplied. One ACB-004 maps at most four gate IDs.
-With all service variables absent, the remote controls stay hidden and the
-existing simulation works as before. Invalid/partial configuration is blocked.
+For example, `{"TF-ENTRY":1,"TF-EXIT":2}` demonstrates the JSON format only; it
+is **not** the verified onsite allocation. There are no default live mappings.
+All three variables absent means unconfigured; partial/invalid configuration is
+rejected. One board supports at most four mapped gate IDs, not all nine registered gates. Only active gates may receive commands.
 
-Open a mapped gate's panel and enter the separate operator token to review a
-remote-open request. This token is held only in component memory and cleared
-after every attempt or when the panel changes. It is never saved in localStorage
-or sessionStorage. The Pi token remains on the server and must differ from the
-operator token. The demo login never authorises hardware by itself. Rotate or
-remove the operator token to revoke access. Avoid entering it on a shared
-untrusted device.
+The client calls the same-origin `/api/doors/open` route. The server checks the
+existing operator session, permissions, exact request origin and current normal
+operating priority before sending a request. The Pi token stays on the server.
+The new path does not mark any sensor-equipped controller commissioned and
+does not write simulated or reported gate positions.
 
-Only explicitly confirmed remote-open requests use this function. Existing
-Open/Close controls are labelled **Simulate open/close**, and emergency modes,
-schedules, counts, colours and voice announcements remain demonstration state.
-They are not ACB-004 sensor feedback and do not operate this service. A remote
-pulse never changes a simulated gate position.
+Do not use `NEXT_PUBLIC_*`, browser storage or source files for the Pi secret.
+There are no automatic retries after an ambiguous network failure. Local
+inspection is required before issuing a fresh request.
 
-The function checks the separate token, request origin and server-side mapping;
-it does not trust the demo user name, gate state or a client-supplied channel.
-No automatic retry occurs after an uncertain response. Set up the approved HTTPS
-network path to the Pi before live mode; a private LAN IP is not cloud-reachable.
+## Existing GitHub demonstration
 
-Build the existing deployment with `npm run build:netlify:static`. Local static
-preview has no Netlify function and retains the demo. To exercise the function,
-use Netlify's supported local functions runtime or a controlled deployment with
-the Pi in mock mode. See [Netlify's function guide](https://docs.netlify.com/build/functions/get-started/).
-
-The separately hosted Sites portal has newer operator authentication and uses
-its own `/api/doors/open` route. Its existing UI and sensor-controller workflow
-are preserved; this repository is not a replacement for that newer source.
+`fencemate2026-pixel/balwyn-high-access-portal` has an older static demonstration.
+It receives the same service and optional remote-open client separately; its
+simulated gate controls retain their original behaviour when unconfigured.
+Its Netlify function requires a distinct remote-open operator token because a
+demo login is not authorisation to actuate school hardware. Refer to that
+repository's README for its hosting setup. This change does not replace the
+newer Sites portal with the older demo.
 
 ## Maglock and Roger F70/IPU36
 
-System Settings contains the Wiring section, connection matrix, unlock timing
-and commissioning scope. See [the current reference](BALWYN_INTEGRATION_STATUS.md#magnetic-lock-and-roger-f70ipu36).
+System Settings contains a Wiring section with the magnetic-lock connections,
+isolated Roger open trigger, connection matrix, timing and commissioning scope.
 The lock power circuit and Roger dry-contact command require electrically
 separate contacts. **Never connect a +12 V lock relay COM to the Roger command
 COM.** For the referenced F70/IPU36 manual, the open command is **34 AP / 32 COM**.
@@ -108,6 +95,13 @@ installed board revision, ratings, relay isolation, emergency release and
 mechanical behaviour onsite. Full references and details are in the
 [Pi wiring guide](pi-door-service/README.md#maglock-and-roger-f70ipu36-interface).
 
+Commissioning covers permissions/readers, schedules, hold-open and return to
+secure operation, remote commands, independently verified gate-state feedback,
+emergency behaviour, safety functions, and recovery after power or communication
+failure. The manuals describe the contact functions; they do not certify the
+installed system. Holding Roger AP active inhibits automatic reclosing until
+the command is released, so the local trigger period must also be verified.
+
 ## Implementation map
 
 | File | Purpose |
@@ -116,6 +110,6 @@ mechanical behaviour onsite. Full references and details are in the
 | `app/remote-open-panel.tsx` | Explicit operator confirmation and pulse-only acknowledgement |
 | `lib/remote-open-client.ts` | Same-origin client requests; no device token or sensor updates |
 | `lib/door-open-gateway.ts` | Server configuration, door mapping and single upstream request |
-| `netlify/functions/remote-open.mts` | Separate operator authentication for the static Netlify demo |
+| `app/api/doors/open/route.ts` | Sites session/role and emergency-priority enforcement |
 | `app/compass-wiring-reference.tsx` | Existing board and corrected installation notes |
 | `AI_REFERENCE_MASTER.md` | Scope and limitations for future development |
