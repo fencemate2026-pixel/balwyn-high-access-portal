@@ -66,6 +66,7 @@ export const portalSettings = sqliteTable("portal_settings", {
   positionMonitoring: integer("position_monitoring", { mode: "boolean" }).notNull().default(true),
   faultAlerts: integer("fault_alerts", { mode: "boolean" }).notNull().default(true),
   voiceAnnouncements: integer("voice_announcements", { mode: "boolean" }).notNull().default(true),
+  equipment: text("equipment"),
   enabledModules: text("enabled_modules").notNull().default('["mobile"]'),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedBy: text("updated_by").notNull().default("system"),

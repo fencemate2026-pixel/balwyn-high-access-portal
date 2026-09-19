@@ -37,7 +37,7 @@ def valid_environment(state_dir: str) -> dict[str, str]:
     return {
         "PORTAL_URL": "https://gate-portal.example",
         "GATE_ID": "TF-ENTRY",
-        "CONTROLLER_TOKEN": "REDACTED",
+        "CONTROLLER_TOKEN": "test-token",
         "OPEN_RELAY_PIN": "1",
         "CLOSE_RELAY_PIN": "2",
         "OPEN_LIMIT_PIN": "3",

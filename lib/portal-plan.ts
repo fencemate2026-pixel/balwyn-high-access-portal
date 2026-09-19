@@ -1,13 +1,15 @@
 import { env } from "cloudflare:workers";
-import type { ModuleKey, PortalPlan } from "./portal-model";
+import type { ModuleKey, PortalPlan, PortalUser } from "./portal-model";
 
-// Entitlements are managed by RJL in the hosted configuration after an upgrade.
+// Entitlements are managed by RJL in hosted configuration. Verified owner access
+// is account-specific; it does not upgrade the school or other operators.
 // Browser preferences and administrator module switches cannot grant a plan.
-export function getPortalPlan(): PortalPlan {
-  const advanced = env.PORTAL_PLAN === "advanced";
+export function getPortalPlan(user?: PortalUser): PortalPlan {
+  const ownerAccess = user?.isOwner === true && user.role === "administrator";
+  const advanced = ownerAccess || env.PORTAL_PLAN === "advanced";
   return {
     tier: advanced ? "advanced" : "core",
-    name: advanced ? "Magic Keys Advanced" : "Gate Operations",
+    name: ownerAccess ? "Magic Keys Owner" : advanced ? "Magic Keys Advanced" : "Gate Operations",
     advancedFeatures: advanced,
   };
 }
@@ -23,7 +25,7 @@ export function planAllowsModule(module: ModuleKey, plan = getPortalPlan()): boo
   return module !== "video" || plan.advancedFeatures;
 }
 
-export function assertPlanAllowsModules(modules: ModuleKey[]): void {
-  const plan = getPortalPlan();
+export function assertPlanAllowsModules(modules: ModuleKey[], user?: PortalUser): void {
+  const plan = getPortalPlan(user);
   if (modules.some((module) => !planAllowsModule(module, plan))) throw new PlanUpgradeRequiredError();
 }

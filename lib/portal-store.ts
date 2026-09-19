@@ -144,7 +144,7 @@ export async function getPortalSnapshot(user: PortalUser): Promise<PortalSnapsho
     enabledModules = ["mobile"];
   }
 
-  const plan = getPortalPlan();
+  const plan = getPortalPlan(user);
   return {
     plan,
     systemMode: (systemRows[0]?.mode ?? "normal") as SystemMode,
@@ -288,7 +288,7 @@ export async function updatePortalSettings(
   if (Array.isArray(patch.enabledModules)) {
     const valid = [...new Set(patch.enabledModules)].filter((item): item is ModuleKey => ["mobile", "video", "visitor", "intercom", "api", "reporting"].includes(item));
     if (!valid.includes("mobile")) valid.unshift("mobile");
-    assertPlanAllowsModules(valid);
+    assertPlanAllowsModules(valid, user);
     clean.enabledModules = JSON.stringify(valid);
   }
   await getDb().update(portalSettings).set(clean).where(eq(portalSettings.id, 1));

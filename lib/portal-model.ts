@@ -60,6 +60,7 @@ export type PortalSettings = {
 };
 
 export type PortalUser = {
+  isOwner?: boolean;
   displayName: string;
   email: string;
   role: "administrator" | "operator" | "viewer";

@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import { handleDoorRequest, readDoorConfiguration } from "../lib/door-open-gateway.ts";
 import { GATES } from "../lib/portal-model.ts";
 import { loadRemoteOpenConfig, requestRemoteOpen } from "../lib/remote-open-client.ts";
 
 const origin = "https://portal.example.test";
-const token = "REDACTED";
+const token = "test-pi-secret-longer-than-32-characters";
 const requestId = "01b09e77-2f6a-42c6-ab9b-16cf0a93097a";
 const environment = { DOOR_SERVICE_URL: "https://pi.example.test", DOOR_SERVICE_TOKEN: token, DOOR_GATE_MAP: '{"TF-ENTRY":1,"SIDE-ENTRY":4}' };
 const readEnv = (key) => environment[key];
@@ -33,8 +34,8 @@ test("configuration exposes mapping but never the Pi token or address", async ()
 
 test("invalid or partial configuration cannot select live channels", () => {
   for (const changes of [
-    { DOOR_SERVICE_URL: "http://pi.example.test" }, { DOOR_SERVICE_URL: "REDACTED" },
-    { DOOR_SERVICE_URL: "https://pi.example.test/other" }, { DOOR_SERVICE_TOKEN: "REDACTED" },
+    { DOOR_SERVICE_URL: "http://pi.example.test" }, { DOOR_SERVICE_URL: "https://user:pass@pi.example.test" },
+    { DOOR_SERVICE_URL: "https://pi.example.test/other" }, { DOOR_SERVICE_TOKEN: "short" },
     { DOOR_GATE_MAP: '{"TF-ENTRY":1,"SIDE-ENTRY":1}' }, { DOOR_GATE_MAP: '{"TF-ENTRY":5}' },
     { DOOR_GATE_MAP: '{"TF-ENTRY":"1"}' }, { DOOR_GATE_MAP: '{}' }, { DOOR_GATE_MAP: '[]' },
     { DOOR_GATE_MAP: '{"NOT-A-GATE":1}' },
@@ -89,9 +90,36 @@ test("dry-run acknowledgements stay explicitly dry-run", async () => {
   assert.equal((await response.json()).status, "dry_run");
 });
 
+test("a six-second Pi pulse completes through the client and gateway without a false failure", async () => {
+  let calls = 0;
+  const result = await requestRemoteOpen("/api/doors/open", "SIDE-ENTRY", "", async (_url, init) => {
+    return handleDoorRequest(new Request(`${origin}/api/doors/open`, {
+      ...init, headers: { ...init.headers, Origin: origin },
+    }), options(async (_piUrl, piInit) => {
+      calls++;
+      await delay(6000, undefined, { signal: piInit.signal });
+      init.signal.throwIfAborted();
+      return Response.json({ status: "pulsed", door: 4, pulse_ms: 6000, position: "unknown", sensor_feedback: false, request_id: init.headers["Idempotency-Key"] });
+    }));
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.status, "pulsed");
+  assert.equal(result.pulseMs, 6000);
+  assert.equal(result.position, "unknown");
+});
+
+test("pulse acknowledgements accept the supported range and reject invalid durations", async () => {
+  for (const pulseMs of [300, 6000, 10000, 299, 10001, 6000.5, "6000"]) {
+    const response = await handleDoorRequest(req(), options(async () => Response.json({
+      status: "pulsed", door: 4, pulse_ms: pulseMs, position: "unknown", sensor_feedback: false, request_id: requestId,
+    })));
+    assert.equal(response.status, [300, 6000, 10000].includes(pulseMs) ? 200 : 502);
+  }
+});
+
 test("client sends an explicit same-origin request, no retries, and keeps result unknown", async () => {
   const calls = [];
-  const result = await requestRemoteOpen("/api/doors/open", "SIDE-ENTRY", "REDACTED", async (url, init) => {
+  const result = await requestRemoteOpen("/api/doors/open", "SIDE-ENTRY", "operator-token", async (url, init) => {
     calls.push([url, init]);
     return Response.json({ status: "pulsed", door: 4, pulseMs: 500, position: "unknown", sensorFeedback: false, requestId: init.headers["Idempotency-Key"] });
   });
@@ -99,7 +127,7 @@ test("client sends an explicit same-origin request, no retries, and keeps result
   assert.equal(calls[0][1].credentials, "same-origin");
   assert.deepEqual(JSON.parse(calls[0][1].body), { gateId: "SIDE-ENTRY" });
   assert.equal(result.position, "unknown");
-  await assert.rejects(() => requestRemoteOpen("https://other.example.test", "SIDE-ENTRY", "REDACTED"), /same-origin/);
+  await assert.rejects(() => requestRemoteOpen("https://other.example.test", "SIDE-ENTRY", "operator-token"), /same-origin/);
   let failures = 0;
   await assert.rejects(() => requestRemoteOpen("/api/doors/open", "SIDE-ENTRY", "", async () => { failures++; throw new Error("Disconnected"); }));
   assert.equal(failures, 1);

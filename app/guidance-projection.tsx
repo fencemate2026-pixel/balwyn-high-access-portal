@@ -1,35 +1,6 @@
 "use client";
 
-/**
- * The projected classroom screen.
- *
- * Replaces the fixed "Follow your teacher" card with the route the wayfinding
- * engine actually computed. A teacher already knows to follow the evacuation
- * plan; what they do not know, at the moment the alarm goes, is which way is
- * still open today.
- *
- * WHY THE TYPE IS THIS BIG
- *
- * The overlay is drawn at 1440x900 and then perspective-mapped onto the
- * projector screen in the photograph, where it ends up a few hundred pixels
- * wide — which is also roughly how a real projector reads from the back row of
- * a classroom. So it is sized for one glance: a headline, three steps, and
- * where to assemble. Anything more does not survive the reduction.
- *
- * COLOUR CARRIES THE STATE
- *
- * Green, amber and red are the ISO 7010 safe / assisted / stop conventions, and
- * the same green as the running-man signs already in the corridors, so the
- * screen agrees with the building's signage rather than competing with it. The
- * rail across the top changes with the state, which is legible before any word
- * has been read.
- *
- * DATA
- *
- * `route` is the engine's output. Nothing here is written by hand, and the
- * three statuses are the three real answers: a way out, a refuge, or stay put.
- * The last one is the case a fixed card cannot express at all.
- */
+/** Classroom projection preview. Recorded route examples remain advisory until site approval. */
 
 import { ShieldCheck, TriangleAlert, Ban } from "lucide-react";
 import BrandLogo from "./brand-logo";
@@ -38,7 +9,7 @@ export type GuidanceStatus = "ok" | "refuge" | "hold";
 
 export type GuidanceRoute = {
   status: GuidanceStatus;
-  /** Room or door the screen is installed in. */
+  /** Recorded outdoor exit identifier; this layer contains no interiors. */
   origin: string;
   headline: string;
   steps: { text: string; metres?: number }[];
@@ -49,29 +20,26 @@ export type GuidanceRoute = {
 };
 
 const TONE: Record<GuidanceStatus, { rail: string; lift: string; label: string }> = {
-  ok:     { rail: "#009639", lift: "#35cc72", label: "Safe route" },
-  refuge: { rail: "#e8a317", lift: "#ffc44d", label: "Assisted evacuation" },
-  hold:   { rail: "#d7263d", lift: "#ff5f73", label: "Do not leave the room" },
+  ok:     { rail: "#009639", lift: "#35cc72", label: "Recorded route · example" },
+  refuge: { rail: "#e8a317", lift: "#ffc44d", label: "Assisted evacuation · example" },
+  hold:   { rail: "#d7263d", lift: "#ff5f73", label: "No verified route" },
 };
 
-/**
- * The example shown in the concept photograph. These are Balwyn's own measured
- * figures from their marked diagram, not invented ones — the point of the
- * demonstration is that the number is real.
- */
+// EXIT_12 → PINCH → MUSTER_OVAL in the supplied balwyn_site.json.
+// These are recorded outdoor connections, not a verified classroom route.
 export const EXAMPLE_ROUTE: GuidanceRoute = {
   status: "ok",
-  origin: "Room G12",
+  origin: "Exit 12",
   headline: "Go to the school oval",
   steps: [
-    { text: "Leave by the north-west doors" },
-    { text: "Follow the path past D block", metres: 60 },
-    { text: "Continue to the oval", metres: 65 },
+    { text: "Leave by Exit 12" },
+    { text: "Follow the path to the central crossing", metres: 70.9 },
+    { text: "Continue to the oval", metres: 17.2 },
   ],
-  destinationLabel: "Assemble at",
+  destinationLabel: "Meeting point",
   destination: "School oval",
-  avoid: "Do not use the central path",
-  totalMetres: 125,
+  totalMetres: 88.1,
+  avoid: "Stay clear of the internal driveway",
 };
 
 export default function GuidanceProjection({ route }: { route: GuidanceRoute }) {
@@ -89,7 +57,7 @@ export default function GuidanceProjection({ route }: { route: GuidanceRoute }) 
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "18px 34px", background: "#0c1c2f", borderBottom: "1px solid #1c385a",
       }}>
-        <BrandLogo />
+        <div style={{ width: 270, height: 88, flexShrink: 0 }}><BrandLogo /></div>
         <span style={{ letterSpacing: "0.22em", fontSize: 26, color: "#9cb4cd" }}>
           {route.origin.toUpperCase()}
         </span>
@@ -98,7 +66,7 @@ export default function GuidanceProjection({ route }: { route: GuidanceRoute }) 
         </span>
       </div>
 
-      <div style={{ flex: 1, padding: "30px 40px", display: "flex", flexDirection: "column", gap: 22 }}>
+      <div style={{ flex: 1, padding: "24px 40px", display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, color: tone.lift }}>
           <Icon style={{ width: 34, height: 34 }} aria-hidden />
           <span style={{ letterSpacing: "0.24em", fontSize: 26, fontWeight: 600 }}>
@@ -106,7 +74,7 @@ export default function GuidanceProjection({ route }: { route: GuidanceRoute }) 
           </span>
         </div>
 
-        <strong style={{ fontSize: 96, lineHeight: 0.95, fontWeight: 700, letterSpacing: "-0.01em" }}>
+        <strong style={{ fontSize: 88, lineHeight: 0.95, fontWeight: 700, letterSpacing: "-0.01em" }}>
           {route.headline}
         </strong>
 
@@ -114,7 +82,7 @@ export default function GuidanceProjection({ route }: { route: GuidanceRoute }) 
           {route.steps.map((step, i) => (
             <li key={step.text} style={{
               display: "grid", gridTemplateColumns: "58px 1fr auto", alignItems: "center",
-              gap: 18, padding: "14px 20px", background: "#0d1f34",
+              gap: 18, padding: "12px 20px", background: "#0d1f34",
               borderLeft: `6px solid ${tone.rail}`,
             }}>
               <span style={{ fontSize: 44, fontWeight: 700, color: tone.lift, textAlign: "center" }}>
@@ -162,9 +130,9 @@ export default function GuidanceProjection({ route }: { route: GuidanceRoute }) 
       <div style={{
         display: "flex", justifyContent: "space-between", padding: "14px 34px",
         background: "#0c1c2f", borderTop: "1px solid #1c385a",
-        letterSpacing: "0.18em", fontSize: 22, color: "#61809f",
+        letterSpacing: "0.12em", fontSize: 18, color: "#61809f",
       }}>
-        <span>ADVISORY — FOLLOW YOUR TEACHER AND THE POSTED DIAGRAM</span>
+        <span>ADVISORY · APPROXIMATE DISTANCES · FOLLOW THE APPROVED SCHOOL PLAN</span>
         <span style={{ color: "#e8a317" }}>DEMONSTRATION · NO LIVE INCIDENT</span>
       </div>
     </div>
