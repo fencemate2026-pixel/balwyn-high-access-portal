@@ -1,3 +1,4 @@
+import { portalEmailAllowed } from "@/lib/owner-access";
 import { getD1 } from "@/db";
 import { microsoftSettings } from "@/lib/auth-settings";
 import { authenticateMicrosoftSignIn, clearMicrosoftSignInCookie } from "@/lib/microsoft-signin";
@@ -9,7 +10,7 @@ export async function GET(request: Request) {
   headers.append("Set-Cookie", clearMicrosoftSignInCookie());
   try {
     const result = await authenticateMicrosoftSignIn(getD1(), request, microsoftSettings());
-    if (result) {
+    if (result && portalEmailAllowed(result.user.email)) {
       await ensurePortalSeeded();
       headers.append("Set-Cookie", await createSessionCookie(result.user, { provider: "microsoft", subject: result.subject }));
       headers.set("Location", "/login");

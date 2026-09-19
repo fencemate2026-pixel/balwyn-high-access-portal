@@ -21,7 +21,7 @@ export async function requestRemoteOpen(endpoint: string, gateId: string, operat
   const requestId = crypto.randomUUID();
   const target = localEndpoint(endpoint);
   const response = await fetcher(target, {
-    method: "POST", credentials: "same-origin", redirect: "error", signal: AbortSignal.timeout(8000),
+    method: "POST", credentials: "same-origin", redirect: "error", signal: AbortSignal.timeout(20000),
     headers: { "Content-Type": "application/json", "Idempotency-Key": requestId, ...(operatorToken ? { Authorization: `Bearer ${operatorToken}` } : {}) },
     body: JSON.stringify({ gateId }),
   }).catch(() => { throw new Error("Pulse outcome unknown after a connection failure. Inspect locally before retrying"); });

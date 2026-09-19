@@ -10,6 +10,7 @@ export default function PrivacyPage() {
   return <LegalPage
     eyebrow="Privacy and data handling"
     title="Privacy Policy"
+    effectiveDate="19 September 2026"
     summary="This policy explains how the Magic Keys Balwyn High School operations portal handles the limited personal information needed to authenticate operators, operate access-control equipment and maintain an accountable activity record."
     sections={[
       {
@@ -35,6 +36,10 @@ export default function PrivacyPage() {
       {
         title: "Other portal information",
         content: <><p>The portal records operational information such as gate commands, schedules, controller acknowledgements, connection status, operator roles, settings and activity logs. This information is used to provide role-appropriate controls, send and confirm gate commands, diagnose faults, investigate incidents, maintain safety and security records, and administer the service.</p><p>The current portal does not store CCTV footage, biometric information or student records.</p></>,
+      },
+      {
+        title: "Software help agent",
+        content: <><p>The help agent explains the portal using project guides. When AI replies are connected, it sends your question, up to six recent conversation messages, relevant guide passages, the current page name, your access role, plan and a non-secret configuration summary to the configured provider, Anthropic (Claude) or OpenAI. The help panel identifies the provider before you send a question. It does not automatically send your email address, profile, activity log, camera footage or secret configuration values.</p><p>Conversations are kept in the current page memory and clear when the page reloads or you select New chat. The portal does not save chat text to its database. OpenAI requests disable response storage; this does not guarantee that the provider retains no data. Claude uses the Anthropic Messages API. Provider retention and processing are governed by the applicable provider data handling policy; no zero-retention guarantee is made. Processing by either provider may occur outside Australia. Request counts are recorded against the signed-in account to limit misuse. Do not enter passwords, API keys, tokens or personal records into the helper.</p></>,
       },
       {
         title: "Cookies, storage and security",

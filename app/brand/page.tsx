@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description:
     "Magic Keys – Balwyn High School is a gate-operations application for authorised school and RJL Commercial Group personnel, with Google sign-in, access controls, schedules and activity records.",
   alternates: { canonical: "https://magickeys-balwyn-portal.com/brand" },
-  robots: { index: true, follow: true },
+  robots: { index: false, follow: false },
 };
 
 export default function BrandPage() {

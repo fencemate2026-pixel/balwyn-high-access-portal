@@ -69,6 +69,7 @@ export default function PlanUpgradeGate({ feature, onUpgrade }: { feature: "cctv
       </Tabs>
       <div className="advanced-benefits">{benefits.map(({ key, Icon, title, text }) => <article key={key}><Icon /><h3>{title}</h3><p>{text}</p></article>)}</div>
       <footer className="advanced-upgrade-invitation"><div><span className="advanced-eyebrow">Built around your school</span><h3>See what this could look like at Balwyn.</h3><p>Ask RJL for a guided demonstration and a tailored proposal covering your cameras, classroom displays and response workflows.</p></div><Button size="lg" onClick={onUpgrade}>Arrange a demonstration <ArrowRight /></Button></footer>
+      <p className="detection-performance-boundary">Site-specific detection and false-alarm performance established at the paid trial stage.</p>
       <p className="advanced-demo-note"><CheckCircle2 /> The fire response described is a proposed service. Live operation requires an agreed upgrade, compatible integrations and school-approved commissioning; the previews do not operate equipment.</p>
     </section>
   );

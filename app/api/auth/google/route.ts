@@ -1,3 +1,5 @@
+import { portalEmailAllowed, withOwnerAccess } from "@/lib/owner-access";
+import { googleAccountRoles } from "@/lib/auth-settings";
 import { getD1 } from "@/db";
 import { createSessionCookie, googleAllowedEmails, googleClientId } from "@/lib/portal-auth";
 import { authenticateGoogleSignIn, clearGoogleSignInCookie, isSameOriginSignInRequest } from "@/lib/google-signin";
@@ -14,8 +16,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Google did not provide a valid sign-in response." }, { status: 400, headers });
   }
   try {
-    const user = await authenticateGoogleSignIn(getD1(), request, body, { clientId: googleClientId(), allowedEmails: googleAllowedEmails() });
-    if (!user) return Response.json({ error: "This sign-in request has expired or the Google account is not approved. Please try again with an approved account." }, { status: 403, headers });
+    const verifiedUser = await authenticateGoogleSignIn(getD1(), request, body, { clientId: googleClientId(), allowedEmails: googleAllowedEmails(), accountRoles: googleAccountRoles() });
+    if (!verifiedUser || !portalEmailAllowed(verifiedUser.email)) return Response.json({ error: "This sign-in request has expired or the Google account is not approved. Please try again with an approved account." }, { status: 403, headers });
+    const user = withOwnerAccess(verifiedUser, "google");
     await ensurePortalSeeded();
     const snapshot = await getPortalSnapshot(user);
     headers.append("Set-Cookie", await createSessionCookie(user));
