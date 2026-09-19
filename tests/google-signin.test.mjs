@@ -130,13 +130,3 @@ test("an unavailable Google key service never creates an authenticated user", as
   await assert.rejects(f.login({}, f.loginRequest, settings, async () => new Response("Unavailable", { status: 503 })), /unavailable/);
   assert.ok(await f.login());
 });
-
-test('Google sign-in uses the configured role, not a role claimed by the browser', async t => {
-  for (const role of ['viewer', 'operator', 'administrator']) {
-    const f = await fixture(t);
-    const result = await f.login({}, f.loginRequest, { ...settings, accountRoles: new Map([['operator@example.test', role]]) });
-    assert.equal(result.role, role);
-  }
-  const f = await fixture(t);
-  assert.equal(await f.login({}, f.loginRequest, { ...settings, accountRoles: new Map() }), null);
-});

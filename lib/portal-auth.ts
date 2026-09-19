@@ -4,9 +4,7 @@ import { eq } from "drizzle-orm";
 import type { PortalUser } from "./portal-model";
 import { getDb, getD1 } from "@/db";
 import { operatorTotp } from "@/db/schema";
-import { googleAccountRoles, microsoftAccountRoles } from "./auth-settings";
-import { configuredRole } from "./account-roles";
-import { portalEmailAllowed, withOwnerAccess } from "./owner-access";
+import { microsoftAllowedAccounts } from "./auth-settings";
 
 const COOKIE_NAME = "balwyn_operator_session";
 const MFA_COOKIE_NAME = "balwyn_operator_mfa";
@@ -22,13 +20,11 @@ type RuntimeSecrets = {
   passwordHash: string;
   sessionSecret: string;
   operatorEmail: string;
-  role: PortalUser["role"];
   secondary: {
     username: string;
     passwordSalt: string;
     passwordHash: string;
     operatorEmail: string;
-    role: PortalUser["role"];
     phone: string;
   } | null;
 };
@@ -61,9 +57,9 @@ function runtimeSecrets(): RuntimeSecrets {
     throw new Error("Operator authentication is not configured.");
   }
   const secondary = secondaryUsername && secondaryPasswordSalt && secondaryPasswordHash
-    ? { username: secondaryUsername, passwordSalt: secondaryPasswordSalt, passwordHash: secondaryPasswordHash, operatorEmail: secondaryOperatorEmail, phone: secondaryPhone, role: configuredRole(env.PORTAL_SECONDARY_ROLE) }
+    ? { username: secondaryUsername, passwordSalt: secondaryPasswordSalt, passwordHash: secondaryPasswordHash, operatorEmail: secondaryOperatorEmail, phone: secondaryPhone }
     : null;
-  return { username, passwordSalt, passwordHash, sessionSecret, operatorEmail, secondary, role: configuredRole(env.PORTAL_ROLE) };
+  return { username, passwordSalt, passwordHash, sessionSecret, operatorEmail, secondary };
 }
 
 function base64Url(bytes: Uint8Array): string {
@@ -125,11 +121,10 @@ export async function verifyOperatorCredentials(username: string, password: stri
   const configured = runtimeSecrets();
   const suppliedName = username.trim().toLocaleLowerCase("en-AU");
   const accounts = [
-    { username: configured.username, passwordSalt: configured.passwordSalt, passwordHash: configured.passwordHash, operatorEmail: configured.operatorEmail, role: configured.role },
+    { username: configured.username, passwordSalt: configured.passwordSalt, passwordHash: configured.passwordHash, operatorEmail: configured.operatorEmail },
     ...(configured.secondary ? [configured.secondary] : []),
   ];
   for (const account of accounts) {
-    if (!portalEmailAllowed(account.operatorEmail)) continue;
     const profile = await getD1().prepare("SELECT username FROM user_profiles WHERE account_key = ?")
       .bind(`password:${account.username.toLocaleLowerCase("en-AU")}`).first<{ username: string | null }>();
     const suppliedHash = await passwordDigest(password, account.passwordSalt);
@@ -137,7 +132,7 @@ export async function verifyOperatorCredentials(username: string, password: stri
       || (Boolean(account.operatorEmail) && suppliedName === account.operatorEmail.toLocaleLowerCase("en-AU"))
       || (Boolean(profile?.username) && suppliedName === profile?.username);
     if (validName && constantTimeEqual(suppliedHash, account.passwordHash)) {
-      return withOwnerAccess({ displayName: account.username, email: account.operatorEmail || "Contact email not configured", role: account.role }, "password");
+      return { displayName: account.username, email: account.operatorEmail || "Contact email not configured", role: "administrator" };
     }
   }
   return null;
@@ -154,7 +149,7 @@ export async function passwordSessionIdentity(user: PortalUser): Promise<Session
   const accounts = [configured, ...(configured.secondary ? [configured.secondary] : [])];
   const account = accounts.find((value) => value.username === user.displayName
     && (value.operatorEmail || "Contact email not configured") === user.email);
-  if (!account || account.role !== user.role || !portalEmailAllowed(user.email)) return null;
+  if (!account) return null;
   return { provider: "password", subject: await hmac(`${account.username}\n${account.passwordHash}`, sessionSecret()) };
 }
 
@@ -205,10 +200,9 @@ export async function getMfaChallenge(request: Request): Promise<MfaChallenge | 
     const configured = runtimeSecrets();
     if (!constantTimeEqual(signature, await hmac(payload, configured.sessionSecret))) return null;
     const challenge = JSON.parse(new TextDecoder().decode(decodeBase64Url(payload))) as MfaChallenge;
-    if (!challenge.user?.displayName || !["administrator", "operator", "viewer"].includes(challenge.user.role) || !challenge.fingerprint
+    if (!challenge.user?.displayName || challenge.user.role !== "administrator" || !challenge.fingerprint
       || !Number.isSafeInteger(challenge.expiresAt) || challenge.expiresAt <= Date.now()) return null;
     if (challenge.credentialVersion !== (await passwordSessionIdentity(challenge.user))?.subject) return null;
-    challenge.user = withOwnerAccess(challenge.user, "password");
     return challenge;
   } catch {
     return null;
@@ -322,7 +316,8 @@ export function googleClientId(): string {
 }
 
 export function googleAllowedEmails(): Set<string> {
-  return new Set(googleAccountRoles().keys());
+  const configured = String(env.GOOGLE_ALLOWED_EMAILS ?? "").split(",").map((email) => email.trim().toLocaleLowerCase("en-AU")).filter(Boolean);
+  return new Set(configured);
 }
 
 export async function getSessionUser(request: Request): Promise<PortalUser | null> {
@@ -343,17 +338,17 @@ export async function getSessionUser(request: Request): Promise<PortalUser | nul
     if (!parsed.user || typeof parsed.expiresAt !== "number" || !Number.isSafeInteger(parsed.expiresAt) || parsed.expiresAt <= Date.now()) return null;
     if (typeof parsed.user.displayName !== "string" || !parsed.user.displayName.trim() || !["administrator", "operator", "viewer"].includes(parsed.user.role)) return null;
     // Recheck the configured provider's approval on every authenticated request.
-    if (typeof parsed.user.email !== "string" || !portalEmailAllowed(parsed.user.email)) return null;
+    if (typeof parsed.user.email !== "string") return null;
     const identity = parsed.identity ?? { provider: "google" };
     if (identity.provider === "password") {
       const current = await passwordSessionIdentity(parsed.user);
       if (!current?.subject || current.subject !== identity.subject) return null;
     } else if (identity.provider === "microsoft") {
-      if (!identity.subject || microsoftAccountRoles().get(identity.subject) !== parsed.user.role) return null;
+      if (!identity.subject || !microsoftAllowedAccounts().has(identity.subject)) return null;
     } else if (identity.provider === "google") {
-      if (googleAccountRoles().get(parsed.user.email.trim().toLocaleLowerCase("en-AU")) !== parsed.user.role) return null;
+      if (!googleAllowedEmails().has(parsed.user.email.trim().toLocaleLowerCase("en-AU"))) return null;
     } else return null;
-    return withOwnerAccess(parsed.user, identity.provider);
+    return parsed.user;
   } catch {
     return null;
   }
@@ -387,7 +382,7 @@ function administratorPasswords(): { passwordSalt: string; passwordHash: string 
     return [{ passwordSalt, passwordHash }];
   }
   const configured = runtimeSecrets();
-  return [configured, ...(configured.secondary ? [configured.secondary] : [])].filter(account => account.role === "administrator");
+  return [configured, ...(configured.secondary ? [configured.secondary] : [])];
 }
 
 export async function verifyAdministratorPassword(password: string): Promise<boolean> {

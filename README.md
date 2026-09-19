@@ -11,7 +11,7 @@ open-only Pi relay trigger**, independent of that feedback workflow.
 ## What the ACB-004 integration does
 
 - `POST /doors/{1-4}/open` on the Pi pulses exactly one configured GPIO relay
-  channel for 300–10,000 ms (default 500 ms).
+  channel for 300–800 ms (default 500 ms).
 - Mock/dry-run mode is the default and never imports or operates GPIO.
 - Bearer authentication, fixed local pin/polarity configuration, durable
   duplicate protection, logging and tests are included.

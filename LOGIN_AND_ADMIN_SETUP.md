@@ -104,13 +104,3 @@ still controlled by `PORTAL_PLAN` on the server, and commissioning remains separ
 The existing Sites Worker, D1 `DB` binding and project identity are retained. R2 `BUCKET` is added for profile photos. Append-only migrations `0005` and `0006` create Microsoft challenges and user profiles; existing tables/data are preserved.
 
 Automated checks cover Google/Microsoft token validation, callback replay, password and authenticator verification, configuration lock bypass, session expiry/revocation, profile ownership, duplicate usernames, uploaded file types and authenticated image delivery. Live provider sign-in and photo storage should also be checked with the configured production account.
-
-## Per-account access roles
-Google entries in `GOOGLE_ALLOWED_EMAILS` accept `email|role`, separated by commas, for example `viewer@example.test|viewer,operator@example.test|operator,admin@example.test|administrator`. Microsoft entries in `MICROSOFT_ALLOWED_ACCOUNTS` accept `tenant-id:object-id|role`; identifiers must still be valid UUIDs. The only accepted roles are `viewer`, `operator`, and `administrator`. Invalid entries and duplicate identities fail closed.
-
-Password account roles use `PORTAL_ROLE` and `PORTAL_SECONDARY_ROLE`. Existing unannotated OAuth entries and unset password roles retain their previous administrator access for compatibility. Configure explicit roles for school staff; existing accounts have not been silently downgraded. Role changes are checked on every request and invalidate sessions with an old role. Pending password MFA also rechecks the assigned role. Lower-privilege password accounts cannot supply the fallback administrator unlock password.
-
-Use https://magickeys-balwyn-portal.com as the canonical portal and controller origin. The hosting provider's deployment address is not the school-facing setup address.
-
-## Owner and site-wide sign-in restriction
-`PORTAL_ALLOWED_EMAILS` is an optional comma-separated exact email restriction applied in addition to provider approval. When configured, non-listed Google, Microsoft and password identities are rejected, including existing sessions. Password account aliases do not bypass the bound account email check. `PORTAL_OWNER_EMAIL` identifies the full-access owner for verified Google/password identities; Microsoft display-email hints cannot grant owner status. Google approval and account roles still apply. The owner's advanced access is account-specific and does not upgrade other users. Keep the separate administrator settings password and MFA requirements.

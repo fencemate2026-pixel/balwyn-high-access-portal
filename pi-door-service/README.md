@@ -73,7 +73,7 @@ physical GPIO. Example pins 17,27,22,23 are mock examples, not an onsite pin map
    and the correct `DOOR_GPIO_CHIP`. Confirm the hardware starts with all relays
    inactive. Only after commissioning, select `DOOR_MODE=hardware` and restart.
 
-`DOOR_PULSE_MS` is a fixed integer from 300 through 10000 (default 500). It is a
+`DOOR_PULSE_MS` is a fixed integer from 300 through 800 (default 500). It is a
 request pulse, not a lock-release timer. Linux scheduling is not a hard real-time
 guarantee; verify measured pulse length and fail-off behaviour on the installed
 relay hardware. Software cannot guarantee contact release after a welded relay,
@@ -113,7 +113,7 @@ release the lock before gate movement and restore locking at the appropriate
 point. No generic 3–5-second setting or blanket residual-magnetism delay is
 specified here. Confirm the installed lock, suppression, controller release
 time, gate travel, emergency release, and applicable local safety circuits.
-The 300–10,000 ms Pi pulse must not be extended to substitute for this sequence.
+The 300–800 ms Pi pulse must not be extended to substitute for this sequence.
 
 Sources: user-supplied S4A ACB-00 wiring PDF, sheet 3 (ACB-004) and sheet 4
 (optional ACB-EA05 module); software guide pp. 15–18, 32–34, 45–46 and 61.

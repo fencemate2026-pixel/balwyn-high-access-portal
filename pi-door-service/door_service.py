@@ -34,8 +34,8 @@ class Config:
             raise ValueError("DOOR_API_TOKEN must be an ASCII token of at least 32 characters")
         if len(self.pins) != 4 or len(set(self.pins)) != 4 or any(type(p) is not int or not 2 <= p <= 27 for p in self.pins):
             raise ValueError("DOOR_GPIO_PINS requires four distinct BCM pins in door 1,2,3,4 order (2..27)")
-        if type(self.pulse_ms) is not int or not 300 <= self.pulse_ms <= 10000:
-            raise ValueError("DOOR_PULSE_MS must be an integer between 300 and 10000")
+        if type(self.pulse_ms) is not int or not 300 <= self.pulse_ms <= 800:
+            raise ValueError("DOOR_PULSE_MS must be an integer between 300 and 800")
         if self.mode not in {"mock", "dry-run", "hardware"}:
             raise ValueError("DOOR_MODE must be mock, dry-run or hardware")
         if type(self.active_low) is not bool or type(self.chip) is not int or self.chip < 0:

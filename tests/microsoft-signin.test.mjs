@@ -6,7 +6,7 @@ import { authenticateMicrosoftSignIn, createMicrosoftSignInChallenge } from "../
 const origin = "https://magickeys-balwyn-portal.com";
 const tenant = "9188040d-6c67-4c5b-b112-36a304b66dad";
 const oid = "00000000-1111-2222-3333-444444444444";
-const settings = { clientId: "11111111-2222-3333-4444-555555555555", clientSecret: "test-only-provider-secret", allowedAccounts: new Set([`${tenant}:${oid}`]) };
+const settings = { clientId: "11111111-2222-3333-4444-555555555555", clientSecret: "REDACTED", allowedAccounts: new Set([`${tenant}:${oid}`]) };
 const keyPair = await crypto.subtle.generateKey({ name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }, true, ["sign", "verify"]);
 const jwk = { ...await crypto.subtle.exportKey("jwk", keyPair.publicKey), kid: "test-key", use: "sig", issuer: "https://login.microsoftonline.com/{tenantid}/v2.0" };
 const startRequest = (headers = {}) => new Request(`${origin}/api/auth/microsoft/start`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", ...headers } });
@@ -94,13 +94,5 @@ test("a bad signature or signing key issuer and token exchange outage fail close
     };
     if (mode === "unavailable") await assert.rejects(authenticateMicrosoftSignIn(f.db, f.callback(), settings, fetcher));
     else assert.equal(await authenticateMicrosoftSignIn(f.db, f.callback(), settings, fetcher), null);
-  }
-});
-
-test('Microsoft sign-in assigns roles by immutable tenant and object identity', async t => {
-  for (const role of ['viewer', 'operator', 'administrator']) {
-    const f = await fixture(t);
-    const result = await authenticateMicrosoftSignIn(f.db, f.callback(), { ...settings, accountRoles: new Map([[`${tenant}:${oid}`, role]]) }, f.fetcher);
-    assert.equal(result.user.role, role);
   }
 });

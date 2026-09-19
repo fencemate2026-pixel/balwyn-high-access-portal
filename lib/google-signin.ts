@@ -14,7 +14,7 @@ type LoginDatabase = {
   batch(statements: LoginStatement[]): Promise<unknown>;
 };
 type GoogleJwk = JsonWebKey & { kid?: string; alg?: string; use?: string };
-type GoogleSettings = { clientId: string; allowedEmails: Set<string>; accountRoles?: Map<string, PortalUser["role"]> };
+type GoogleSettings = { clientId: string; allowedEmails: Set<string> };
 type LoginChallenge = { state_hash: string; browser_hash: string; nonce: string };
 
 function encode(bytes: Uint8Array): string {
@@ -108,7 +108,7 @@ async function verifyGoogleIdentity(credential: string, nonce: string, settings:
   if (typeof claims.email !== "string" || !claims.email.includes("@") || claims.email_verified !== true) return null;
   if (claims.nonce !== nonce) return null;
   const email = claims.email.trim().toLocaleLowerCase("en-AU");
-  if (!settings.allowedEmails.has(email) || (settings.accountRoles && !settings.accountRoles.has(email))) return null;
+  if (!settings.allowedEmails.has(email)) return null;
 
   const response = await fetcher("https://www.googleapis.com/oauth2/v3/certs", {
     headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000),
@@ -121,7 +121,7 @@ async function verifyGoogleIdentity(credential: string, nonce: string, settings:
   const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
   const validSignature = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, encoder.encode(`${encodedHeader}.${encodedPayload}`));
   if (!validSignature) return null;
-  return { displayName: typeof claims.name === "string" && claims.name.trim() ? claims.name.trim() : email, email, role: settings.accountRoles?.get(email) ?? "administrator" };
+  return { displayName: typeof claims.name === "string" && claims.name.trim() ? claims.name.trim() : email, email, role: "administrator" };
 }
 
 export async function authenticateGoogleSignIn(

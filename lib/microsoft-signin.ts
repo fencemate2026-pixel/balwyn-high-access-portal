@@ -7,7 +7,7 @@ const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const encoder = new TextEncoder();
 type Statement = { bind(...values: (string | number)[]): Statement; first<T>(): Promise<T | null>; run(): Promise<unknown> };
 type Database = { prepare(sql: string): Statement; batch(statements: Statement[]): Promise<unknown> };
-type Settings = { clientId: string; clientSecret: string; allowedAccounts: Set<string>; accountRoles?: Map<string, PortalUser["role"]> };
+type Settings = { clientId: string; clientSecret: string; allowedAccounts: Set<string> };
 type Challenge = { nonce: string; verifier: string };
 type MicrosoftJwk = JsonWebKey & { kid?: string; alg?: string; use?: string; issuer?: string };
 
@@ -87,7 +87,7 @@ async function verifyIdentity(token: string, nonce: string, settings: Settings, 
     || (claims.nbf !== undefined && (typeof claims.nbf !== "number" || !Number.isSafeInteger(claims.nbf) || claims.nbf > now + 60))) return null;
   const subject = `${claims.tid}:${claims.oid}`.toLowerCase();
   // Email and preferred_username are display hints, never proof of approval.
-  if (!settings.allowedAccounts.has(subject) || (settings.accountRoles && !settings.accountRoles.has(subject))) return null;
+  if (!settings.allowedAccounts.has(subject)) return null;
   const keysResponse = await fetcher(`${AUTHORITY}/common/discovery/v2.0/keys`, {
     headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000), redirect: "error",
   });
@@ -101,7 +101,7 @@ async function verifyIdentity(token: string, nonce: string, settings: Settings, 
   if (!await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, encoder.encode(`${parts[0]}.${parts[1]}`))) return null;
   const emailHint = typeof claims.email === "string" ? claims.email : claims.preferred_username;
   const email = typeof emailHint === "string" && emailHint.length <= 254 && emailHint.includes("@") ? emailHint.trim().toLowerCase() : "Contact email not configured";
-  const user: PortalUser = { displayName: typeof claims.name === "string" && claims.name.trim() ? claims.name.trim().slice(0, 200) : "Microsoft operator", email, role: settings.accountRoles?.get(subject) ?? "administrator" };
+  const user: PortalUser = { displayName: typeof claims.name === "string" && claims.name.trim() ? claims.name.trim().slice(0, 200) : "Microsoft operator", email, role: "administrator" };
   return { user, subject };
 }
 
