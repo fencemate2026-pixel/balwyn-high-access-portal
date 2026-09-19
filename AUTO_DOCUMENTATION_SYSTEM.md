@@ -1,14 +1,21 @@
 # 🤖 AUTO-DOCUMENTATION SYSTEM
 
-**Automatic AI Knowledge Generation**  
+**Proposed AI documentation workflow**  
 RJL Commercial Group · September 2026  
-**Purpose:** Self-updating documentation that feeds your AI everything it needs.
+**Purpose:** A design for maintaining documentation used by an authorised AI workflow.
+
+
+**Implementation status:** This document describes a proposed workflow, not evidence
+that ingestion or model training is running. Read the checked
+[Balwyn integration status](BALWYN_INTEGRATION_STATUS.md) and
+[master reference](AI_REFERENCE_MASTER.md) before using the examples below.
+The current update adds source and documentation; no training job was executed.
 
 ---
 
 ## OVERVIEW
 
-This system automatically:
+The proposed system would automatically:
 - ✅ Reads your entire codebase
 - ✅ Extracts structure, dependencies, and architecture
 - ✅ Generates AI-friendly documentation
@@ -290,3 +297,4 @@ ls -la AUTO_DOCS/
 ---
 
 **Your AI now has fresh documentation every time.** ✨
+

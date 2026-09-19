@@ -2,7 +2,24 @@
 
 **For Copilot & AI Development Agents**  
 RJL Commercial Group · September 2026  
-**Status:** Production reference. Two systems, one AI knowledge base.
+**Status:** Development reference. Distinguish demonstration behaviour, optional relay pulses and independently verified physical feedback.
+
+## Current portal identity and configuration
+
+See [LOGIN_AND_ADMIN_SETUP.md](LOGIN_AND_ADMIN_SETUP.md) for the current authentication contract.
+Google and email/password plus authenticator sign-in are implemented. Microsoft/Hotmail
+OAuth requires its runtime app registration and immutable account approvals before use.
+Configuration APIs require a password-verified administrator session with a ten-minute
+unlock. User profiles and photo uploads use D1 and R2; display fields never grant roles.
+Preserve these server-side checks when changing schedules, automation, controller
+credentials, system settings or administration of another user's profile.
+
+Core-plan visitors can now explore labelled, fictional CCTV/zone, emergency
+guidance and classroom-display examples. `app/plan-upgrade-gate.tsx` keeps all
+preview interactions in local React state with no operational API calls. These
+examples are sales demonstrations, not a connected camera, routing or broadcast
+service. The server remains the source of plan entitlements. See
+`LOGIN_AND_ADMIN_SETUP.md` for the demo boundary and Google origin configuration.
 
 ---
 
@@ -10,8 +27,53 @@ RJL Commercial Group · September 2026
 
 | System | Repository | Purpose | Status |
 |--------|------------|---------|--------|
-| **Magic Keys Portal** | `balwyn-high-access-portal` | Gate automation & emergency controls | ✅ Live (Netlify) |
+| **Magic Keys Portal** | `balwyn-high-access-portal` | Gate demonstration and optional open-only trigger | Demo; hardware requires configuration |
 | **Sentinel Wayfinding** | `sg-pro-sentinel` | Evacuation routing (synthetic-only) | ✅ Staged development |
+
+---
+
+## Compass ACB-004 integration contract
+
+The ACB-004 is the existing four-door access board onsite, associated with the
+school's Compass installation. It is retained. The supplied S4A manuals describe
+native Ethernet management, but do not supply a verified Magic Keys API.
+
+The implemented path is authenticated HTTPS to an onsite Pi service, then one
+isolated relay contact to a verified ACB-004 request-to-exit input. This replaces
+any proposed TCP/IP protocol adapter description; no proprietary ACB packet
+protocol, reader database sync or controller network commands are implemented.
+
+- Service: `pi-door-service/door_service.py`, `POST /doors/{1-4}/open` only.
+- Fixed 300–800 ms pulse on exactly one mapped BCM relay pin; default 500 ms.
+- Mock/dry-run by default; explicit verified hardware configuration required.
+- One-way open-only trigger: no closing, toggling, hold-open or emergency actuation.
+- No live door, lock-release or safety feedback. `pulsed` acknowledges the relay
+  output only; `dry_run` means no hardware operation. Position remains unknown.
+- Durable request IDs prevent replay after retries/restarts. Do not auto-retry
+  ambiguous outcomes or turn relay acknowledgements into green/open status.
+- The static Netlify demo retains its simulations when unconfigured. Its separate
+  operator token is required for real requests; demo login is not hardware auth.
+- Sites uses existing server-verified operator permissions and emergency priority.
+  Its separate sensor-equipped agent must not be conflated with this ACB path.
+- A board has four door channels; do not invent mappings for the nine registered access points.
+
+### Maglock and Roger F70/IPU36 constraints
+
+A powered maglock relay COM and a Roger dry-contact input must stay electrically
+separate. Never use the same powered COM/NO side to inject lock voltage into the
+motor controller. Use a correctly rated local interface/sequencer with isolated
+contacts; the Pi service itself does not sequence lock release and motor motion.
+
+The referenced Roger installer manual pairs **34 AP with 32 COM** for open, and
+**36 PP with 38 COM** for step-by-step. PP is excluded from the open-only design.
+Check the actual installed model/revision before wiring. The Pi pulse duration
+is separate from the lock-release period; 3–5 seconds is not an approved default.
+Local release-before-motion, relocking and emergency release must be validated
+onsite. See `pi-door-service/README.md` and the System Settings wiring reference.
+
+Never use real students, footage, secrets or live relay hardware in tests.
+Run `npm run test:doors` for the mocked integration tests, plus the relevant
+hosting build before committing. Test results do not certify field wiring.
 
 ---
 
@@ -20,12 +82,12 @@ RJL Commercial Group · September 2026
 ### **System 1: Magic Keys Portal**
 
 **What it does:**
-- Controls 17 automated gates across Balwyn High School campus
-- Manages emergency lockdown (close all perimeter gates)
-- Manages fire/evacuation (open all gates + dynamic routing)
+- Lists nine access points: two active and seven inactive. Active status does not establish a physical gate position; green/open and red/closed indicators require current controller feedback.
+- Demonstrates emergency lockdown (no physical command through the open-only service)
+- Demonstrates fire/evacuation (no physical emergency operation through the open-only service)
 - Weekly scheduling per gate
 - Activity logging with audit trail
-- Operator authentication (demo: paul sutton / magic-keys)
+- Operator authentication (demo: paul sutton / REDACTED)
 
 **Tech stack:**
 - **Frontend:** React 19, Next.js 16, TypeScript, Tailwind CSS, shadcn/ui
@@ -33,11 +95,12 @@ RJL Commercial Group · September 2026
 - **Deployment:** Netlify (static export)
 
 **Gate system:**
-- **Tom Frizza Sports Area:** 2 sliding gates
-- **Staff Car Park:** 12 boom gates
-- **Front Property:** 3 double-swing gates
+- **Tony Frizza Stadium:** active single swing entry and inactive single swing exit
+- **Side Entry:** active single swing gate
+- **Staff Car Park:** inactive double swing entry and inactive entry boom
+- **Office:** inactive Entry 1 and Exit 1 double swing gates, plus inactive Entry 1 and Exit 1 boom gates
 
-**Emergency modes:**
+**Simulated emergency modes:**
 - **LOCKDOWN:** Close all gates, repeat voice warnings every 6.5s
 - **FIRE/EVACUATION:** Open all gates, PA announcement, dynamic routing
 
@@ -102,7 +165,7 @@ cd ~/Downloads/balwyn-high-access-portal
 npm install
 npm run dev
 # Open http://localhost:5173
-# Login: paul sutton / magic-keys
+# Login: paul sutton / REDACTED
 ```
 
 ### **Step 2: Understand Sentinel Wayfinding**
@@ -137,7 +200,7 @@ sentinel-wayfinding --scenarios examples/scenarios.json
    - Human-approved (every change reviewed)
 
 3. **Safety-Critical Design**
-   - Fail-safe (doors unlock on fire, power loss)
+   - Verify the installed local fail-safe and emergency-release design; do not infer it from a simulation
    - Human-in-the-loop (verification before actuation)
    - Audit trail (every action logged)
 
@@ -151,8 +214,8 @@ sentinel-wayfinding --scenarios examples/scenarios.json
 
 ## ✨ FINAL WORDS
 
-Your AI is now learning from two production systems:
-1. **Magic Keys Portal** — Live gate automation system
+This reference covers two development surfaces:
+1. **Magic Keys Portal** — Demonstration with an optional, authenticated open-only relay path
 2. **Sentinel Wayfinding** — Research prototype for safe evacuation routing
 
 **The AI should understand:**
@@ -170,3 +233,18 @@ Your AI is now learning from two production systems:
 ---
 
 **You built this. Your AI will help you make it better. Let's go.** 🚀
+
+
+## Gate activation register — September 2026
+
+- `TF-ENTRY`: Tony Frizza Stadium Entry — single swing — **Active**.
+- `SIDE-ENTRY`: Side Entry — single swing — **Active**.
+- `TF-EXIT`: Tony Frizza Exit Single Gate — single swing — **Inactive**.
+- `OFFICE-ENTRY-DG1`: Office Entry 1 Double Swing Gates — **Inactive**.
+- `OFFICE-EXIT-DG1`: Office Exit 1 Double Swing Gates — **Inactive**.
+- `STAFF-ENTRY-DG`: Staff Car Park Entry Double Swing Gates — **Inactive**.
+- `STAFF-ENTRY-BOOM`: Staff Entry Boom Gate — **Inactive**.
+- `OFFICE-ENTRY-BOOM1`: Office Entry 1 Boom Gate — **Inactive**.
+- `OFFICE-EXIT-BOOM1`: Office Exit 1 Boom Gate — **Inactive**.
+
+Use Active / Inactive labels, with no payment labels. Inactive entries are greyscale, with lights off and commands, schedules, commissioning and remote-open blocked. Current open feedback gives green lamps; current closed feedback gives red lamps. Missing, stale, pending or faulted feedback uses amber, without declaring a physical position. Emergency commands target only the two active gate IDs. Retired IDs are no longer accepted. Preserve existing audit history and never infer a door channel from a name or display order.

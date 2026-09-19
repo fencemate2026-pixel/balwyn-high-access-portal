@@ -3,6 +3,23 @@
 **Your GitHub Repositories — All Trainable Assets**  
 RJL Commercial Group · September 2026
 
+
+## Current Balwyn additions — 2026-09-08 UTC
+
+Read [BALWYN_INTEGRATION_STATUS.md](BALWYN_INTEGRATION_STATUS.md) first. The older
+inventory below contains estimates and examples; it is not proof of implemented
+features, current hardware state, access permissions or completed AI training.
+
+| Current file | Purpose |
+| --- | --- |
+| `pi-door-service/` | Authenticated four-channel open-only service, configuration and mock tests |
+| `netlify/functions/remote-open.mts` | Separate operator authorization for the static demonstration |
+| `lib/door-open-gateway.ts` / `lib/remote-open-client.ts` | Validated mapping, one upstream request and pulse-only responses |
+| `app/remote-open-panel.tsx` | Explicit remote-open confirmation separate from simulation |
+| `app/compass-wiring-reference.tsx` | Corrected isolation, terminal matrix, timing and commissioning reference |
+| `BALWYN_INTEGRATION_STATUS.md` | Checked implementation and operational limitations |
+| `docs/sites/2026-09-08-compass-and-branding.patch` | Exact source record of the newer Sites update, including the logo crop |
+
 ---
 
 ## 🎯 WHAT YOUR AI CAN LEARN FROM
@@ -408,3 +425,4 @@ You now have:
 ---
 
 **Start linking your AI to this inventory. It now has complete context.** 🚀
+

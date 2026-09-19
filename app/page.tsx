@@ -1,5 +1,5 @@
-import DemoLogin from "./demo-login";
+import PublicAppHome from "./public-app-home";
 
 export default function Home() {
-  return <DemoLogin />;
+  return <PublicAppHome />;
 }

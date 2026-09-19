@@ -1,132 +1,115 @@
-<<<<<<< HEAD
-# vinext-starter
+# Magic Keys – Balwyn High School
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+For the current login methods, administrator password protection, editable user
+profiles and photo storage, see [LOGIN_AND_ADMIN_SETUP.md](LOGIN_AND_ADMIN_SETUP.md).
 
-## Prerequisites
+The Sites portal manages operator access and the campus interface. Its separate
+sensor-equipped controller workflow is retained. The school's existing
+**Compass ACB-004 four-door access board** now has an optional **one-way,
+open-only Pi relay trigger**, independent of that feedback workflow.
 
-- Node.js `>=22.13.0`
-- Linux with `flock`, `curl`, and GNU `timeout`
+## What the ACB-004 integration does
 
-## Sites Lifecycle
+- `POST /doors/{1-4}/open` on the Pi pulses exactly one configured GPIO relay
+  channel for 300–800 ms (default 500 ms).
+- Mock/dry-run mode is the default and never imports or operates GPIO.
+- Bearer authentication, fixed local pin/polarity configuration, durable
+  duplicate protection, logging and tests are included.
+- The dashboard gate panel has a separate **Remote open · Compass ACB-004**
+  control. It appears only when the service mapping is configured. Existing
+  controls and unconfigured behaviour are retained.
+- A successful pulse leaves physical position **unknown**. No live sensor,
+  lock-release, safety, closing or emergency feedback is produced by this path.
 
-The Sites lifecycle CLI runs the locked dependency install before returning this checkout. Edit the source under `app/`, then checkpoint when a coherent milestone is ready to inspect or share. The remote Sites builder runs `npm run build` against the pushed commit. Do not repeat install or build as a normal pre-checkpoint step.
+This implementation replaces any proposed ACB-004 TCP/IP protocol adapter with
+an HTTP-to-Pi-to-isolated-relay path. It contains no proprietary controller
+protocol, packet-format assumptions, direct database access or card syncing.
+The ACB-004's native Ethernet capability does not establish an API connection.
 
-This starter does not use `wrangler.jsonc`.
+## Software setup and verification
 
-`install:ci` is intentionally a single, non-retrying `npm ci`. It refuses a concurrent install for the same project, consumes a matching image-seeded npm cache with `--prefer-offline` while retaining registry fallback for a missing cache object, otherwise downloads and verifies the complete vinext tarball recorded in `package-lock.json`, limits npm to one socket, and terminates a stalled install. `build` applies a short timeout. These helpers target Linux and use GNU `timeout`; they are not native macOS scripts.
+Use Node.js 22.13+ and the committed npm lockfile.
 
-Scripts that need writable project-scoped home, npm, XDG, and temporary paths use `scripts/sites-env.sh`. The `dev` and `start` scripts honor the caller's runtime environment and keep Wrangler logs inside the checkout. The generated `.sites-runtime/` directory is disposable and ignored by Git.
-
-## Included Shape
-
-- edit site code under `app/`
-- `app/chatgpt-auth.ts` provides optional dispatch-owned ChatGPT sign-in helpers
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/index.ts` reads the D1 binding from the Cloudflare Worker environment
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```bash
+npm run install:ci
+npm run dev
+npm run test:doors
+npm run build
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+`npm run test:doors` runs the HTTP/relay and browser-gateway contract tests.
+`npm test` also runs existing repository tests. No test actuates real equipment.
+See [the Pi service guide](pi-door-service/README.md) for its mock run, systemd
+installation, HTTP responses, GPIO configuration and wiring reference.
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+## Configure the Sites server
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- In a Server Component, start sign-in with
-  `<a href={chatGPTSignInPath(returnTo)} target="_top">`. The auth helper
-  module is server-only; do not import it into a Client Component.
-- Do not use `fetch`, XHR, a client-side router, or a framework link that can
-  prefetch the sign-in route. SIWC must start as a top-level navigation.
-- Never request the AuthAPI authorization endpoint directly. The dispatch-owned
-  `/signin-with-chatgpt` route must start the SIWC flow.
-- Use `chatGPTSignOutPath(returnTo)` for browser sign-out links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+Set these **server-side runtime variables** only after confirming the field
+mapping and access path:
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+| Variable | Value |
+| --- | --- |
+| `DOOR_SERVICE_URL` | Reachable HTTPS origin of the approved Pi gateway, without a path |
+| `DOOR_SERVICE_TOKEN` | Private random token matching the Pi's `DOOR_API_TOKEN` |
+| `DOOR_GATE_MAP` | JSON mapping existing gate IDs to unique board channels 1–4 |
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+For example, `{"TF-ENTRY":1,"TF-EXIT":2}` demonstrates the JSON format only; it
+is **not** the verified onsite allocation. There are no default live mappings.
+All three variables absent means unconfigured; partial/invalid configuration is
+rejected. One board supports at most four mapped gate IDs, not all nine registered gates. Only active gates may receive commands.
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+The client calls the same-origin `/api/doors/open` route. The server checks the
+existing operator session, permissions, exact request origin and current normal
+operating priority before sending a request. The Pi token stays on the server.
+The new path does not mark any sensor-equipped controller commissioned and
+does not write simulated or reported gate positions.
 
-## Diagnostic Commands
+Do not use `NEXT_PUBLIC_*`, browser storage or source files for the Pi secret.
+There are no automatic retries after an ambiguous network failure. Local
+inspection is required before issuing a fresh request.
 
-- `npm run install:ci`: perform the one bounded lockfile install
-- `npm run dev`: start the Vite/Vinext development server
-- `npm run build`: build the deployable Sites artifact
-- `npm run start`: start the built Vinext application
-- `npm test`: build and verify the rendered development-preview metadata
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+## Existing GitHub demonstration
 
-## Deploy to Netlify
+`fencemate2026-pixel/balwyn-high-access-portal` has an older static demonstration.
+It receives the same service and optional remote-open client separately; its
+simulated gate controls retain their original behaviour when unconfigured.
+Its Netlify function requires a distinct remote-open operator token because a
+demo login is not authorisation to actuate school hardware. Refer to that
+repository's README for its hosting setup. This change does not replace the
+newer Sites portal with the older demo.
 
-The repository includes `netlify.toml` and a separate standard Next.js build so
-the same source can be deployed outside the Sites/Vinext runtime.
+## Maglock and Roger F70/IPU36
 
-1. Upload the extracted project to a Git repository and import it in Netlify, or
-   run `netlify deploy --build --prod` from the project directory.
-2. Netlify will use Node.js 22, run `npm run build:netlify`, and publish `.next`.
-3. No environment variables are required for the demonstration dashboard.
+System Settings contains a Wiring section with the magnetic-lock connections,
+isolated Roger open trigger, connection matrix, timing and commissioning scope.
+The lock power circuit and Roger dry-contact command require electrically
+separate contacts. **Never connect a +12 V lock relay COM to the Roger command
+COM.** For the referenced F70/IPU36 manual, the open command is **34 AP / 32 COM**.
+The **36 PP / 38 COM** step-by-step input is excluded from this open-only design.
 
-The included Paul Sutton credential screen is client-side demonstration access,
-not production authentication. Replace it with server-backed Magic Keys identity
-before using the application to operate real equipment or protect sensitive data.
+The Pi's short request pulse does not determine maglock release time. The
+approved local controller/interface must release the lock before movement and
+restore it at the correct point; do not substitute a blanket 3–5-second timer.
+The service does not implement that local lock/motor sequence. Confirm the
+installed board revision, ratings, relay isolation, emergency release and
+mechanical behaviour onsite. Full references and details are in the
+[Pi wiring guide](pi-door-service/README.md#maglock-and-roger-f70ipu36-interface).
 
-Use build commands for targeted diagnosis after a remote failure, not as part of the normal checkpoint path.
+Commissioning covers permissions/readers, schedules, hold-open and return to
+secure operation, remote commands, independently verified gate-state feedback,
+emergency behaviour, safety functions, and recovery after power or communication
+failure. The manuals describe the contact functions; they do not certify the
+installed system. Holding Roger AP active inhibits automatic reclosing until
+the command is released, so the local trigger period must also be verified.
 
-The timeout defaults can be overridden for a controlled canary with `SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT`, and `SITES_BUILD_KILL_AFTER`. A timeout fails the command; the helpers never retry an unchanged install or build.
+## Implementation map
 
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
-=======
-# balwyn-high-access-portal
-Balwyn High School Integrated Access Control demonstration portal by RJL Commercial Fencing &amp; Gates
->>>>>>> 4e6b4fe920d224a3551019c5ed33f5eaa11e205a
+| File | Purpose |
+| --- | --- |
+| `pi-door-service/door_service.py` | Four-channel Pi HTTP service and persistent pulse journal |
+| `app/remote-open-panel.tsx` | Explicit operator confirmation and pulse-only acknowledgement |
+| `lib/remote-open-client.ts` | Same-origin client requests; no device token or sensor updates |
+| `lib/door-open-gateway.ts` | Server configuration, door mapping and single upstream request |
+| `app/api/doors/open/route.ts` | Sites session/role and emergency-priority enforcement |
+| `app/compass-wiring-reference.tsx` | Existing board and corrected installation notes |
+| `AI_REFERENCE_MASTER.md` | Scope and limitations for future development |

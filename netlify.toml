@@ -1,8 +1,9 @@
 [build]
-  command = "npm run build:netlify:static"
+command = "npm run build:netlify:verified"
   publish = "out"
 
 [build.environment]
+PYTHON_VERSION = "3.12"
   NODE_VERSION = "22"
 
 [[headers]]
