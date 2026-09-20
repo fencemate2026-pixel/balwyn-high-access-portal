@@ -222,7 +222,9 @@ export default function DemoLogin() {
 
   if (snapshot) return <DashboardClient initialData={snapshot} user={snapshot.user} onSignOut={handleSignOut} />;
 
-  return (
+    const passwordResetHref = `mailto:info@rjlcommercialgroup.com?subject=${encodeURIComponent("Magic Keys password reset request — Balwyn High School")}&body=${encodeURIComponent(`Hello RJL,\n\nPlease help me reset my Magic Keys password for Balwyn High School.\n\nEmail or username: ${email.trim() || "[enter your email or username]"}\nPassword to reset: [operator sign-in / administrator settings]\nName:\nContact number:\n\nThank you.`)}`;
+
+    return (
     <main className="magic-login">
       <section className="magic-login-panel" aria-labelledby="magic-login-title">
         <header className="magic-login-brand"><a href="/" aria-label="Magic Keys home"><BrandLogo /><span>Balwyn High School</span></a></header>
@@ -240,8 +242,8 @@ export default function DemoLogin() {
               <div className="magic-login-input"><Mail aria-hidden="true" /><input id="login-email" name="username" type="text" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@school.edu.au" maxLength={254} required /></div>
               <label htmlFor="login-password">Password</label>
               <div className="magic-login-input"><LockKeyhole aria-hidden="true" /><input id="login-password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} maxLength={1024} required placeholder="Enter your password" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff /> : <Eye />}</button></div>
-              <button className="magic-login-forgot" type="button" aria-expanded={help} aria-controls="login-help" onClick={() => setHelp(!help)}>Forgot password?</button>
-              {help && <p id="login-help" className="magic-login-help">Use your connected Google or Microsoft account, or ask your portal administrator to reset your operator password. Your email provider’s password is separate from your portal password.</p>}
+              <a className="magic-login-forgot" href={passwordResetHref} aria-describedby="login-reset-help">Request a password reset</a>
+              <p id="login-reset-help" className="magic-login-provider-note">Opens an email request to RJL. Your account will be verified before access is reset.</p>
               <button className="magic-login-submit" type="submit" disabled={submitting || !hydrated || !providers?.email}>{submitting ? "Signing in…" : !hydrated ? "Preparing sign-in…" : "Sign in"}<ArrowRight aria-hidden="true" /></button>
               {providers && !providers.email && <p className="magic-login-provider-note">Email sign-in is currently unavailable.</p>}
             </>}

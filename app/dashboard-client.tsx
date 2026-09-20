@@ -102,6 +102,7 @@ import BrandLogo from "./brand-logo";
 import AdminSettingsUnlock from "./admin-settings-unlock";
 import UserProfileEditor from "./user-profile-editor";
 import OperationsRoomConcept from "./operations-room-concept";
+import { DEFAULT_EQUIPMENT } from "@/lib/equipment-config";
 import type { UserProfile } from "@/lib/profile-model";
 import { PROTECTED_SETTINGS_ACTIONS } from "@/lib/protected-settings";
 import {
@@ -287,6 +288,15 @@ function EmergencyAlertPanel({
 export default function DashboardClient({ user, initialData, signOutHref = "/", onSignOut }: DashboardClientProps) {
   const canOperate = user.role === "operator" || user.role === "administrator";
   const isAdministrator = user.role === "administrator";
+  const [equipmentPreferences, setEquipmentPreferences] = useState(DEFAULT_EQUIPMENT);
+  useEffect(() => {
+    void fetch("/api/equipment", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((body) => {
+        if (body) setEquipmentPreferences((current) => ({ ...current, ...(body.preferences || body.config || {}) }));
+      })
+      .catch(() => undefined);
+  }, []);
   const [activeView, setActiveView] = useState<ViewKey>("dashboard");
   const [adminAccessUntil, setAdminAccessUntil] = useState(0);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -430,9 +440,9 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         // Retain the last confirmed state and let the connection status communicate staleness.
       }
     };
-    const timer = window.setInterval(refresh, 4000);
+    const timer = window.setInterval(refresh, equipmentPreferences.refreshSeconds * 1000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [scheduleDirty, onSignOut]);
+  }, [scheduleDirty, onSignOut, equipmentPreferences.refreshSeconds]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -465,9 +475,9 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         : "Warning. Fire evacuation gate commands issued. Check every gate confirmation and evacuate now.";
       const utterance = new SpeechSynthesisUtterance(message);
       utterance.lang = "en-AU";
-      utterance.rate = 0.84;
+      utterance.rate = equipmentPreferences.voiceRate;
       utterance.pitch = 1;
-      utterance.volume = 1;
+      utterance.volume = equipmentPreferences.voiceVolume;
       if (voice) utterance.voice = voice;
       synth.cancel();
       synth.speak(utterance);
@@ -480,7 +490,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       window.clearInterval(warningTimer);
       window.speechSynthesis?.cancel();
     };
-  }, [systemMode, voiceAnnouncements]);
+  }, [systemMode, voiceAnnouncements, equipmentPreferences.voiceRate, equipmentPreferences.voiceVolume]);
 
   const selectedScheduleGate = gates.find((gate) => gate.id === selectedScheduleGateId) ?? gates[0];
   const selectedWeek = schedules[selectedScheduleGate.id];
@@ -540,9 +550,9 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     const voice = findAustralianVoice(synth.getVoices()) ?? selectedVoiceRef.current;
     const utterance = new SpeechSynthesisUtterance(`${position === "open" ? "Open" : "Close"} command queued. Awaiting physical gate confirmation.`);
     utterance.lang = "en-AU";
-    utterance.rate = 0.88;
+    utterance.rate = equipmentPreferences.voiceRate;
     utterance.pitch = 1;
-    utterance.volume = 1;
+    utterance.volume = equipmentPreferences.voiceVolume;
     if (voice) utterance.voice = voice;
     synth.cancel();
     synth.speak(utterance);
@@ -554,9 +564,9 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     const voice = findAustralianVoice(synth.getVoices()) ?? selectedVoiceRef.current;
     const utterance = new SpeechSynthesisUtterance("Emergency priority cleared. Confirm all gate positions before returning to normal operation.");
     utterance.lang = "en-AU";
-    utterance.rate = 0.86;
+    utterance.rate = equipmentPreferences.voiceRate;
     utterance.pitch = 1;
-    utterance.volume = 1;
+    utterance.volume = equipmentPreferences.voiceVolume;
     if (voice) utterance.voice = voice;
     synth.cancel();
     synth.speak(utterance);
