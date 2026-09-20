@@ -24,8 +24,12 @@ export async function POST(request: Request) {
     headers.append("Set-Cookie", await createSessionCookie(user));
     headers.append("Set-Cookie", clearGoogleSignInCookie());
     return Response.json({ snapshot }, { headers });
-  } catch {
-    console.error("Google sign-in could not be completed.");
+  } catch (error) {
+    // Name + message only. Never the credential, the state or the database key.
+    console.error("google_signin_failed", {
+      name: error instanceof Error ? error.name : typeof error,
+      message: error instanceof Error ? error.message : String(error),
+    });
     return Response.json({ error: "Google sign-in is temporarily unavailable." }, { status: 503, headers });
   }
 }
