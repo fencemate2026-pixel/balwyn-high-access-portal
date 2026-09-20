@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { DatabaseSync } from "node:sqlite";
+import { databaseFixture } from "./auth-fixture.mjs";
 import test from "node:test";
 import { authenticateGoogleSignIn, createGoogleSignInChallenge, isSameOriginSignInRequest } from "../lib/google-signin.ts";
 
@@ -25,30 +24,14 @@ async function sign(payload, header = { alg: "RS256", kid: jwk.kid }) {
 }
 
 async function fixture(t) {
-  const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(readFileSync(new URL("../drizzle/0004_puzzling_squirrel_girl.sql", import.meta.url), "utf8"));
-  t.after(() => sqlite.close());
-  const db = {
-    prepare(sql) {
-      const statement = sqlite.prepare(sql);
-      return { bind(...bindings) { return {
-        async first() { return statement.get(...bindings) ?? null; },
-        async run() { const result = statement.run(...bindings); return { success: true, meta: { changes: Number(result.changes) } }; },
-      }; } };
-    },
-    async batch(statements) {
-      sqlite.exec("BEGIN");
-      try { const result = []; for (const statement of statements) result.push(await statement.run()); sqlite.exec("COMMIT"); return result; }
-      catch (error) { sqlite.exec("ROLLBACK"); throw error; }
-    },
-  };
+  const { pg, db } = await databaseFixture(t);
   const challenge = await createGoogleSignInChallenge(db, request());
   const loginRequest = request(challenge.cookie.split(";")[0]);
   const now = Math.floor(Date.now() / 1000);
   const payload = { iss: "https://accounts.google.com", aud: settings.clientId, sub: "test-operator-id", email: "operator@example.test", email_verified: true, name: "Test Operator", nonce: challenge.nonce, iat: now, exp: now + 3600 };
   const token = await sign(payload);
   const login = (overrides = {}, req = loginRequest, config = settings, fetcher = fetchKeys) => authenticateGoogleSignIn(db, req, { credential: token, state: challenge.state, ...overrides }, config, fetcher);
-  return { sqlite, db, challenge, loginRequest, payload, token, login };
+  return { pg, db, challenge, loginRequest, payload, token, login };
 }
 
 test("a valid Google-signed response and browser-bound challenge authenticate an approved operator", async (t) => {
@@ -97,7 +80,7 @@ test("state, signed nonce and browser cookie must all belong to the same sign-in
 
 test("expired login attempts cannot be used even while the Google token remains valid", async (t) => {
   const f = await fixture(t);
-  f.sqlite.prepare("UPDATE google_login_challenges SET expires_at = ?").run(Date.now() - 1);
+  await f.pg.query("UPDATE google_login_challenges SET expires_at = $1", [Date.now() - 1]);
   assert.equal(await f.login(), null);
 });
 

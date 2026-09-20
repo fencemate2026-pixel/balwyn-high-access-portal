@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env } from "@/lib/server-env";
 import { requireOperator } from "@/lib/portal-auth";
 import { getPortalSnapshot } from "@/lib/portal-store";
 import { handleDoorRequest } from "@/lib/door-open-gateway";

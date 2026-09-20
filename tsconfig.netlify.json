@@ -2,7 +2,6 @@
   "extends": "./tsconfig.json",
   "include": [
     "next-env.d.ts",
-    "cloudflare-workers.d.ts",
     "app/**/*.ts",
     "app/**/*.tsx",
     "components/**/*.ts",

@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
   Bell,
   CalendarDays,
+  Camera,
+  CarFront,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
   Clock3,
   Copy,
+  DoorOpen,
   Download,
   Eye,
   Fence,
@@ -52,9 +55,6 @@ import { toast } from "sonner";
 import RemoteOpenPanel from "./remote-open-panel";
 import CompassWiringReference from "./compass-wiring-reference";
 
-import { DetectionAlertPanel } from "@/components/DetectionAlertPanel";
-import { EvacuationRoutingPanel } from "@/components/EvacuationRoutingPanel";
-import { PerimeterGateIcon } from "@/components/PerimeterGateIcon";
 import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -214,15 +214,10 @@ function GateIcon({ gate, position }: { gate: Gate; position: GateVisualState })
       </span>
     );
   }
-
   return (
     <span className={`access-icon boom-gate-visual is-${position}`} aria-hidden="true">
-      <span className="boom-gate-base">
-        <i />
-      </span>
-      <span className="boom-gate-arm">
-        <i />
-      </span>
+      <span className="boom-gate-base"><i /></span>
+      <span className="boom-gate-arm"><i /></span>
       <span className="boom-gate-rest" />
     </span>
   );
@@ -239,9 +234,7 @@ function SafetyCommand({ mode, active, authorised, onConfirm }: { mode: "lockdow
       disabled={!authorised}
       onClick={onConfirm}
     >
-      <span className="safety-command-icon">
-        <Icon />
-      </span>
+      <span className="safety-command-icon"><Icon /></span>
       <span>
         <strong>{lockdown ? "LOCKDOWN · CLOSE ACTIVE" : "FIRE / EVACUATION · OPEN ACTIVE"}</strong>
         <em>{!authorised ? "Administrator approval required" : active ? "Priority active · review or reissue packets" : `Review ${lockdown ? "CLOSE" : "OPEN"} commands for ${activeGates.length} active gates`}</em>
@@ -270,12 +263,7 @@ function EmergencyAlertPanel({
   const fire = mode === "fire";
   const Icon = fire ? Flame : ShieldAlert;
   return (
-    <section
-      className={`emergency-alert-panel ${mode}`}
-      role="alert"
-      aria-live="assertive"
-      aria-atomic="true"
-    >
+    <section className={`emergency-alert-panel ${mode}`} role="alert" aria-live="assertive" aria-atomic="true">
       <header>
         <span className="emergency-alert-icon"><Icon /></span>
         <span><small>Priority gate response issued</small><strong>{fire ? "Fire / evacuation · open commands" : "Lockdown · close commands"}</strong></span>
@@ -287,11 +275,7 @@ function EmergencyAlertPanel({
         <span><AlertTriangle /><span><strong>{failed} require attention</strong><small>Offline, blocked or faulted controllers</small></span></span>
         {fire && <span><MonitorUp /><span><strong>{projectorAccess ? "Projector link not yet commissioned" : "Projector broadcasts require a plan upgrade"}</strong><small>{projectorAccess ? "No broadcast is claimed without system feedback" : "Advanced feature · locked on this plan"}</small></span></span>}
       </div>
-      <p>
-        {fire
-          ? "Evacuate by the nearest safe exit and follow the school emergency plan."
-          : "Move inside, secure the area and await an authorised all-clear."}
-      </p>
+      <p>{fire ? "Evacuate by the nearest safe exit and follow the school emergency plan." : "Move inside, secure the area and await an authorised all-clear."}</p>
       <footer>
         {fire && <a href="tel:000"><PhoneCall /> Triple Zero (000)</a>}
         <Button variant="outline" disabled={!canClear} onClick={onClear}><RotateCcw /> {canClear ? "Clear emergency priority" : "Administrator required to clear"}</Button>
@@ -541,9 +525,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     const query = gateQuery.trim().toLowerCase();
     return gates.filter((gate) => {
       const matchesGroup = gateGroup === "all" || gate.group === gateGroup;
-      const matchesQuery =
-        !query ||
-        `${gate.name} ${gate.area} ${gate.id} ${gate.type}`.toLowerCase().includes(query);
+      const matchesQuery = !query || `${gate.name} ${gate.area} ${gate.id} ${gate.type}`.toLowerCase().includes(query);
       return matchesGroup && matchesQuery;
     });
   }, [gateGroup, gateQuery]);
@@ -564,25 +546,6 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     if (voice) utterance.voice = voice;
     synth.cancel();
     synth.speak(utterance);
-  }
-
-  function announceGateState(position: GatePosition) {
-    if (!voiceAnnouncements || typeof window === "undefined") return;
-    const preparedVoice =
-      selectedVoiceRef.current ??
-      ("speechSynthesis" in window ? findAustralianMaleVoice(window.speechSynthesis.getVoices()) : null);
-
-    if (!voiceModeRef.current) voiceModeRef.current = preparedVoice ? "browser" : "recorded";
-
-    if (voiceModeRef.current === "recorded" || !("speechSynthesis" in window)) {
-      fallbackAudioRef.current?.pause();
-      const audio = new Audio(position === "open" ? "/gate-open-male.mp3" : "/gate-closed-male.mp3");
-      fallbackAudioRef.current = audio;
-      void audio.play().catch(() => undefined);
-      return;
-    }
-
-    speakMessage(position === "open" ? "Gate open." : "Gate closed.");
   }
 
   function announceAllClear() {
@@ -636,11 +599,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     setSchedules((current) => ({
       ...current,
       [selectedScheduleGate.id]: {
-        ...(current[selectedScheduleGate.id] ?? makeWeekPlan(selectedScheduleGate)),
-        [day]: {
-          ...(current[selectedScheduleGate.id]?.[day] ?? selectedWeek[day]),
-          ...patch,
-        },
+        ...current[selectedScheduleGate.id],
+        [day]: { ...current[selectedScheduleGate.id][day], ...patch },
       },
     }));
     setScheduleDirty(true);
@@ -649,12 +609,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   function copyMondayToWeekdays() {
     const monday = selectedWeek.Monday;
     setSchedules((current) => {
-      const nextWeek = {
-        ...(current[selectedScheduleGate.id] ?? makeWeekPlan(selectedScheduleGate)),
-      };
-      (["Tuesday", "Wednesday", "Thursday", "Friday"] as DayKey[]).forEach((day) => {
-        nextWeek[day] = { ...monday };
-      });
+      const nextWeek = { ...current[selectedScheduleGate.id] };
+      (["Tuesday", "Wednesday", "Thursday", "Friday"] as DayKey[]).forEach((day) => { nextWeek[day] = { ...monday }; });
       return { ...current, [selectedScheduleGate.id]: nextWeek };
     });
     setScheduleDirty(true);
@@ -763,14 +719,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     const locked = !advancedFeaturesEnabled && (view === "cctv" || view === "guidance");
     return (
       <SidebarMenuItem key={view}>
-        <SidebarMenuButton
-          className="portal-nav-button"
-          isActive={activeView === view}
-          tooltip={viewMeta[view].label}
-          onClick={() => setActiveView(view)}
-        >
-          <Icon />
-          <span>{viewMeta[view].label}</span>
+        <SidebarMenuButton className="portal-nav-button" isActive={activeView === view} tooltip={viewMeta[view].label} onClick={() => setActiveView(view)}>
+          <Icon /><span>{viewMeta[view].label}</span>
         </SidebarMenuButton>
         {locked ? <SidebarMenuBadge><LockKeyhole className="plan-nav-lock" aria-hidden="true" /><span className="sr-only">Plan upgrade required</span></SidebarMenuBadge> : badge && <SidebarMenuBadge>{badge}</SidebarMenuBadge>}
       </SidebarMenuItem>
@@ -815,10 +765,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   }
 
   return (
-    <SidebarProvider
-      className={`control-portal mode-${systemMode}`}
-      style={{ "--sidebar-width": "17.5rem" } as CSSProperties}
-    >
+    <SidebarProvider className={`control-portal mode-${systemMode}`} style={{ "--sidebar-width": "17.5rem" } as React.CSSProperties}>
       <Sidebar collapsible="offcanvas" className="control-sidebar">
         <SidebarHeader className="portal-sidebar-header"><div className="magic-sidebar-brand"><BrandLogo /><span>Balwyn High School</span></div></SidebarHeader>
         <SidebarSeparator />
@@ -876,48 +823,10 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             <section className="view-panel">
               <div className="view-panel-heading"><div><h2>Gates & booms</h2><small>{filteredGates.length} of {gates.length} access points · {activeGates.length} active · {gates.length - activeGates.length} inactive</small></div><div className="status-legend"><span className="is-open"><i /> Open confirmed</span><span className="is-closed"><i /> Closed confirmed</span><span className="is-pending"><i /> Awaiting feedback</span><span className="is-inactive"><i /> Inactive · lights off</span></div></div>
               <div className="gate-toolbar">
-                <label className="gate-search">
-                  <Search aria-hidden="true" />
-                  <span className="sr-only">Search gates</span>
-                  <Input
-                    value={gateQuery}
-                    onChange={(event) => setGateQuery(event.target.value)}
-                    placeholder="Search by gate, area or asset ID"
-                  />
-                </label>
-                <label>
-                  <span className="sr-only">Filter gates by area</span>
-                  <NativeSelect
-                    value={gateGroup}
-                    onChange={(event) => setGateGroup(event.target.value as "all" | GroupKey)}
-                  >
-                    <NativeSelectOption value="all">All controlled areas</NativeSelectOption>
-                    {(Object.keys(groupConfig) as GroupKey[]).map((group) => (
-                      <NativeSelectOption key={group} value={group}>
-                        {groupConfig[group].name}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </label>
+                <label className="gate-search"><Search aria-hidden="true" /><span className="sr-only">Search gates</span><Input value={gateQuery} onChange={(event) => setGateQuery(event.target.value)} placeholder="Search by gate, area or asset ID" /></label>
+                <label><span className="sr-only">Filter gates by area</span><NativeSelect value={gateGroup} onChange={(event) => setGateGroup(event.target.value as "all" | GroupKey)}><NativeSelectOption value="all">All controlled areas</NativeSelectOption>{(Object.keys(groupConfig) as GroupKey[]).map((group) => <NativeSelectOption key={group} value={group}>{groupConfig[group].name}</NativeSelectOption>)}</NativeSelect></label>
               </div>
-              {filteredGates.length ? (
-                renderGateCards(filteredGates)
-              ) : (
-                <div className="gate-empty">
-                  <Search />
-                  <h3>No gates match this search</h3>
-                  <p>Clear the search or choose another controlled area.</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setGateQuery("");
-                      setGateGroup("all");
-                    }}
-                  >
-                    Clear filters
-                  </Button>
-                </div>
-              )}
+              {filteredGates.length ? renderGateCards(filteredGates) : <div className="gate-empty"><Search /><h3>No gates match this search</h3><p>Clear the search or choose another controlled area.</p><Button variant="outline" onClick={() => { setGateQuery(""); setGateGroup("all"); }}>Clear filters</Button></div>}
             </section>
           )}
 

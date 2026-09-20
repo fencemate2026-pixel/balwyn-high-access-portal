@@ -1,4 +1,4 @@
-import { getD1 } from "@/db";
+import { getSql } from "@/db";
 import { googleClientId } from "@/lib/portal-auth";
 import { createGoogleSignInChallenge, isSameOriginSignInRequest } from "@/lib/google-signin";
 
@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   if (!isSameOriginSignInRequest(request)) return Response.json({ error: "The sign-in request was rejected." }, { status: 403, headers });
   try {
     const clientId = googleClientId();
-    const { cookie, ...challenge } = await createGoogleSignInChallenge(getD1(), request);
+    const { cookie, ...challenge } = await createGoogleSignInChallenge(getSql(), request);
     headers.append("Set-Cookie", cookie);
     return Response.json({ clientId, ...challenge }, { headers });
   } catch {

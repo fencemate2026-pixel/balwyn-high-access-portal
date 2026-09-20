@@ -1,4 +1,4 @@
-import { getD1 } from "@/db";
+import { getSql } from "@/db";
 import { getAdminSettingsAccess, requireOperator } from "@/lib/portal-auth";
 import { isSameOriginSignInRequest } from "@/lib/google-signin";
 import { readSignInBody } from "@/lib/signin-request";
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const profile = await ownProfile(request, auth.user);
     if (new URL(request.url).searchParams.get("scope") === "all") {
       if (!await getAdminSettingsAccess(request)) return Response.json({ error: "Unlock administrator settings to manage other users." }, { status: 403, headers });
-      const rows = await getD1().prepare("SELECT * FROM user_profiles ORDER BY display_name LIMIT 500").all<ProfileRow>();
+      const rows = await getSql().prepare("SELECT * FROM user_profiles ORDER BY display_name LIMIT 500").all<ProfileRow>();
       return Response.json({ profile: publicProfile(profile), profiles: rows.results.map(publicProfile) }, { headers });
     }
     return Response.json({ profile: publicProfile(profile) }, { headers });
@@ -33,15 +33,15 @@ export async function POST(request: Request) {
     const row = await editableProfile(request, auth.user, typeof body.id === "string" ? body.id : undefined);
     if (!row) return Response.json({ error: "You cannot edit this profile. Administrator password verification is required." }, { status: 403, headers });
     if (input.username) {
-      const existing = await getD1().prepare("SELECT id FROM user_profiles WHERE username = ? AND id != ?").bind(input.username, row.id).first();
+      const existing = await getSql().prepare("SELECT id FROM user_profiles WHERE username = ? AND id != ?").bind(input.username, row.id).first();
       if (existing) return Response.json({ error: "That username is already in use." }, { status: 409, headers });
     }
-    const updated = await getD1().prepare(`UPDATE user_profiles SET display_name = ?, username = ?, contact_email = ?, phone = ?, job_title = ?,
+    const updated = await getSql().prepare(`UPDATE user_profiles SET display_name = ?, username = ?, contact_email = ?, phone = ?, job_title = ?,
       avatar_key = ?, updated_at = ? WHERE id = ? RETURNING *`)
       .bind(input.displayName, input.username || null, input.contactEmail, input.phone, input.jobTitle,
         body.removePhoto === true ? null : row.avatar_key, new Date().toISOString(), row.id).first<ProfileRow>();
     if (!updated) throw new Error("Profile unavailable.");
-    await getD1().prepare("INSERT INTO activity_log (action, detail, category, actor_name, actor_role) VALUES ('User profile updated', ?, 'settings', ?, ?)")
+    await getSql().prepare("INSERT INTO activity_log (action, detail, category, actor_name, actor_role) VALUES ('User profile updated', ?, 'settings', ?, ?)")
       .bind(`Profile ${row.id} updated.`, auth.user.displayName, auth.user.role).run();
     if (body.removePhoto === true && row.avatar_key) {
       try { await profileBucket().delete(row.avatar_key); } catch { /* The removed photo is no longer served by the profile route. */ }

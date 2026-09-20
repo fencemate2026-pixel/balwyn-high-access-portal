@@ -1,12 +1,11 @@
 import type { NextConfig } from "next";
-
-const isNetlifyStaticExport = process.env.NETLIFY_STATIC === "true";
-
-const nextConfig: NextConfig = {
-  output: isNetlifyStaticExport ? "export" : undefined,
-  typescript: {
-    tsconfigPath: process.env.NETLIFY ? "./tsconfig.netlify.json" : "./tsconfig.json",
+const config: NextConfig = {
+  async headers() {
+    return [{ source: "/:path*", headers: [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+    ] }];
   },
 };
-
-export default nextConfig;
+export default config;

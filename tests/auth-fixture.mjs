@@ -1,30 +1,45 @@
-import { DatabaseSync } from "node:sqlite";
-import { readdirSync, readFileSync } from "node:fs";
+import { PGlite } from "@electric-sql/pglite";
+import { readFileSync } from "node:fs";
+import { postgresPlaceholders } from "../db/sql-dialect.ts";
 
-export function databaseFixture(t) {
-  const sqlite = new DatabaseSync(":memory:");
-  const directory = new URL("../drizzle/", import.meta.url);
-  for (const name of readdirSync(directory).filter((value) => value.endsWith(".sql")).sort()) sqlite.exec(readFileSync(new URL(name, directory), "utf8"));
-  t.after(() => sqlite.close());
+export async function databaseFixture(t) {
+  const pg = await PGlite.create();
+  t.after(() => pg.close());
+  // Run the production migration against PostgreSQL with the Supabase platform
+  // roles and storage catalog represented locally. No network or live data.
+  await pg.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE SCHEMA storage;
+    CREATE TABLE storage.buckets (id text PRIMARY KEY, name text, public boolean,
+      file_size_limit bigint, allowed_mime_types text[]);`);
+  await pg.exec(readFileSync(new URL("../supabase/migrations/20260920062504_balwyn_portal_netlify.sql", import.meta.url), "utf8"));
+  await pg.exec("SET ROLE balwyn_app; SET search_path = balwyn_portal, pg_catalog;");
+  const statement = (sql, values = []) => ({
+    sql: postgresPlaceholders(sql), values,
+    bind(...bindings) { return statement(sql, bindings); },
+    async first(column) { const row = (await pg.query(this.sql, this.values)).rows[0]; return row ? (column ? row[column] : row) : null; },
+    async all() { const r = await pg.query(this.sql, this.values); return { success: true, results: r.rows, meta: { changes: r.affectedRows } }; },
+    async run() { return this.all(); },
+  });
   const db = {
-    prepare(sql) {
-      const statement = sqlite.prepare(sql);
-      let values = [];
-      return {
-        bind(...bindings) { values = bindings; return this; },
-        async first() { return statement.get(...values) ?? null; },
-        async run() { const result = statement.run(...values); return { success: true, results: [], meta: { changes: Number(result.changes), last_row_id: Number(result.lastInsertRowid) } }; },
-        async all() { return { results: statement.all(...values), success: true, meta: { changes: 0 } }; },
-        async raw() { return statement.all(...values).map((row) => Object.values(row)); },
-      };
-    },
-    async batch(statements) {
-      sqlite.exec("BEGIN");
-      try { const results = []; for (const statement of statements) results.push(await statement.all()); sqlite.exec("COMMIT"); return results; }
-      catch (error) { sqlite.exec("ROLLBACK"); throw error; }
-    },
+    prepare: statement,
+    async batch(statements) { return pg.transaction(async tx => {
+      const results = [];
+      for (const s of statements) { const r = await tx.query(s.sql, s.values); results.push({ success: true, results: r.rows, meta: { changes: r.affectedRows } }); }
+      return results;
+    }); },
   };
-  return { sqlite, db };
+  const fetchDatabase = async (_path, options) => {
+    const { statements } = JSON.parse(options.body);
+    try { const results = await pg.transaction(async tx => {
+      const result = [];
+      for (const s of statements) {
+        const r = await tx.query(s.sql, s.params, { rowMode: "array" });
+        result.push({ rows: r.rows, columns: r.fields.map(f => f.name), count: r.affectedRows });
+      }
+      return result;
+    }); return Response.json({ results }); }
+    catch (error) { throw error; }
+  };
+  return { pg, db, fetchDatabase };
 }
 
 export async function passwordHash(password, salt) {

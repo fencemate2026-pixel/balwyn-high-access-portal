@@ -14,7 +14,7 @@ const vite = await createServer({
   configFile: false,
   root,
   resolve: { alias: { "@": root } },
-  server: { middlewareMode: true },
+  server: { middlewareMode: true, hmr: false },
 });
 
 after(async () => {
@@ -36,7 +36,7 @@ async function readCssTree(directory) {
 }
 
 test("emits the catalog's animation and scrolling utilities", async () => {
-  const css = await readCssTree(path.join(root, "dist"));
+  const css = await readCssTree(path.join(root, ".next", "static"));
 
   assert.match(css, /--tw-enter-opacity/);
   assert.match(css, /scrollbar-width:\s*thin/);

@@ -1,4 +1,4 @@
-import { getD1 } from "@/db";
+import { getSql } from "@/db";
 import { microsoftSettings } from "@/lib/auth-settings";
 import { createMicrosoftSignInChallenge } from "@/lib/microsoft-signin";
 import { isSameOriginSignInRequest } from "@/lib/google-signin";
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   if (!isSameOriginSignInRequest(request)) return Response.json({ error: "The sign-in request was rejected." }, { status: 403, headers });
   try {
     const settings = microsoftSettings();
-    const db = getD1();
+    const db = getSql();
     await reserveSignInAttempt(db, await signInRateKey(`microsoft:ip:${request.headers.get("cf-connecting-ip") ?? "unknown"}`), 30);
     const { cookie, url } = await createMicrosoftSignInChallenge(db, request, settings);
     headers.append("Set-Cookie", cookie);

@@ -1,3 +1,4 @@
+import { serverFixturePlugin } from "./server-fixture.mjs";
 import assert from "node:assert/strict";
 import test, { after, beforeEach } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -6,8 +7,8 @@ import { databaseFixture, passwordHash } from "./auth-fixture.mjs";
 import { reserveSignInAttempt } from "../lib/signin-rate-limit.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const vite = await createServer({ appType: "custom", configFile: false, root, resolve: { alias: { "@": root } }, server: { middlewareMode: true },
-  plugins: [{ name: "test-worker-env", resolveId(id) { if (id === "cloudflare:workers") return "\0test-env"; }, load(id) { if (id === "\0test-env") return "export const env = {};"; } }],
+const vite = await createServer({ appType: "custom", configFile: false, root, resolve: { alias: { "@": root } }, server: { middlewareMode: true, hmr: false },
+  plugins: [serverFixturePlugin],
 });
 after(() => vite.close());
 const { env } = await vite.ssrLoadModule("cloudflare:workers");
@@ -21,21 +22,21 @@ const email = await vite.ssrLoadModule("/app/api/auth/email/route.ts");
 const emailVerify = await vite.ssrLoadModule("/app/api/auth/email/verify/route.ts");
 const origin = "https://magickeys-balwyn-portal.com";
 const user = { displayName: "Test Operator", email: "operator@example.test", role: "administrator" };
-const password = "REDACTED";
-const hash = await passwordHash(password, "REDACTED");
+const password = "A-test-password-934!";
+const hash = await passwordHash(password, "test-password-salt");
 beforeEach(() => {
   for (const key of Object.keys(env)) delete env[key];
-  Object.assign(env, { PORTAL_SESSION_SECRET: "REDACTED", GOOGLE_ALLOWED_EMAILS: user.email,
-    PORTAL_USERNAME: user.displayName, PORTAL_OPERATOR_EMAIL: user.email, PORTAL_PASSWORD_SALT: "REDACTED", PORTAL_PASSWORD_HASH: hash });
+  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: user.email,
+    PORTAL_USERNAME: user.displayName, PORTAL_OPERATOR_EMAIL: user.email, PORTAL_PASSWORD_SALT: "test-password-salt", PORTAL_PASSWORD_HASH: hash });
 });
 function request(path, body, cookie = "", overrides = {}) {
   return new Request(`${origin}${path}`, { method: body === undefined ? "GET" : "POST", headers: { Origin: origin, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json", Cookie: cookie, ...overrides }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 }
 async function fixture(t) {
-  const { db, sqlite } = databaseFixture(t);
-  env.DB = db;
+  const { db, pg, fetchDatabase } = await databaseFixture(t);
+  env.fetchDatabase = fetchDatabase;
   const cookie = (await auth.createSessionCookie(user)).split(";")[0];
-  return { db, sqlite, cookie };
+  return { db, pg, cookie };
 }
 async function unlock(cookie) {
   const response = await admin.POST(request("/api/auth/admin", { password }, cookie));
@@ -50,7 +51,7 @@ test("all configuration mutations reject a valid administrator session without p
     assert.equal(response.status, 403);
     assert.equal((await response.json()).code, "admin_password_required");
   }
-  assert.equal((await admin.POST(request("/api/auth/admin", { password: "REDACTED" }, cookie))).status, 403);
+  assert.equal((await admin.POST(request("/api/auth/admin", { password: "wrong-password" }, cookie))).status, 403);
 });
 
 test("password unlock is session-bound, time-limited, tamper resistant and revoked by password rotation", async (t) => {
@@ -60,7 +61,7 @@ test("password unlock is session-bound, time-limited, tamper resistant and revok
   const otherSession = (await auth.createSessionCookie(user)).split(";")[0];
   assert.equal(await auth.getAdminSettingsAccess(request("/api/auth/admin", undefined, unlocked.replace(cookie, otherSession))), null);
   assert.equal(await auth.getAdminSettingsAccess(request("/api/auth/admin", undefined, `${unlocked}.extra`)), null);
-  env.PORTAL_PASSWORD_HASH = "REDACTED";
+  env.PORTAL_PASSWORD_HASH = "rotated-hash";
   assert.equal(await auth.getAdminSettingsAccess(request("/api/auth/admin", undefined, unlocked)), null);
   env.PORTAL_PASSWORD_HASH = hash;
   t.mock.timers.enable({ apis: ["Date"], now: Date.now() + 600001 });
@@ -69,20 +70,22 @@ test("password unlock is session-bound, time-limited, tamper resistant and revok
 
 test("non-administrators and cross-origin requests cannot unlock configuration even with a correct password", async (t) => {
   await fixture(t);
+  env.GOOGLE_ALLOWED_EMAILS = `${user.email}|operator`;
   const cookie = (await auth.createSessionCookie({ ...user, role: "operator" })).split(";")[0];
   assert.equal((await admin.POST(request("/api/auth/admin", { password }, cookie))).status, 403);
+  env.GOOGLE_ALLOWED_EMAILS = `${user.email}|administrator`;
   const adminCookie = (await auth.createSessionCookie(user)).split(";")[0];
   assert.equal((await admin.POST(request("/api/auth/admin", { password }, adminCookie, { Origin: "https://evil.example" }))).status, 403);
 });
 
 test("an unlocked administrator can persist settings and immediately lock them again", async (t) => {
-  const { cookie, sqlite } = await fixture(t);
+  const { cookie, pg } = await fixture(t);
   assert.equal((await portal.GET(request("/api/portal", undefined, cookie))).status, 200);
   const unlocked = await unlock(cookie);
   const response = await portal.POST(request("/api/portal", { action: "update_settings", patch: { faultAlerts: false, voiceAnnouncements: false } }, unlocked));
   assert.equal(response.status, 200);
   assert.equal((await response.json()).snapshot.settings.faultAlerts, false);
-  assert.equal(sqlite.prepare("SELECT voice_announcements FROM portal_settings WHERE id = 1").get().voice_announcements, 0);
+  assert.equal((await pg.query("SELECT voice_announcements FROM portal_settings WHERE id = 1")).rows[0].voice_announcements, 0);
   const locked = await admin.POST(request("/api/auth/admin", { action: "lock" }, unlocked));
   assert.equal(locked.status, 200);
   assert.match(locked.headers.getSetCookie()[0], /Max-Age=0$/);
@@ -96,7 +99,7 @@ test("concurrent password attempts cannot exceed the database rate limit", async
 });
 
 test("email sign-in requires the second factor, consumes codes once and preserves approval revocation", async (t) => {
-  const { sqlite } = await fixture(t);
+  const { pg } = await fixture(t);
   const response = await email.POST(request("/api/auth/email", { email: user.email, password }));
   const body = await response.json();
   assert.equal(response.status, 200, JSON.stringify(body));
@@ -121,9 +124,9 @@ test("email sign-in requires the second factor, consumes codes once and preserve
   const profile = (await (await profiles.GET(request("/api/profile", undefined, cookie))).json()).profile;
   assert.equal((await profiles.POST(request("/api/profile", { ...profile, username: "custom.operator" }, cookie))).status, 200);
   assert.equal((await auth.verifyOperatorCredentials("custom.operator", password)).email, user.email);
-  env.PORTAL_PASSWORD_HASH = "REDACTED";
+  env.PORTAL_PASSWORD_HASH = "rotated-hash";
   assert.equal(await auth.getSessionUser(request("/api/portal", undefined, cookie)), null);
-  assert.equal(sqlite.prepare("SELECT last_used_counter FROM operator_totp").get().last_used_counter, counter);
+  assert.equal((await pg.query("SELECT last_used_counter FROM operator_totp")).rows[0].last_used_counter, counter);
 });
 
 test("own profiles persist; other users require password unlock; profile fields cannot grant permissions", async (t) => {
@@ -134,7 +137,7 @@ test("own profiles persist; other users require password unlock; profile fields 
   assert.equal(saved.status, 200);
   assert.equal((await saved.json()).profile.username, "new.operator");
   assert.equal((await auth.getSessionUser(request("/api/portal", undefined, cookie))).email, user.email);
-  env.GOOGLE_ALLOWED_EMAILS += ",second@example.test";
+  env.GOOGLE_ALLOWED_EMAILS += ",second@example.test|operator";
   const secondCookie = (await auth.createSessionCookie({ displayName: "Second Operator", email: "second@example.test", role: "operator" })).split(";")[0];
   const second = (await (await profiles.GET(request("/api/profile", undefined, secondCookie))).json()).profile;
   assert.equal((await profiles.POST(request("/api/profile", { ...input, id: second.id }, cookie))).status, 403);
@@ -174,4 +177,36 @@ test("Microsoft sessions recheck immutable account approval instead of a matchin
   assert.ok(await auth.getSessionUser(request("/api/portal", undefined, cookie)));
   env.MICROSOFT_ALLOWED_ACCOUNTS = "";
   assert.equal(await auth.getSessionUser(request("/api/portal", undefined, cookie)), null);
+});
+
+test('password roles flow through MFA and revoke pending challenges on role change', async t => {
+  await fixture(t);
+  for (const role of ['viewer', 'operator', 'administrator']) {
+    env.PORTAL_ROLE = role;
+    const account = await auth.verifyOperatorCredentials(user.email, password);
+    assert.equal(account.role, role);
+    const cookie = (await auth.createMfaChallengeCookie(account, 'test-fingerprint')).split(';')[0];
+    assert.equal((await auth.getMfaChallenge(request('/api/auth/email/verify', undefined, cookie))).user.role, role);
+    const identity = await auth.passwordSessionIdentity(account);
+    const session = (await auth.createSessionCookie(account, identity)).split(';')[0];
+    assert.equal((await auth.requireOperator(request('/api/portal', undefined, session), 'administrator')).response?.status ?? 200, role === 'administrator' ? 200 : 403);
+    if (role !== 'administrator') assert.equal(await auth.verifyAdministratorPassword(password), false);
+    env.PORTAL_ROLE = role === 'viewer' ? 'operator' : 'viewer';
+    assert.equal(await auth.getMfaChallenge(request('/api/auth/email/verify', undefined, cookie)), null);
+    assert.equal(await auth.getSessionUser(request('/api/portal', undefined, session)), null);
+  }
+});
+
+test('password credentials and existing sessions cannot bypass the site email restriction', async t => {
+  await fixture(t);
+  env.PORTAL_ALLOWED_EMAILS = user.email;
+  env.PORTAL_OWNER_EMAIL = user.email;
+  const account = await auth.verifyOperatorCredentials(user.email, password);
+  assert.equal(account.isOwner, true);
+  const cookie = (await auth.createSessionCookie(account, await auth.passwordSessionIdentity(account))).split(';')[0];
+  assert.equal((await auth.getSessionUser(request('/api/portal', undefined, cookie))).isOwner, true);
+  env.PORTAL_ALLOWED_EMAILS = 'different@example.test';
+  assert.equal(await auth.verifyOperatorCredentials(user.email, password), null);
+  assert.equal(await auth.verifyOperatorCredentials(user.displayName, password), null);
+  assert.equal(await auth.getSessionUser(request('/api/portal', undefined, cookie)), null);
 });

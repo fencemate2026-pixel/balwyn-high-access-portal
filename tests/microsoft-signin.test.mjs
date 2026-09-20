@@ -11,7 +11,7 @@ const keyPair = await crypto.subtle.generateKey({ name: "RSASSA-PKCS1-v1_5", mod
 const jwk = { ...await crypto.subtle.exportKey("jwk", keyPair.publicKey), kid: "test-key", use: "sig", issuer: "https://login.microsoftonline.com/{tenantid}/v2.0" };
 const startRequest = (headers = {}) => new Request(`${origin}/api/auth/microsoft/start`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", ...headers } });
 async function fixture(t, overrides = {}, header = { alg: "RS256", kid: jwk.kid }) {
-  const { sqlite, db } = databaseFixture(t);
+  const { pg, db } = await databaseFixture(t);
   const challenge = await createMicrosoftSignInChallenge(db, startRequest(), settings);
   const authorize = new URL(challenge.url);
   const cookie = challenge.cookie.split(";")[0];
@@ -37,7 +37,7 @@ async function fixture(t, overrides = {}, header = { alg: "RS256", kid: jwk.kid 
     return Response.json({ keys: [jwk] });
   };
   const callback = (query = "", browserCookie = cookie) => new Request(`${origin}/api/auth/microsoft/callback?state=${authorize.searchParams.get("state")}&code=test-code${query}`, { headers: { Cookie: browserCookie } });
-  return { sqlite, db, challenge, authorize, cookie, callback, fetcher, exchanges: () => exchanges };
+  return { pg, db, challenge, authorize, cookie, callback, fetcher, exchanges: () => exchanges };
 }
 
 test("personal Hotmail OAuth uses PKCE and one browser-bound, single-use callback", async (t) => {
@@ -60,12 +60,12 @@ test("wrong browser, duplicate state, expired and cancelled callbacks cannot cre
   assert.equal(await authenticateMicrosoftSignIn(f.db, f.callback("&error=access_denied"), settings, f.fetcher), null);
   assert.equal(f.exchanges(), 0);
   const expired = await fixture(t);
-  expired.sqlite.prepare("UPDATE microsoft_login_challenges SET expires_at = ?").run(Date.now() - 1);
+  await expired.pg.query("UPDATE microsoft_login_challenges SET expires_at = $1", [Date.now() - 1]);
   assert.equal(await authenticateMicrosoftSignIn(expired.db, expired.callback(), settings, expired.fetcher), null);
 });
 
 test("forged origins cannot begin Microsoft sign-in", async (t) => {
-  const { db } = databaseFixture(t);
+  const { db } = await databaseFixture(t);
   for (const headers of [{ Origin: "https://evil.example" }, { Origin: "" }, { "Sec-Fetch-Site": "same-site" }]) {
     await assert.rejects(createMicrosoftSignInChallenge(db, startRequest(headers), settings), /rejected/);
   }

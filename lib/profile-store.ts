@@ -1,5 +1,5 @@
-import { env } from "cloudflare:workers";
-import { getD1 } from "@/db";
+import { profileStorage } from "./supabase-storage";
+import { getSql } from "@/db";
 import { getAdminSettingsAccess, getSessionAccountKey } from "./portal-auth";
 import type { PortalUser } from "./portal-model";
 import type { UserProfile } from "./profile-model";
@@ -10,13 +10,12 @@ export function publicProfile(row: ProfileRow): UserProfile {
     phone: row.phone, jobTitle: row.job_title, avatarUrl: row.avatar_key ? `/api/profile/image/${row.id}?v=${encodeURIComponent(row.avatar_key.split("/").pop() ?? "")}` : null };
 }
 export function profileBucket() {
-  if (!env.BUCKET) throw new Error("Profile photo storage is unavailable.");
-  return env.BUCKET;
+  return profileStorage();
 }
 export async function ownProfile(request: Request, user: PortalUser): Promise<ProfileRow> {
   const key = await getSessionAccountKey(request);
   if (!key) throw new Error("Sign in again.");
-  const db = getD1();
+  const db = getSql();
   await db.prepare("INSERT INTO user_profiles (id, account_key, display_name, contact_email) VALUES (?, ?, ?, ?) ON CONFLICT(account_key) DO NOTHING")
     .bind(crypto.randomUUID(), key, user.displayName, user.email.includes("@") ? user.email : "").run();
   const row = await db.prepare("SELECT * FROM user_profiles WHERE account_key = ?").bind(key).first<ProfileRow>();
@@ -27,5 +26,5 @@ export async function editableProfile(request: Request, user: PortalUser, id?: s
   const own = await ownProfile(request, user);
   if (!id || own.id === id) return own;
   if (user.role !== "administrator" || !await getAdminSettingsAccess(request)) return null;
-  return getD1().prepare("SELECT * FROM user_profiles WHERE id = ?").bind(id).first<ProfileRow>();
+  return getSql().prepare("SELECT * FROM user_profiles WHERE id = ?").bind(id).first<ProfileRow>();
 }

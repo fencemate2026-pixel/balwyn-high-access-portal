@@ -1,0 +1,22 @@
+# Redirect-only deployment for the retired legacy host.
+# No build command: there is no application to build, so the Next.js build that
+# fails on db/queries.ts never runs. No functions directory is declared, so the
+# legacy remote-open function is not deployed.
+
+[build]
+  publish = "site"
+  command = ""
+
+[[redirects]]
+  from = "/*"
+  to = "https://magickeys-balwyn-portal.com/:splat"
+  status = 302
+  force = true
+
+# Carried over from the existing configuration so nothing is lost.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"

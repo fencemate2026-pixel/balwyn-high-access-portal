@@ -1,3 +1,15 @@
+# Balwyn High School Gate Operations
+
+This branch migrates the working Balwyn portal to Next.js on Render with a separate Supabase database schema and private image storage. See [the migration and cutover instructions](RENDER_MIGRATION.md) for deployment status, configuration and verification.
+
+Build: `npm ci && npm run build:render`. Test: `npm test`.
+
+The deployment remains staged until the original masked login secrets and profile image are transferred. The previous GitHub-only implementation is preserved under `archive/github-legacy/` and in Git history.
+
+---
+
+## Previous project documentation
+
 # Magic Keys – Balwyn High School
 
 For the current login methods, administrator password protection, editable user
@@ -73,7 +85,7 @@ inspection is required before issuing a fresh request.
 `fencemate2026-pixel/balwyn-high-access-portal` has an older static demonstration.
 It receives the same service and optional remote-open client separately; its
 simulated gate controls retain their original behaviour when unconfigured.
-Its Netlify function requires a distinct remote-open operator token because a
+Its Render function requires a distinct remote-open operator token because a
 demo login is not authorisation to actuate school hardware. Refer to that
 repository's README for its hosting setup. This change does not replace the
 newer Sites portal with the older demo.

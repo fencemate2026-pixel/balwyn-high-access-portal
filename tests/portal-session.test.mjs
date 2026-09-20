@@ -1,3 +1,4 @@
+import { serverFixturePlugin } from "./server-fixture.mjs";
 import assert from "node:assert/strict";
 import test, { after, beforeEach } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -7,23 +8,19 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const vite = await createServer({
   appType: "custom", configFile: false, root,
   resolve: { alias: { "@": root } },
-  server: { middlewareMode: true },
-  plugins: [{
-    name: "test-worker-environment",
-    resolveId(id) { if (id === "cloudflare:workers") return "\0test-worker-environment"; },
-    load(id) { if (id === "\0test-worker-environment") return "export const env = {};"; },
-  }],
+  server: { middlewareMode: true, hmr: false },
+  plugins: [serverFixturePlugin],
 });
 after(() => vite.close());
 const { env } = await vite.ssrLoadModule("cloudflare:workers");
-const { createSessionCookie, createAdminSettingsCookie, getSessionUser, requireOperator, assertSameOrigin } = await vite.ssrLoadModule("/lib/portal-auth.ts");
+const { createSessionCookie, createAdminSettingsCookie, getSessionUser, requireOperator, assertSameOrigin, requestFingerprint } = await vite.ssrLoadModule("/lib/portal-auth.ts");
 const { getPortalPlan, assertPlanAllowsModules, planAllowsModule, PlanUpgradeRequiredError } = await vite.ssrLoadModule("/lib/portal-plan.ts");
 const { POST: portalPost } = await vite.ssrLoadModule("/app/api/portal/route.ts");
 const origin = "https://magickeys-balwyn-portal.com";
 const user = { displayName: "Test Operator", email: "operator@example.test", role: "administrator" };
 beforeEach(() => {
   for (const key of Object.keys(env)) delete env[key];
-  env.PORTAL_SESSION_SECRET = "REDACTED";
+  env.PORTAL_SESSION_SECRET = "test-only-session-secret-at-least-32-characters";
   env.GOOGLE_ALLOWED_EMAILS = user.email;
 });
 function request(cookie, headers = {}, method = "POST", url = origin) {
@@ -90,8 +87,8 @@ test("advanced features require an explicit hosted plan and lock again after dow
 
 test("an administrator cannot bypass the plan lock through the settings API", async () => {
   env.PORTAL_USERNAME = "test-admin";
-  env.PORTAL_PASSWORD_HASH = "REDACTED";
-  env.PORTAL_PASSWORD_SALT = "REDACTED";
+  env.PORTAL_PASSWORD_HASH = "test-only-hash";
+  env.PORTAL_PASSWORD_SALT = "test-only-salt";
   const baseCookie = await sessionCookie();
   const adminCookie = (await createAdminSettingsCookie(request(baseCookie))).cookie.split(";")[0];
   const req = new Request(`${origin}/api/portal`, {
@@ -103,4 +100,62 @@ test("an administrator cannot bypass the plan lock through the settings API", as
   assert.equal(response.status, 402);
   assert.equal((await response.json()).code, "plan_upgrade_required");
   assert.equal(getPortalPlan().advancedFeatures, false);
+});
+
+test('configured viewer and operator roles are enforced and old-role sessions revoked', async () => {
+  for (const role of ['viewer', 'operator', 'administrator']) {
+    env.GOOGLE_ALLOWED_EMAILS = `${user.email}|${role}`;
+    const cookie = (await createSessionCookie({ ...user, role })).split(';')[0];
+    const req = request(cookie);
+    assert.equal((await requireOperator(req, 'viewer')).response, null);
+    assert.equal((await requireOperator(req, 'operator')).response?.status ?? 200, role === 'viewer' ? 403 : 200);
+    assert.equal((await requireOperator(req, 'administrator')).response?.status ?? 200, role === 'administrator' ? 200 : 403);
+    env.GOOGLE_ALLOWED_EMAILS = `${user.email}|${role === 'viewer' ? 'operator' : 'viewer'}`;
+    assert.equal(await getSessionUser(req), null);
+  }
+});
+
+test('Microsoft session role is checked against the current immutable assignment', async () => {
+  const subject = '9188040d-6c67-4c5b-b112-36a304b66dad:00000000-1111-2222-3333-444444444444';
+  env.MICROSOFT_ALLOWED_ACCOUNTS = `${subject}|viewer`;
+  const cookie = (await createSessionCookie({ ...user, role: 'viewer' }, { provider: 'microsoft', subject })).split(';')[0];
+  assert.equal((await requireOperator(request(cookie), 'operator')).response.status, 403);
+  env.MICROSOFT_ALLOWED_ACCOUNTS = `${subject}|administrator`;
+  assert.equal(await getSessionUser(request(cookie)), null);
+});
+
+test('site email restriction revokes every non-listed identity and confines owner access', async () => {
+  env.PORTAL_ALLOWED_EMAILS = 'owner@example.test,school@example.test';
+  env.PORTAL_OWNER_EMAIL = 'owner@example.test';
+  env.GOOGLE_ALLOWED_EMAILS = 'owner@example.test|administrator,school@example.test|operator,removed@example.test|administrator';
+  for (const [email, role, allowed, owner] of [
+    ['owner@example.test', 'administrator', true, true],
+    ['school@example.test', 'operator', true, false],
+    ['removed@example.test', 'administrator', false, false],
+  ]) {
+    const cookie = (await createSessionCookie({ displayName: 'Test', email, role, isOwner: true })).split(';')[0];
+    const session = await getSessionUser(request(cookie));
+    assert.equal(Boolean(session), allowed);
+    if (!allowed) continue;
+    assert.equal(Boolean(session.isOwner), owner);
+    assert.equal(getPortalPlan(session).advancedFeatures, owner);
+    if (owner) assert.doesNotThrow(() => assertPlanAllowsModules(['video'], session));
+    else {
+      assert.throws(() => assertPlanAllowsModules(['video'], session), PlanUpgradeRequiredError);
+      assert.equal((await requireOperator(request(cookie), 'administrator')).response.status, 403);
+    }
+  }
+  const subject = '9188040d-6c67-4c5b-b112-36a304b66dad:00000000-1111-2222-3333-444444444444';
+  env.MICROSOFT_ALLOWED_ACCOUNTS = `${subject}|administrator`;
+  const cookie = (await createSessionCookie({ ...user, email: 'owner@example.test', isOwner: true }, { provider: 'microsoft', subject })).split(';')[0];
+  assert.equal(Boolean((await getSessionUser(request(cookie))).isOwner), false);
+  assert.equal(getPortalPlan(await getSessionUser(request(cookie))).advancedFeatures, false);
+});
+
+test('request fingerprints use the Render edge client address and ignore retired host headers', async () => {
+  const make = headers => new Request(origin, { headers: { 'user-agent': 'test-browser', ...headers } });
+  const first = await requestFingerprint(make({ 'cf-connecting-ip': '192.0.2.1' }));
+  const second = await requestFingerprint(make({ 'cf-connecting-ip': '192.0.2.2' }));
+  assert.notEqual(first, second);
+  assert.equal(first, await requestFingerprint(make({ 'cf-connecting-ip': '192.0.2.1', 'x-nf-client-connection-ip': '203.0.113.2' })));
 });
