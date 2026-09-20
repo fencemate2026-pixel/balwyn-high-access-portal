@@ -10,6 +10,7 @@ export default function PrivacyPage() {
   return <LegalPage
     eyebrow="Privacy and data handling"
     title="Privacy Policy"
+    effectiveDate="19 September 2026"
     summary="This policy explains how the Magic Keys Balwyn High School operations portal handles the limited personal information needed to authenticate operators, operate access-control equipment and maintain an accountable activity record."
     sections={[
       {
@@ -34,7 +35,7 @@ export default function PrivacyPage() {
       },
       {
         title: "Other portal information",
-        content: <><p>The portal records operational information such as gate commands, schedules, controller acknowledgements, connection status, operator roles, settings and activity logs. This information is used to provide role-appropriate controls, send and confirm gate commands, diagnose faults, investigate incidents, maintain safety and security records, and administer the service.</p><p>The current portal does not store CCTV footage, biometric information or student records.</p></>,
+        content: <><p>The portal records operational information such as gate commands, schedules, controller acknowledgements, connection status, operator roles, settings and activity logs. This information is used to provide role-appropriate controls, send and confirm gate commands, diagnose faults, investigate incidents, maintain safety and security records, and administer the service.</p><p>The current portal does not store CCTV footage, biometric information or student records. The earlier software help and AI assistance panel is not part of this reverted build, so this portal no longer sends operator questions or guide excerpts to an external AI provider.</p></>,
       },
       {
         title: "Cookies, storage and security",
