@@ -1,4 +1,4 @@
-import { env } from "cloudflare:workers";
+import { env } from "@/lib/server-env";
 import type { ModuleKey, PortalPlan, PortalUser } from "./portal-model";
 
 // Entitlements are managed by RJL in hosted configuration. Verified owner access

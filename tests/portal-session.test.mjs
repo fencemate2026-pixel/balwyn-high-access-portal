@@ -1,3 +1,4 @@
+import { serverFixturePlugin } from "./server-fixture.mjs";
 import assert from "node:assert/strict";
 import test, { after, beforeEach } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -7,12 +8,8 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const vite = await createServer({
   appType: "custom", configFile: false, root,
   resolve: { alias: { "@": root } },
-  server: { middlewareMode: true },
-  plugins: [{
-    name: "test-worker-environment",
-    resolveId(id) { if (id === "cloudflare:workers") return "\0test-worker-environment"; },
-    load(id) { if (id === "\0test-worker-environment") return "export const env = {};"; },
-  }],
+  server: { middlewareMode: true, hmr: false },
+  plugins: [serverFixturePlugin],
 });
 after(() => vite.close());
 const { env } = await vite.ssrLoadModule("cloudflare:workers");

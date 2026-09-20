@@ -1,8 +1,8 @@
-import { env } from "cloudflare:workers";
+import { env } from "@/lib/server-env";
 import { eq } from "drizzle-orm";
 
 import type { PortalUser } from "./portal-model";
-import { getDb, getD1 } from "@/db";
+import { getDb, getSql } from "@/db";
 import { operatorTotp } from "@/db/schema";
 import { googleAccountRoles, microsoftAccountRoles } from "./auth-settings";
 import { configuredRole } from "./account-roles";
@@ -130,7 +130,7 @@ export async function verifyOperatorCredentials(username: string, password: stri
   ];
   for (const account of accounts) {
     if (!portalEmailAllowed(account.operatorEmail)) continue;
-    const profile = await getD1().prepare("SELECT username FROM user_profiles WHERE account_key = ?")
+    const profile = await getSql().prepare("SELECT username FROM user_profiles WHERE account_key = ?")
       .bind(`password:${account.username.toLocaleLowerCase("en-AU")}`).first<{ username: string | null }>();
     const suppliedHash = await passwordDigest(password, account.passwordSalt);
     const validName = suppliedName === account.username.toLocaleLowerCase("en-AU")
@@ -305,7 +305,7 @@ export async function verifyAuthenticatorCode(user: PortalUser, code: string): P
   for (const counter of [currentCounter - 1, currentCounter, currentCounter + 1]) {
     if (counter <= record.lastUsedCounter) continue;
     if (constantTimeEqual(await hotp(secret, counter), code)) {
-      const consumed = await getD1().prepare(`UPDATE operator_totp SET last_used_counter = ?,
+      const consumed = await getSql().prepare(`UPDATE operator_totp SET last_used_counter = ?,
         enrolled_at = COALESCE(enrolled_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
         WHERE username = ? AND last_used_counter < ? RETURNING username`)
         .bind(counter, username, counter).first<{ username: string }>();
@@ -370,7 +370,7 @@ export async function requireOperator(request: Request, minimum: "viewer" | "ope
 }
 
 export async function requestFingerprint(request: Request): Promise<string> {
-  const address = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const address = request.headers.get("x-nf-client-connection-ip") ?? "unknown";
   const agent = request.headers.get("user-agent") ?? "unknown";
   return hmac(`${address}\n${agent}`, sessionSecret());
 }

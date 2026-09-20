@@ -1,4 +1,4 @@
-import { getD1 } from "@/db";
+import { getSql } from "@/db";
 import { clearMfaChallengeCookie, createSessionCookie, getMfaChallenge, passwordSessionIdentity, requestFingerprint, signInRateKey, verifyAuthenticatorCode } from "@/lib/portal-auth";
 import { isSameOriginSignInRequest } from "@/lib/google-signin";
 import { ensurePortalSeeded, getPortalSnapshot } from "@/lib/portal-store";
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     }
     const identity = await passwordSessionIdentity(challenge.user);
     if (!identity) return Response.json({ error: "This operator account is no longer available.", restart: true }, { status: 401, headers });
-    await reserveSignInAttempt(getD1(), await signInRateKey(`email:mfa:${challenge.user.displayName.toLowerCase()}`));
+    await reserveSignInAttempt(getSql(), await signInRateKey(`email:mfa:${challenge.user.displayName.toLowerCase()}`));
     if (!await verifyAuthenticatorCode(challenge.user, body.code)) return Response.json({ error: "That code was not accepted. Enter the current code from your authenticator." }, { status: 401, headers });
     await ensurePortalSeeded();
     const snapshot = await getPortalSnapshot(challenge.user);

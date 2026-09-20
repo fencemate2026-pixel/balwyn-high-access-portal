@@ -1,9 +1,8 @@
 [build]
-command = "npm run build:netlify:verified"
-  publish = "out"
+  command = "npm run build:netlify"
+  publish = ".next"
 
 [build.environment]
-PYTHON_VERSION = "3.12"
   NODE_VERSION = "22"
 
 [[headers]]

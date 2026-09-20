@@ -1,4 +1,4 @@
-import { getD1 } from "@/db";
+import { getSql } from "@/db";
 import { createMfaChallengeCookie, clearMfaChallengeCookie, getOrCreateTotpEnrollment, requestFingerprint, signInRateKey, verifyOperatorCredentials } from "@/lib/portal-auth";
 import { isSameOriginSignInRequest } from "@/lib/google-signin";
 import { reserveSignInAttempt, SignInRateLimitError } from "@/lib/signin-rate-limit";
@@ -16,8 +16,8 @@ export async function POST(request: Request) {
     return Response.json({ error: "Enter your email and password." }, { status: 400, headers });
   }
   try {
-    const db = getD1();
-    await reserveSignInAttempt(db, await signInRateKey(`email:ip:${request.headers.get("cf-connecting-ip") ?? "unknown"}`), 24);
+    const db = getSql();
+    await reserveSignInAttempt(db, await signInRateKey(`email:ip:${request.headers.get("x-nf-client-connection-ip") ?? "unknown"}`), 24);
     await reserveSignInAttempt(db, await signInRateKey(`email:account:${body.email.trim().toLowerCase()}`));
     const user = await verifyOperatorCredentials(body.email, body.password);
     if (!user) return Response.json({ error: "The email or password was not recognised. Use an approved operator account." }, { status: 401, headers });

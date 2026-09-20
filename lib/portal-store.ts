@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gt, lt, or } from "drizzle-orm";
 
-import { getD1, getDb } from "@/db";
+import { getSql, getDb } from "@/db";
 import {
   activityLog,
   authAttempts,
@@ -36,7 +36,7 @@ function nowIso() {
 }
 
 export async function ensurePortalSeeded() {
-  const d1 = getD1();
+  const d1 = getSql();
   const seeded = await d1.prepare("SELECT id FROM system_state WHERE id = 1").first();
   if (seeded) {
     const registered = await d1.prepare(
@@ -89,7 +89,7 @@ export async function ensurePortalSeeded() {
 export async function getPortalSnapshot(user: PortalUser): Promise<PortalSnapshot> {
   await ensurePortalSeeded();
   const db = getDb();
-  const d1 = getD1();
+  const d1 = getSql();
   const expiry = nowIso();
   await d1.batch([
     d1.prepare("UPDATE gate_states SET last_command_state = 'failed', last_error = 'Command expired before controller confirmation.', updated_at = CURRENT_TIMESTAMP WHERE last_command_id IN (SELECT id FROM command_queue WHERE state IN ('queued', 'dispatched') AND expires_at <= ?)").bind(expiry),
@@ -192,7 +192,7 @@ export async function queueGateCommands(
   if (!validIds.length) throw new Error("No valid gate was selected.");
   const correlationId = crypto.randomUUID();
   const expiry = new Date(Date.now() + 2 * 60 * 1000).toISOString();
-  const d1 = getD1();
+  const d1 = getSql();
   const statements = [];
   if (options.mode) {
     statements.push(
@@ -224,7 +224,7 @@ export async function queueGateCommands(
 }
 
 export async function clearEmergencyPriority(user: PortalUser) {
-  const d1 = getD1();
+  const d1 = getSql();
   await d1.batch([
     d1.prepare("INSERT INTO activity_log (action, detail, category, actor_name, actor_role) SELECT 'Emergency priority cleared', ? || ' cleared ' || mode || ' priority. Queued emergency packets were cancelled. Already-collected packets remain in flight and cannot be recalled by the portal. Gate positions were not declared safe.', 'emergency-clear', ?, ? FROM system_state WHERE id = 1").bind(user.displayName, user.displayName, user.role),
     d1.prepare("UPDATE gate_states SET last_command_state = 'failed', last_error = 'Emergency packet cancelled before controller collection when portal priority was cleared.', updated_at = CURRENT_TIMESTAMP WHERE last_command_id IN (SELECT id FROM command_queue WHERE source = 'emergency' AND state = 'queued')"),
@@ -235,7 +235,7 @@ export async function clearEmergencyPriority(user: PortalUser) {
 
 export async function saveGateSchedule(gateId: string, week: WeekPlan, user: PortalUser) {
   if (!isGateActive(gateId)) throw new Error("Schedules are blocked for inactive or unknown gates.");
-  const d1 = getD1();
+  const d1 = getSql();
   const statements = DAYS.map((day) => {
     const plan = week[day];
     if (!plan || typeof plan.enabled !== "boolean") throw new Error(`Invalid schedule for ${day}.`);
@@ -372,7 +372,7 @@ export async function getNextControllerCommand(gateId: string) {
   )).orderBy(asc(commandQueue.id)).limit(1);
   const command = commands[0];
   if (!command) return null;
-  const d1 = getD1();
+  const d1 = getSql();
   const claimed = await d1.batch([
     d1.prepare("UPDATE command_queue SET state = 'dispatched', dispatched_at = ? WHERE id = ? AND expires_at > ? AND (state = 'queued' OR (state = 'dispatched' AND dispatched_at < ?))").bind(currentTime, command.id, currentTime, leaseExpired),
     d1.prepare("UPDATE gate_states SET last_command_state = 'dispatched', updated_at = CURRENT_TIMESTAMP WHERE gate_id = ? AND EXISTS (SELECT 1 FROM command_queue WHERE id = ? AND state = 'dispatched' AND dispatched_at = ?)").bind(gateId, command.id, currentTime),
@@ -468,10 +468,10 @@ export async function acknowledgeControllerCommand(input: {
   const detail = validated.detail;
   const gate = GATES.find((candidate) => candidate.id === input.gateId);
   const timestamp = nowIso();
-  await getD1().batch([
-    getD1().prepare("UPDATE command_queue SET state = ?, acknowledged_at = ?, detail = ? WHERE id = ? AND gate_id = ? AND state IN ('queued', 'dispatched')").bind(effectiveState, timestamp, detail, input.commandId, input.gateId),
-    getD1().prepare("UPDATE gate_states SET reported_position = ?, controller_state = ?, safety_ok = ?, last_seen = ?, last_command_state = ?, last_error = ?, updated_at = CURRENT_TIMESTAMP WHERE gate_id = ? AND EXISTS (SELECT 1 FROM command_queue WHERE id = ? AND gate_id = ? AND acknowledged_at = ?)").bind(input.position, effectiveState === "acknowledged" ? "online" : "fault", input.safetyOk ? 1 : 0, timestamp, effectiveState, effectiveState === "acknowledged" ? null : detail || "Controller did not complete the relay command.", input.gateId, input.commandId, input.gateId, timestamp),
-    getD1().prepare("INSERT INTO activity_log (action, detail, category, actor_name, actor_role) SELECT ?, ?, 'controller', ?, 'device' WHERE EXISTS (SELECT 1 FROM command_queue WHERE id = ? AND gate_id = ? AND acknowledged_at = ?)").bind(
+  await getSql().batch([
+    getSql().prepare("UPDATE command_queue SET state = ?, acknowledged_at = ?, detail = ? WHERE id = ? AND gate_id = ? AND state IN ('queued', 'dispatched')").bind(effectiveState, timestamp, detail, input.commandId, input.gateId),
+    getSql().prepare("UPDATE gate_states SET reported_position = ?, controller_state = ?, safety_ok = ?, last_seen = ?, last_command_state = ?, last_error = ?, updated_at = CURRENT_TIMESTAMP WHERE gate_id = ? AND EXISTS (SELECT 1 FROM command_queue WHERE id = ? AND gate_id = ? AND acknowledged_at = ?)").bind(input.position, effectiveState === "acknowledged" ? "online" : "fault", input.safetyOk ? 1 : 0, timestamp, effectiveState, effectiveState === "acknowledged" ? null : detail || "Controller did not complete the relay command.", input.gateId, input.commandId, input.gateId, timestamp),
+    getSql().prepare("INSERT INTO activity_log (action, detail, category, actor_name, actor_role) SELECT ?, ?, 'controller', ?, 'device' WHERE EXISTS (SELECT 1 FROM command_queue WHERE id = ? AND gate_id = ? AND acknowledged_at = ?)").bind(
       effectiveState === "acknowledged" ? "Relay command confirmed" : "Relay command not completed",
       `${gate?.name ?? input.gateId}: ${effectiveState}${detail ? ` — ${detail}` : ""}`,
       `Controller ${input.gateId}`,
@@ -500,7 +500,7 @@ export type AuthenticationAttemptState = {
 };
 
 export async function authenticationAttemptState(fingerprint: string): Promise<AuthenticationAttemptState> {
-  const row = await getD1().prepare(`
+  const row = await getSql().prepare(`
     SELECT COUNT(*) AS failures, MAX(created_at) AS last_failure_at
     FROM auth_attempts
     WHERE fingerprint = ?
@@ -526,8 +526,8 @@ export async function recordLoginAttempt(fingerprint: string, success: boolean) 
 }
 
 export async function clearAuthenticationLockouts(user: PortalUser) {
-  await getD1().batch([
-    getD1().prepare("DELETE FROM auth_attempts WHERE success = 0"),
-    getD1().prepare("INSERT INTO activity_log (action, detail, category, actor_name, actor_role) VALUES ('Legacy authentication lockouts cleared', 'An authorised administrator cleared historical password sign-in counters. Current access remains restricted to approved Google accounts.', 'security', ?, ?)").bind(user.displayName, user.role),
+  await getSql().batch([
+    getSql().prepare("DELETE FROM auth_attempts WHERE success = 0"),
+    getSql().prepare("INSERT INTO activity_log (action, detail, category, actor_name, actor_role) VALUES ('Legacy authentication lockouts cleared', 'An authorised administrator cleared historical password sign-in counters. Current access remains restricted to approved Google accounts.', 'security', ?, ?)").bind(user.displayName, user.role),
   ]);
 }

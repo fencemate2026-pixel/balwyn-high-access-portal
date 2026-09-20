@@ -1,3 +1,15 @@
+# Balwyn High School Gate Operations
+
+This branch migrates the working Balwyn portal to Next.js on Netlify with a separate Supabase database schema and private image storage. See [the migration and cutover instructions](NETLIFY_MIGRATION.md) for deployment status, configuration and verification.
+
+Build: `npm ci && npm run build:netlify`. Test: `npm test`.
+
+The deployment remains staged until the original masked login secrets and profile image are transferred. The previous GitHub-only implementation is preserved under `archive/github-legacy/` and in Git history.
+
+---
+
+## Previous project documentation
+
 # Magic Keys – Balwyn High School
 
 For the current login methods, administrator password protection, editable user
