@@ -231,7 +231,7 @@
     "id": "doc-39",
     "title": "What the ACB-004 integration does",
     "source": "README.md",
-    "text": "## What the ACB-004 integration does\n\n- `POST /doors/{1-4}/open` on the Pi pulses exactly one configured GPIO relay\n  channel for 300–10,000 ms (default 500 ms).\n- Mock/dry-run mode is the default and never imports or operates GPIO.\n- Bearer authentication, fixed local pin/polarity configuration, durable\n  duplicate protection, logging and tests are included.\n- The dashboard gate panel has a separate **Remote open · Compass ACB-004**\n  control. It appears only when the service mapping is configured. Existing\n  controls and unconfigured behaviour are retained.\n- A successful pulse leaves physical position **unknown**. No live sensor,\n  lock-release, safety, closing or emergency feedback is produced by this path.\n\nThis implementation replaces any proposed ACB-004 TCP/IP protocol adapter with\nan HTTP-to-Pi-to-isolated-relay path. It contains no proprietary controller\nprotocol, packet-format assumptions, direct database access or card syncing.\nThe ACB-004's native Ethernet capability does not establish an API connection.\n\n"
+    "text": "## What the ACB-004 integration does\n\n- `POST /doors/{1-4}/open` on the Pi pulses exactly one configured GPIO relay\n  channel for 300–800 ms (default 500 ms).\n- Mock/dry-run mode is the default and never imports or operates GPIO.\n- Bearer authentication, fixed local pin/polarity configuration, durable\n  duplicate protection, logging and tests are included.\n- The dashboard gate panel has a separate **Remote open · Compass ACB-004**\n  control. It appears only when the service mapping is configured. Existing\n  controls and unconfigured behaviour are retained.\n- A successful pulse leaves physical position **unknown**. No live sensor,\n  lock-release, safety, closing or emergency feedback is produced by this path.\n\nThis implementation replaces any proposed ACB-004 TCP/IP protocol adapter with\nan HTTP-to-Pi-to-isolated-relay path. It contains no proprietary controller\nprotocol, packet-format assumptions, direct database access or card syncing.\nThe ACB-004's native Ethernet capability does not establish an API connection.\n\n"
   },
   {
     "id": "doc-40",
@@ -321,256 +321,244 @@
     "id": "doc-54",
     "title": "Hosting",
     "source": "LOGIN_AND_ADMIN_SETUP.md",
-    "text": "### Hosting\n\nThe existing Sites Worker, D1 `DB` binding and project identity are retained. R2 `BUCKET` is added for profile photos. Append-only migrations `0005` and `0006` create Microsoft challenges and user profiles; existing tables/data are preserved.\n\nAutomated checks cover Google/Microsoft token validation, callback replay, password and authenticator verification, configuration lock bypass, session expiry/revocation, profile ownership, duplicate usernames, uploaded file types and authenticated image delivery. Live provider sign-in and photo storage should also be checked with the configured production account.\n\n"
+    "text": "### Hosting\n\nThe existing Sites Worker, D1 `DB` binding and project identity are retained. R2 `BUCKET` is added for profile photos. Append-only migrations `0005` and `0006` create Microsoft challenges and user profiles; existing tables/data are preserved.\n\nAutomated checks cover Google/Microsoft token validation, callback replay, password and authenticator verification, configuration lock bypass, session expiry/revocation, profile ownership, duplicate usernames, uploaded file types and authenticated image delivery. Live provider sign-in and photo storage should also be checked with the configured production account.\n"
   },
   {
     "id": "doc-55",
-    "title": "Per-account access roles",
-    "source": "LOGIN_AND_ADMIN_SETUP.md",
-    "text": "## Per-account access roles\nGoogle entries in `GOOGLE_ALLOWED_EMAILS` accept `email|role`, separated by commas, for example `viewer@example.test|viewer,operator@example.test|operator,admin@example.test|administrator`. Microsoft entries in `MICROSOFT_ALLOWED_ACCOUNTS` accept `tenant-id:object-id|role`; identifiers must still be valid UUIDs. The only accepted roles are `viewer`, `operator`, and `administrator`. Invalid entries and duplicate identities fail closed.\n\nPassword account roles use `PORTAL_ROLE` and `PORTAL_SECONDARY_ROLE`. Existing unannotated OAuth entries and unset password roles retain their previous administrator access for compatibility. Configure explicit roles for school staff; existing accounts have not been silently downgraded. Role changes are checked on every request and invalidate sessions with an old role. Pending password MFA also rechecks the assigned role. Lower-privilege password accounts cannot supply the fallback administrator unlock password.\n\nUse https://magickeys-balwyn-portal.com as the canonical portal and controller origin. The hosting provider's deployment address is not the school-facing setup address.\n\n"
-  },
-  {
-    "id": "doc-56",
-    "title": "Owner and site-wide sign-in restriction",
-    "source": "LOGIN_AND_ADMIN_SETUP.md",
-    "text": "## Owner and site-wide sign-in restriction\n`PORTAL_ALLOWED_EMAILS` is an optional comma-separated exact email restriction applied in addition to provider approval. When configured, non-listed Google, Microsoft and password identities are rejected, including existing sessions. Password account aliases do not bypass the bound account email check. `PORTAL_OWNER_EMAIL` identifies the full-access owner for verified Google/password identities; Microsoft display-email hints cannot grant owner status. Google approval and account roles still apply. The owner's advanced access is account-specific and does not upgrade other users. Keep the separate administrator settings password and MFA requirements.\n"
-  },
-  {
-    "id": "doc-57",
     "title": "🤖 MASTER AI REFERENCE — Magic Keys Portal & Sentinel Wayfinding",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "# 🤖 MASTER AI REFERENCE — Magic Keys Portal & Sentinel Wayfinding\n\n**For Copilot & AI Development Agents**  \nRJL Commercial Group · September 2026  \n**Status:** Development reference. Distinguish demonstration behaviour, optional relay pulses and independently verified physical feedback.\n\n"
   },
   {
-    "id": "doc-58",
+    "id": "doc-56",
     "title": "Current portal identity and configuration",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "## Current portal identity and configuration\n\nSee [LOGIN_AND_ADMIN_SETUP.md](LOGIN_AND_ADMIN_SETUP.md) for the current authentication contract.\nGoogle and email/password plus authenticator sign-in are implemented. Microsoft/Hotmail\nOAuth requires its runtime app registration and immutable account approvals before use.\nConfiguration APIs require a password-verified administrator session with a ten-minute\nunlock. User profiles and photo uploads use D1 and R2; display fields never grant roles.\nPreserve these server-side checks when changing schedules, automation, controller\ncredentials, system settings or administration of another user's profile.\n\nCore-plan visitors can now explore labelled, fictional CCTV/zone, emergency\nguidance and classroom-display examples. `app/plan-upgrade-gate.tsx` keeps all\npreview interactions in local React state with no operational API calls. These\nexamples are sales demonstrations, not a connected camera, routing or broadcast\nservice. The server remains the source of plan entitlements. See\n`LOGIN_AND_ADMIN_SETUP.md` for the demo boundary and Google origin configuration.\n\n---\n\n"
   },
   {
-    "id": "doc-59",
+    "id": "doc-57",
     "title": "📋 QUICK NAVIGATION",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "## 📋 QUICK NAVIGATION\n\n| System | Repository | Purpose | Status |\n|--------|------------|---------|--------|\n| **Magic Keys Portal** | `balwyn-high-access-portal` | Gate demonstration and optional open-only trigger | Demo; hardware requires configuration |\n| **Sentinel Wayfinding** | `sg-pro-sentinel` | Evacuation routing (synthetic-only) | ✅ Staged development |\n\n---\n\n"
   },
   {
-    "id": "doc-60",
+    "id": "doc-58",
     "title": "Compass ACB-004 integration contract",
     "source": "AI_REFERENCE_MASTER.md",
-    "text": "## Compass ACB-004 integration contract\n\nThe ACB-004 is the existing four-door access board onsite, associated with the\nschool's Compass installation. It is retained. The supplied S4A manuals describe\nnative Ethernet management, but do not supply a verified Magic Keys API.\n\nThe implemented path is authenticated HTTPS to an onsite Pi service, then one\nisolated relay contact to a verified ACB-004 request-to-exit input. This replaces\nany proposed TCP/IP protocol adapter description; no proprietary ACB packet\nprotocol, reader database sync or controller network commands are implemented.\n\n- Service: `pi-door-service/door_service.py`, `POST /doors/{1-4}/open` only.\n- Fixed 300–10,000 ms pulse on exactly one mapped BCM relay pin; default 500 ms.\n- Mock/dry-run by default; explicit verified hardware configuration required.\n- One-way open-only trigger: no closing, toggling, hold-open or emergency actuation.\n- No live door, lock-release or safety feedback. `pulsed` acknowledges the relay\n  output only; `dry_run` means no hardware operation. Position remains unknown.\n- Durable request IDs prevent replay after retries/restarts. Do not auto-retry\n  ambiguous outcomes or turn relay acknowledgements into green/open status.\n- The static Netlify demo retains its simulations when unconfigured. Its separate\n  operator token is required for real requests; demo login is not hardware auth.\n- Sites uses existing server-verified operator permissions and emergency priority.\n  Its separate sensor-equipped agent must not be conflated with this ACB path.\n- A board has four door channels; do not invent mappings for the nine registered access points.\n\n"
+    "text": "## Compass ACB-004 integration contract\n\nThe ACB-004 is the existing four-door access board onsite, associated with the\nschool's Compass installation. It is retained. The supplied S4A manuals describe\nnative Ethernet management, but do not supply a verified Magic Keys API.\n\nThe implemented path is authenticated HTTPS to an onsite Pi service, then one\nisolated relay contact to a verified ACB-004 request-to-exit input. This replaces\nany proposed TCP/IP protocol adapter description; no proprietary ACB packet\nprotocol, reader database sync or controller network commands are implemented.\n\n- Service: `pi-door-service/door_service.py`, `POST /doors/{1-4}/open` only.\n- Fixed 300–800 ms pulse on exactly one mapped BCM relay pin; default 500 ms.\n- Mock/dry-run by default; explicit verified hardware configuration required.\n- One-way open-only trigger: no closing, toggling, hold-open or emergency actuation.\n- No live door, lock-release or safety feedback. `pulsed` acknowledges the relay\n  output only; `dry_run` means no hardware operation. Position remains unknown.\n- Durable request IDs prevent replay after retries/restarts. Do not auto-retry\n  ambiguous outcomes or turn relay acknowledgements into green/open status.\n- The static Netlify demo retains its simulations when unconfigured. Its separate\n  operator token is required for real requests; demo login is not hardware auth.\n- Sites uses existing server-verified operator permissions and emergency priority.\n  Its separate sensor-equipped agent must not be conflated with this ACB path.\n- A board has four door channels; do not invent mappings for the nine registered access points.\n\n"
   },
   {
-    "id": "doc-61",
+    "id": "doc-59",
     "title": "Maglock and Roger F70/IPU36 constraints",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "### Maglock and Roger F70/IPU36 constraints\n\nA powered maglock relay COM and a Roger dry-contact input must stay electrically\nseparate. Never use the same powered COM/NO side to inject lock voltage into the\nmotor controller. Use a correctly rated local interface/sequencer with isolated\ncontacts; the Pi service itself does not sequence lock release and motor motion.\n\nThe referenced Roger installer manual pairs **34 AP with 32 COM** for open, and\n**36 PP with 38 COM** for step-by-step. PP is excluded from the open-only design.\nCheck the actual installed model/revision before wiring. The Pi pulse duration\nis separate from the lock-release period; 3–5 seconds is not an approved default.\nLocal release-before-motion, relocking and emergency release must be validated\nonsite. See `pi-door-service/README.md` and the System Settings wiring reference.\n\nNever use real students, footage, secrets or live relay hardware in tests.\nRun `npm run test:doors` for the mocked integration tests, plus the relevant\nhosting build before committing. Test results do not certify field wiring.\n\n---\n\n"
   },
   {
-    "id": "doc-62",
+    "id": "doc-60",
     "title": "🎯 WHAT YOU'RE LEARNING",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "## 🎯 WHAT YOU'RE LEARNING\n\n"
   },
   {
-    "id": "doc-63",
+    "id": "doc-61",
     "title": "**System 1: Magic Keys Portal**",
     "source": "AI_REFERENCE_MASTER.md",
-    "text": "### **System 1: Magic Keys Portal**\n\n**What it does:**\n- Lists nine access points: two active and seven inactive. Active status does not establish a physical gate position; green/open and red/closed indicators require current controller feedback.\n- Demonstrates emergency lockdown (no physical command through the open-only service)\n- Demonstrates fire/evacuation (no physical emergency operation through the open-only service)\n- Weekly scheduling per gate\n- Activity logging with audit trail\n- Operator authentication (demo: paul sutton / magic-keys)\n\n**Tech stack:**\n- **Frontend:** React 19, Next.js 16, TypeScript, Tailwind CSS, shadcn/ui\n- **Build:** Vite + Vinext\n- **Deployment:** Netlify (static export)\n\n**Gate system:**\n- **Tony Frizza Stadium:** active single swing entry and inactive single swing exit\n- **Side Entry:** active single swing gate\n- **Staff Car Park:** inactive double swing entry and inactive entry boom\n- **Office:** inactive Entry 1 and Exit 1 double swing gates, plus inactive Entry 1 and Exit 1 boom gates\n\n**Simulated emergency modes:**\n- **LOCKDOWN:** Close all gates, repeat voice warnings every 6.5s\n- **FIRE/EVACUATION:** Open all gates, PA announcement, dynamic routing\n\n---\n\n"
+    "text": "### **System 1: Magic Keys Portal**\n\n**What it does:**\n- Lists nine access points: two active and seven inactive. Active status does not establish a physical gate position; green/open and red/closed indicators require current controller feedback.\n- Demonstrates emergency lockdown (no physical command through the open-only service)\n- Demonstrates fire/evacuation (no physical emergency operation through the open-only service)\n- Weekly scheduling per gate\n- Activity logging with audit trail\n- Operator authentication (demo: paul sutton / REDACTED)\n\n**Tech stack:**\n- **Frontend:** React 19, Next.js 16, TypeScript, Tailwind CSS, shadcn/ui\n- **Build:** Vite + Vinext\n- **Deployment:** Netlify (static export)\n\n**Gate system:**\n- **Tony Frizza Stadium:** active single swing entry and inactive single swing exit\n- **Side Entry:** active single swing gate\n- **Staff Car Park:** inactive double swing entry and inactive entry boom\n- **Office:** inactive Entry 1 and Exit 1 double swing gates, plus inactive Entry 1 and Exit 1 boom gates\n\n**Simulated emergency modes:**\n- **LOCKDOWN:** Close all gates, repeat voice warnings every 6.5s\n- **FIRE/EVACUATION:** Open all gates, PA announcement, dynamic routing\n\n---\n\n"
   },
   {
-    "id": "doc-64",
+    "id": "doc-62",
     "title": "**System 2: Sentinel Wayfinding (SG-PRO)**",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "### **System 2: Sentinel Wayfinding (SG-PRO)**\n\n**What it does:**\n- Provides safe evacuation routes for each classroom\n- Integrates with fire panel signals\n- Logs all scenarios synthetically (no real data)\n- Human-approved learning only (no autonomous changes)\n\n**Current scope:** Stage 1 synthetic prototype only\n- ✅ Route planning from synthetic floor plans\n- ✅ Scenario replay & testing\n- ✅ Local-only run logging\n- ✅ Human-review improvement reports\n- ❌ Real CCTV/footage\n- ❌ Automatic learning from live data\n\n---\n\n"
   },
   {
-    "id": "doc-65",
+    "id": "doc-63",
     "title": "📊 WHAT DATA YOUR AI CAN ACCESS",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "## 📊 WHAT DATA YOUR AI CAN ACCESS\n\n"
   },
   {
-    "id": "doc-66",
+    "id": "doc-64",
     "title": "✅ **SAFE — AI can see and learn from:**",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "### ✅ **SAFE — AI can see and learn from:**\n\n**Magic Keys:**\n- All source code (React, Next.js, TypeScript)\n- Component architecture\n- Configuration files\n- Public assets\n- Test files\n- Documentation\n\n**Sentinel:**\n- Synthetic layout JSON\n- Synthetic scenarios\n- Python CLI code\n- Test suite\n- Documentation\n- Compliance constraints\n\n"
   },
   {
-    "id": "doc-67",
+    "id": "doc-65",
     "title": "❌ **OFF-LIMITS — AI must never see:**",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "### ❌ **OFF-LIMITS — AI must never see:**\n\n- Real student/staff names or IDs\n- Real CCTV footage or camera locations\n- Real emergency procedures\n- Real access control credentials\n- Real incident data\n- Passwords, API keys, tokens\n- Student/staff biometric data\n\n---\n\n"
   },
   {
-    "id": "doc-68",
+    "id": "doc-66",
     "title": "🚀 QUICK START FOR AI LEARNING",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "## 🚀 QUICK START FOR AI LEARNING\n\n"
   },
   {
-    "id": "doc-69",
+    "id": "doc-67",
     "title": "**Step 1: Understand Magic Keys Portal**",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "### **Step 1: Understand Magic Keys Portal**\n\n```bash\ncd ~/Downloads/balwyn-high-access-portal\nnpm install\nnpm run dev\n"
   },
   {
-    "id": "doc-70",
+    "id": "doc-68",
     "title": "Open http://localhost:5173",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "# Open http://localhost:5173\n"
   },
   {
-    "id": "doc-71",
-    "title": "Login: paul sutton / magic-keys",
+    "id": "doc-69",
+    "title": "Login: paul sutton / REDACTED",
     "source": "AI_REFERENCE_MASTER.md",
-    "text": "# Login: paul sutton / magic-keys\n```\n\n"
+    "text": "# Login: paul sutton / REDACTED\n```\n\n"
   },
   {
-    "id": "doc-72",
+    "id": "doc-70",
     "title": "**Step 2: Understand Sentinel Wayfinding**",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "### **Step 2: Understand Sentinel Wayfinding**\n\n```bash\ncd ~/cocoapi/PythonAPI/sg-pro-sentinel\nsource .venv/Scripts/activate\nsentinel-wayfinding --scenarios examples/scenarios.json\n"
   },
   {
-    "id": "doc-73",
+    "id": "doc-71",
     "title": "See: 3/3 scenarios PASS",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "# See: 3/3 scenarios PASS\n```\n\n"
   },
   {
-    "id": "doc-74",
+    "id": "doc-72",
     "title": "**Step 3: Ask Your AI to Learn**",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "### **Step 3: Ask Your AI to Learn**\n\n- \"Explain how the emergency lockdown loop works\"\n- \"Design 3 new synthetic evacuation scenarios\"\n- \"How could we integrate Sentinel routing into Magic Keys?\"\n\n---\n\n"
   },
   {
-    "id": "doc-75",
+    "id": "doc-73",
     "title": "🎓 WHAT YOUR AI SHOULD UNDERSTAND",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "## 🎓 WHAT YOUR AI SHOULD UNDERSTAND\n\n"
   },
   {
-    "id": "doc-76",
+    "id": "doc-74",
     "title": "**Core Concepts**",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "### **Core Concepts**\n\n1. **Gate Automation (Magic Keys)**\n   - 3 gate types, 3 campus areas\n   - Normal, lockdown, fire modes\n   - Emergency overrides everything\n\n2. **Evacuation Routing (Sentinel)**\n   - Deterministic (no ML randomness)\n   - Synthetic-only (no real data)\n   - Human-approved (every change reviewed)\n\n3. **Safety-Critical Design**\n   - Verify the installed local fail-safe and emergency-release design; do not infer it from a simulation\n   - Human-in-the-loop (verification before actuation)\n   - Audit trail (every action logged)\n\n4. **AI Limitations**\n   - Cannot detect concealed weapons\n   - Cannot assess intent\n   - Cannot replace fire detection\n   - False alarms are inevitable (design for them)\n\n---\n\n"
   },
   {
-    "id": "doc-77",
+    "id": "doc-75",
     "title": "✨ FINAL WORDS",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "## ✨ FINAL WORDS\n\nThis reference covers two development surfaces:\n1. **Magic Keys Portal** — Demonstration with an optional, authenticated open-only relay path\n2. **Sentinel Wayfinding** — Research prototype for safe evacuation routing\n\n**The AI should understand:**\n- ✅ How to extend both systems\n- ✅ Why safety-critical systems need human approval\n- ✅ Why synthetic-only is mandatory until compliance approval\n- ✅ How to write testable, deployable, auditable code\n\n**The AI should NOT:**\n- ❌ Use real school data\n- ❌ Bypass human verification\n- ❌ Make autonomous safety decisions\n- ❌ Commit code without tests passing\n\n---\n\n**You built this. Your AI will help you make it better. Let's go.** 🚀\n\n\n"
   },
   {
-    "id": "doc-78",
+    "id": "doc-76",
     "title": "Gate activation register — September 2026",
     "source": "AI_REFERENCE_MASTER.md",
     "text": "## Gate activation register — September 2026\n\n- `TF-ENTRY`: Tony Frizza Stadium Entry — single swing — **Active**.\n- `SIDE-ENTRY`: Side Entry — single swing — **Active**.\n- `TF-EXIT`: Tony Frizza Exit Single Gate — single swing — **Inactive**.\n- `OFFICE-ENTRY-DG1`: Office Entry 1 Double Swing Gates — **Inactive**.\n- `OFFICE-EXIT-DG1`: Office Exit 1 Double Swing Gates — **Inactive**.\n- `STAFF-ENTRY-DG`: Staff Car Park Entry Double Swing Gates — **Inactive**.\n- `STAFF-ENTRY-BOOM`: Staff Entry Boom Gate — **Inactive**.\n- `OFFICE-ENTRY-BOOM1`: Office Entry 1 Boom Gate — **Inactive**.\n- `OFFICE-EXIT-BOOM1`: Office Exit 1 Boom Gate — **Inactive**.\n\nUse Active / Inactive labels, with no payment labels. Inactive entries are greyscale, with lights off and commands, schedules, commissioning and remote-open blocked. Current open feedback gives green lamps; current closed feedback gives red lamps. Missing, stale, pending or faulted feedback uses amber, without declaring a physical position. Emergency commands target only the two active gate IDs. Retired IDs are no longer accepted. Preserve existing audit history and never infer a door channel from a name or display order.\n"
   },
   {
-    "id": "doc-79",
+    "id": "doc-77",
     "title": "Product",
     "source": "PRODUCT.md",
     "text": "# Product\n\n<!-- impeccable:product-schema 1 -->\n\n"
   },
   {
-    "id": "doc-80",
+    "id": "doc-78",
     "title": "Platform",
     "source": "PRODUCT.md",
     "text": "## Platform\n\nweb\n\n"
   },
   {
-    "id": "doc-81",
+    "id": "doc-79",
     "title": "Users",
     "source": "PRODUCT.md",
     "text": "## Users\n\n- Primary user (inferred from the current brief and interface): authorised Balwyn High School operations staff responsible for daily access control.\n- Secondary user (inferred): authorised security or facilities staff responding to incidents and reviewing gate activity.\n\n"
   },
   {
-    "id": "doc-82",
+    "id": "doc-80",
     "title": "Product Purpose",
     "source": "PRODUCT.md",
     "text": "## Product Purpose\n\nMagic Keys gives authorised operators one secure place to see, schedule and control Balwyn High School's configured automated access points. Success means the operator can understand every gate's reported state at a glance, act on one gate quickly and issue school-wide emergency command packets without ambiguity.\n\n"
   },
   {
-    "id": "doc-83",
+    "id": "doc-81",
     "title": "Positioning",
     "source": "PRODUCT.md",
     "text": "## Positioning\n\nThe product combines gate-specific controls, weekly schedules, authenticated operator identity and school-wide emergency actions in one RJL-managed operations console.\n\n"
   },
   {
-    "id": "doc-84",
+    "id": "doc-82",
     "title": "Operating Context",
     "source": "PRODUCT.md",
     "text": "## Operating Context\n\n- The operations portal opens with a branded, server-verified operator login for Paul Sutton, then keeps his name and session role visible throughout the dashboard.\n- Credentials are verified server-side using a slow password derivation function; the browser receives only a signed, HTTP-only session cookie. Failed attempts are rate-limited and recorded without storing raw network addresses.\n- The main workspace covers nine registered access points across Tony Frizza Stadium, Side Entry, Staff Car Park and the Office. Only Tony Frizza Stadium Entry and Side Entry are active; the other seven remain visible and inactive.\n- Daily work includes checking reported positions, requesting individual gate movements, managing approved weekly schedules and reviewing the permanent activity record.\n- Emergency lockdown queues close commands for all configured access points. Fire and evacuation mode queues open commands. Completion is never claimed without controller acknowledgement and independent position feedback.\n\n"
   },
   {
-    "id": "doc-85",
+    "id": "doc-83",
     "title": "Capabilities and Constraints",
     "source": "PRODUCT.md",
     "text": "## Capabilities and Constraints\n\n- Existing stack: Next.js, TypeScript, React, Tailwind CSS and the project's installed accessible UI primitives.\n- Preserve the left navigation, dashboard, live-gate controls, schedules, access identity, activity log and settings.\n- Active alarms must use a compact top-right operator panel so the dashboard and all gate movements stay visible.\n- Preserve responsive desktop and mobile operation.\n- The portal uses durable server-side state, a permanent audit trail and a secure per-controller command queue. It never treats a browser click as physical movement.\n- A confirmed operator request creates a real server-side command packet. The assigned authenticated controller retrieves it over HTTPS, performs the local safety checks, pulses the dedicated relay and reports the independently confirmed result.\n- Every access point remains visibly uncommissioned or offline until its real controller reports position and safety state. A gate is described as open or closed only when an independent physical input confirms it.\n- Manual commands are blocked unless the assigned controller is online and its local safety circuit reports healthy.\n- Each controller receives a separate rotatable credential. The onsite bridge supports dedicated OPEN and CLOSE dry-contact inputs only; toggle/PP operation is deliberately rejected because direction cannot be proven remotely.\n- The onsite agent journals a packet before energising a relay. After a process or power interruption it keeps relays off, accepts success only from confirmed physical position feedback and never automatically repeats the interrupted pulse.\n- Local beams, safety edges, emergency stops, force limits, physical stops, approved fire/security interfaces and manual-release procedures remain authoritative. The web system must never bypass them or replace the school's Emergency Management Plan.\n- Emergency commands require a second confirmation and expose confirmed, pending and failed counts. Sirens, horns, projectors and alarms are never shown as active unless a real commissioned interface acknowledges them.\n- Reissuing an active emergency is a deliberate administrator action; the portal never silently retries a blocked or failed physical movement. Clearing priority cancels uncollected emergency packets but clearly warns that already-collected packets cannot be recalled.\n- Every normal gate movement also requires a second confirmation that identifies the exact gate and direction. The portal records success only after independent physical position feedback.\n- Issuing a controller credential does not commission a gate. Commissioning is recorded only after the assigned controller authenticates and supplies real safety and position inputs.\n- Audible action confirmations use an available Australian English browser voice. If no suitable browser voice is present, the portal does not claim that an announcement was delivered.\n- Lockdown and fire requests set emergency priority, queue gate commands and repeat the matching warning until an authorised all-clear clears portal priority. Physical gate states remain separately reported.\n- Gate visuals distinguish single sliding, double-swing and boom-gate hardware. Confirmed closed and open states use red and green; unknown, moving, pending and uncommissioned states remain neutral and explicitly labelled.\n- First-run schedules and automations are blank. Only a real operator-approved configuration is stored or displayed as configured.\n\n"
   },
   {
-    "id": "doc-86",
+    "id": "doc-84",
     "title": "Brand Commitments",
     "source": "PRODUCT.md",
     "text": "## Brand Commitments\n\n- Product name: Magic Keys.\n- Site identity: Balwyn High School gate automation.\n- Managed by RJL Commercial.\n- Use the same official blue Balwyn High School emblem for the centred watermark, in-app school badges and browser icon, while preserving the RJL/Magic Keys identity.\n- Present school and RJL branding without visible white image boxes; the RJL mark is deliberately larger on the operator login screen.\n- Confirmed visual direction: professional, premium, slightly darker school-blue interface with the school emblem centred in the background.\n- Confirmed typography direction: Zing Sans Rust across the interface when a licensed webfont file is supplied. Until then, use a deliberate condensed sans fallback without falsely claiming the commercial font is embedded.\n- Confirmed weight direction: avoid bold text throughout; create hierarchy through scale, spacing, colour and layout.\n\n"
   },
   {
-    "id": "doc-87",
+    "id": "doc-85",
     "title": "Evidence on Hand",
     "source": "PRODUCT.md",
     "text": "## Evidence on Hand\n\n- School logo assets in `public/`, including `balwyn-high-school-logo.webp` and `balwyn-watermark.png`.\n- Magic Keys cover artwork in `public/magic-keys-cover.png`.\n- Supplied red and green single-gate animation assets and posters in `public/`.\n- Existing product copy and workflows in `app/page.tsx` and `app/dashboard-client.tsx`.\n- No live gate telemetry, production incident feed or hardware API evidence is present in the current project. Future work must not fabricate a live connection.\n\n"
   },
   {
-    "id": "doc-88",
+    "id": "doc-86",
     "title": "Product Principles",
     "source": "PRODUCT.md",
     "text": "## Product Principles\n\n1. Emergency actions are unmistakable, immediate and never hide the gate dashboard.\n2. Gate state is understandable before the operator reads supporting text.\n3. Daily controls stay fast, calm and consistent across desktop and mobile.\n4. Authenticated identity and every requested or completed action remain visible and accountable.\n5. Commanded state, controller acknowledgement and independent physical position are separate facts and must never be conflated.\n6. Visual polish must never reduce operational clarity.\n\n"
   },
   {
-    "id": "doc-89",
+    "id": "doc-87",
     "title": "Accessibility & Inclusion",
     "source": "PRODUCT.md",
     "text": "## Accessibility & Inclusion\n\n- Maintain keyboard access, visible focus treatment, semantic controls and readable contrast.\n- Critical state must use text and iconography in addition to red or green colour.\n- Motion must respect reduced-motion preferences.\n"
   },
   {
-    "id": "doc-90",
+    "id": "doc-88",
     "title": "Balwyn relay controller agent",
     "source": "controller-agent/README.md",
     "text": "# Balwyn relay controller agent\n\nThis service is the onsite half of the Magic Keys control path. It receives a\nsingle command for its assigned gate, pulses the existing gate operator's\ndedicated dry-contact `OPEN` or `CLOSE` input, waits for independent limit-switch\nfeedback, and acknowledges the result to the portal.\n\nIt deliberately refuses to start without separate open, close, open-limit,\nclosed-limit, safety-healthy and emergency-stop inputs. It does not support a\ntoggle/step-by-step/PP input because the requested direction cannot be proven\nremotely. The relay outputs return to their inactive state on startup, shutdown,\nnetwork loss and exceptions.\n\nBefore any relay pulse, the agent writes an atomic execution journal. If the\nprocess or Pi restarts mid-command, it keeps both relays off and never repeats\nthe pulse automatically. It acknowledges success only if the independent limit\ninput already confirms the target; otherwise it reports a blocked or failed\npacket so an operator can inspect the gate and deliberately retry.\n\nBefore installation, a competent gate automation technician must verify the\noperator's input voltage, dry-contact requirements, relay isolation, safety-edge\nand photocell circuits, emergency stop, physical stops, manual release, force\nsettings and the school's approved emergency response. This software does not\nreplace those local controls.\n\nInstall `python3-lgpio`, create the unprivileged `balwyn-gate` service user, copy\nthe agent to `/opt/balwyn-relay-agent`, place the issued per-gate credential and\nverified BCM pin assignments, signal polarity, input bias, pulse duration and\nmovement timeout in `/etc/balwyn-relay-agent.env`, then install the systemd\nunit. The service rejects incomplete or placeholder electrical settings and any\nnon-HTTPS portal URL. Schedule control remains disabled until commissioning\nsign-off.\n"
   },
   {
-    "id": "doc-91",
+    "id": "doc-89",
     "title": "Compass ACB-004 open-only relay service",
     "source": "pi-door-service/README.md",
     "text": "# Compass ACB-004 open-only relay service\n\nThe existing Compass ACB-004 is a four-door access controller. This Python 3.10+\nservice drives an isolated Pi relay contact for an assigned request-to-exit\ninput. It does not speak the ACB-004 TCP/IP protocol, read cards, change its\ndatabase, or provide door/lock/safety feedback. One channel corresponds to one\nof the board's four door inputs; a single board is not a mapping of all 17 gates.\n\n"
   },
   {
-    "id": "doc-92",
+    "id": "doc-90",
     "title": "HTTP contract",
     "source": "pi-door-service/README.md",
     "text": "## HTTP contract\n\n`POST /doors/1/open` through `POST /doors/4/open`, with:\n\n- `Authorization: Bearer <DOOR_API_TOKEN>` (a random, private token).\n- `Idempotency-Key: <canonical UUID>` (a fresh key for a deliberate new request).\n- An empty body. Pins, duration, and polarity cannot be changed by a request.\n\nThere are no close, hold-open, toggle, bulk, sensor or emergency endpoints.\nSuccessful responses have `status: pulsed` in hardware mode or `status: dry_run`\nin mock/dry-run mode, plus `door`, `pulse_ms`, `request_id`, `position: unknown`\nand `sensor_feedback: false`. A pulse acknowledgement is not proof of movement.\n\n401 rejects unauthorised calls; 400 rejects malformed requests; 404 rejects\nunsupported paths/doors; 405 rejects unsupported methods; 409 rejects concurrent\nor ambiguous/reused requests; 503 reports local faults. No request is queued or\nautomatically retried. On a timeout the physical outcome may be unknown: inspect\nlocally before a new request. Reusing a completed key returns the original\nacknowledgement without pulsing; the same key for a different door is rejected.\n\nThe SQLite journal is committed before energising a relay. A request interrupted\nby a restart stays reserved and cannot replay. Preserve this journal during\nupgrades; deleting it removes duplicate protection. Logs contain request IDs,\ndoor numbers, modes and outcomes, never tokens. Only one pulse runs at a time.\nGPIO exceptions latch a fault until an operator investigates and restarts.\n\n"
   },
   {
-    "id": "doc-93",
+    "id": "doc-91",
     "title": "Dry run on a development machine",
     "source": "pi-door-service/README.md",
     "text": "## Dry run on a development machine\n\nNo third-party Python packages or GPIO hardware are needed for mock mode.\n\n```bash\ncd pi-door-service\nexport DOOR_API_TOKEN=\"$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')\"\nexport DOOR_MODE=mock\npython3 door_service.py\n```\n\nThe service binds to `127.0.0.1:8080` by default. From another terminal with the\nsame token securely loaded:\n\n```bash\ncurl --fail-with-body -X POST http://127.0.0.1:8080/doors/1/open \\\n  -H \"Authorization: Bearer $DOOR_API_TOKEN\" \\\n  -H \"Idempotency-Key: $(python3 -c 'import uuid; print(uuid.uuid4())')\"\n```\n\n`DOOR_MODE=dry-run` is equivalent to mock mode. Neither imports `lgpio` or touches\nphysical GPIO. Example pins 17,27,22,23 are mock examples, not an onsite pin map.\n\n"
   },
   {
-    "id": "doc-94",
+    "id": "doc-92",
     "title": "Pi installation",
     "source": "pi-door-service/README.md",
-    "text": "## Pi installation\n\n1. Verify the relay module accepts the Pi's 3.3 V logic, its isolation and active\n   polarity. Use voltage-free contacts on the board side. Never wire GPIO to an\n   ACB terminal, a maglock, mains or a motor input directly.\n2. Install the Raspberry Pi OS `python3-lgpio` package. Create an unprivileged\n   `compass-door` service account with access to the `gpio` group. Install\n   `door_service.py` in `/opt/compass-door-open/`.\n3. Copy `config.example` to `/etc/compass-door-open.env`, owned by root with mode\n   600. Replace the placeholder token. Start with `DOOR_MODE=mock`.\n4. Install `compass-door-open.service` in `/etc/systemd/system/`, then run\n   `sudo systemctl daemon-reload` and `sudo systemctl enable --now compass-door-open`.\n   Inspect logs with `sudo journalctl -u compass-door-open`.\n5. Record the verified four BCM pins in door 1,2,3,4 order as `DOOR_GPIO_PINS`.\n   Each pin must be distinct. Explicitly set `DOOR_ACTIVE_LOW=true` or `false`\n   and the correct `DOOR_GPIO_CHIP`. Confirm the hardware starts with all relays\n   inactive. Only after commissioning, select `DOOR_MODE=hardware` and restart.\n\n`DOOR_PULSE_MS` is a fixed integer from 300 through 10000 (default 500). It is a\nrequest pulse, not a lock-release timer. Linux scheduling is not a hard real-time\nguarantee; verify measured pulse length and fail-off behaviour on the installed\nrelay hardware. Software cannot guarantee contact release after a welded relay,\npower fault, forced process kill or hardware failure.\n\nPlace the loopback HTTP service behind the school's approved TLS gateway or\nreverse proxy for access from the hosted portal. `DOOR_SERVICE_URL` must be a\nreachable HTTPS origin. A cloud-hosted portal cannot reach a private Pi IP just\nbecause it is entered in an environment variable. Keep tokens out of URLs,\nclient bundles and proxy/access logs. Do not expose an unauthenticated Pi port.\n\n"
+    "text": "## Pi installation\n\n1. Verify the relay module accepts the Pi's 3.3 V logic, its isolation and active\n   polarity. Use voltage-free contacts on the board side. Never wire GPIO to an\n   ACB terminal, a maglock, mains or a motor input directly.\n2. Install the Raspberry Pi OS `python3-lgpio` package. Create an unprivileged\n   `compass-door` service account with access to the `gpio` group. Install\n   `door_service.py` in `/opt/compass-door-open/`.\n3. Copy `config.example` to `/etc/compass-door-open.env`, owned by root with mode\n   600. Replace the placeholder token. Start with `DOOR_MODE=mock`.\n4. Install `compass-door-open.service` in `/etc/systemd/system/`, then run\n   `sudo systemctl daemon-reload` and `sudo systemctl enable --now compass-door-open`.\n   Inspect logs with `sudo journalctl -u compass-door-open`.\n5. Record the verified four BCM pins in door 1,2,3,4 order as `DOOR_GPIO_PINS`.\n   Each pin must be distinct. Explicitly set `DOOR_ACTIVE_LOW=true` or `false`\n   and the correct `DOOR_GPIO_CHIP`. Confirm the hardware starts with all relays\n   inactive. Only after commissioning, select `DOOR_MODE=hardware` and restart.\n\n`DOOR_PULSE_MS` is a fixed integer from 300 through 800 (default 500). It is a\nrequest pulse, not a lock-release timer. Linux scheduling is not a hard real-time\nguarantee; verify measured pulse length and fail-off behaviour on the installed\nrelay hardware. Software cannot guarantee contact release after a welded relay,\npower fault, forced process kill or hardware failure.\n\nPlace the loopback HTTP service behind the school's approved TLS gateway or\nreverse proxy for access from the hosted portal. `DOOR_SERVICE_URL` must be a\nreachable HTTPS origin. A cloud-hosted portal cannot reach a private Pi IP just\nbecause it is entered in an environment variable. Keep tokens out of URLs,\nclient bundles and proxy/access logs. Do not expose an unauthenticated Pi port.\n\n"
   },
   {
-    "id": "doc-95",
+    "id": "doc-93",
     "title": "Maglock and Roger F70/IPU36 interface",
     "source": "pi-door-service/README.md",
-    "text": "## Maglock and Roger F70/IPU36 interface\n\nThe supplied ACB-004 diagram shows door exit inputs P1–P4/GND and per-door\nCOM/NO/NC lock contacts. Have the installer confirm labels and current usage\nonsite. The intended Pi path is one isolated normally-open contact across the\nassigned ACB request-to-exit input and its matching ground; existing local\naccess-control logic handles the release.\n\n| Circuit | Connection | Isolation / timing requirement |\n| --- | --- | --- |\n| Lock supply positive | Dedicated lock PSU positive to ACB door-relay COM | Voltage must match the maglock nameplate; check contact/current ratings |\n| Maglock positive | ACB door-relay NC to lock positive | Interrupts lock power to release a fail-safe maglock |\n| Maglock negative | Lock negative to the lock PSU negative | Preserve the installed emergency power-release arrangement |\n| Roger open trigger | Separate isolated dry-contact COM to 32 COM; NO to 34 AP | No external lock voltage on this contact; verify local unlock-before-motion sequence |\n| Roger PP reference | 36 PP with 38 COM | Not used: step-by-step is not an open-only command |\n\n**Do not reuse a powered lock relay's COM/NO to command the Roger board.** NC and\nNO share COM on a changeover relay. Feeding +12 V to that COM makes its NO side\na switched +12 V output, not an isolated dry contact. Use separately isolated\ncontacts and a correctly rated local interface/sequencer. Simply using another\ndoor relay does not establish correct sequencing.\n\nThe Python service pulses one channel only; it does not separately release a\nmaglock and then energise a motor. The approved local controller/interface must\nrelease the lock before gate movement and restore locking at the appropriate\npoint. No generic 3–5-second setting or blanket residual-magnetism delay is\nspecified here. Confirm the installed lock, suppression, controller release\ntime, gate travel, emergency release, and applicable local safety circuits.\nThe 300–10,000 ms Pi pulse must not be extended to substitute for this sequence.\n\nSources: user-supplied S4A ACB-00 wiring PDF, sheet 3 (ACB-004) and sheet 4\n(optional ACB-EA05 module); software guide pp. 15–18, 32–34, 45–46 and 61.\nThe wiring guide's optional fire expansion is not evidence it is installed.\nRoger terminal references are from the manufacturer-authored\n[F70/IPU36 IS247 R1.50 installer manual, command table](https://www.manualslib.com/manual/3373474/Roger-Technology-F70-Ipu36.html?page=23),\nreproduced by ManualsLib. Verify the model/revision against the installed board.\n\n"
+    "text": "## Maglock and Roger F70/IPU36 interface\n\nThe supplied ACB-004 diagram shows door exit inputs P1–P4/GND and per-door\nCOM/NO/NC lock contacts. Have the installer confirm labels and current usage\nonsite. The intended Pi path is one isolated normally-open contact across the\nassigned ACB request-to-exit input and its matching ground; existing local\naccess-control logic handles the release.\n\n| Circuit | Connection | Isolation / timing requirement |\n| --- | --- | --- |\n| Lock supply positive | Dedicated lock PSU positive to ACB door-relay COM | Voltage must match the maglock nameplate; check contact/current ratings |\n| Maglock positive | ACB door-relay NC to lock positive | Interrupts lock power to release a fail-safe maglock |\n| Maglock negative | Lock negative to the lock PSU negative | Preserve the installed emergency power-release arrangement |\n| Roger open trigger | Separate isolated dry-contact COM to 32 COM; NO to 34 AP | No external lock voltage on this contact; verify local unlock-before-motion sequence |\n| Roger PP reference | 36 PP with 38 COM | Not used: step-by-step is not an open-only command |\n\n**Do not reuse a powered lock relay's COM/NO to command the Roger board.** NC and\nNO share COM on a changeover relay. Feeding +12 V to that COM makes its NO side\na switched +12 V output, not an isolated dry contact. Use separately isolated\ncontacts and a correctly rated local interface/sequencer. Simply using another\ndoor relay does not establish correct sequencing.\n\nThe Python service pulses one channel only; it does not separately release a\nmaglock and then energise a motor. The approved local controller/interface must\nrelease the lock before gate movement and restore locking at the appropriate\npoint. No generic 3–5-second setting or blanket residual-magnetism delay is\nspecified here. Confirm the installed lock, suppression, controller release\ntime, gate travel, emergency release, and applicable local safety circuits.\nThe 300–800 ms Pi pulse must not be extended to substitute for this sequence.\n\nSources: user-supplied S4A ACB-00 wiring PDF, sheet 3 (ACB-004) and sheet 4\n(optional ACB-EA05 module); software guide pp. 15–18, 32–34, 45–46 and 61.\nThe wiring guide's optional fire expansion is not evidence it is installed.\nRoger terminal references are from the manufacturer-authored\n[F70/IPU36 IS247 R1.50 installer manual, command table](https://www.manualslib.com/manual/3373474/Roger-Technology-F70-Ipu36.html?page=23),\nreproduced by ManualsLib. Verify the model/revision against the installed board.\n\n"
   },
   {
-    "id": "doc-96",
+    "id": "doc-94",
     "title": "Tests",
     "source": "pi-door-service/README.md",
     "text": "## Tests\n\n```bash\npython3 -m unittest discover -s pi-door-service/tests -v\n```\n\nRun from the repository root. Tests exercise the HTTP routes and authentication,\nfour-channel isolation, bounds/polarity, mock operation, concurrent requests,\nGPIO failure cleanup, shutdown, durable duplicate protection and log redaction.\nThey use mock outputs and cannot certify field wiring or real gate movement.\n"
