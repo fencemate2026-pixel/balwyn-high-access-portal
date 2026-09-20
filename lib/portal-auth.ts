@@ -7,6 +7,7 @@ import { operatorTotp } from "@/db/schema";
 import { googleAccountRoles, microsoftAccountRoles } from "./auth-settings";
 import { configuredRole } from "./account-roles";
 import { portalEmailAllowed, withOwnerAccess } from "./owner-access";
+import { requestOrigin, requestProtocol } from "./request-origin";
 
 const COOKIE_NAME = "balwyn_operator_session";
 const MFA_COOKIE_NAME = "balwyn_operator_mfa";
@@ -456,5 +457,5 @@ export function assertSameOrigin(request: Request): boolean {
   if (fetchSite && fetchSite !== "same-origin") return false;
   const origin = request.headers.get("origin");
   const url = new URL(request.url);
-  return request.method === "POST" && url.protocol === "https:" && origin === url.origin;
+  return request.method === "POST" && requestProtocol(request) === "https:" && origin === requestOrigin(request);
 }

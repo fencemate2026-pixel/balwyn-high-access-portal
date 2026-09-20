@@ -1,3 +1,4 @@
+import { requestOrigin, requestProtocol } from "./request-origin";
 /** Server-only bridge to the Pi HTTP service. Never import this into a client component. */
 type EnvironmentReader = (key: string) => string | undefined;
 type GateRegistration = { id: string; active: boolean };
@@ -34,7 +35,7 @@ const json = (body: unknown, status = 200) => Response.json(body, { status, head
 
 export async function handleDoorRequest(request: Request, options: GatewayOptions): Promise<Response> {
   if (!["GET", "POST"].includes(request.method)) return json({ error: "Method not allowed" }, 405);
-  if (request.method === "POST" && (new URL(request.url).protocol !== "https:" || request.headers.get("Origin") !== new URL(request.url).origin || ["cross-site", "same-site", "none"].includes(request.headers.get("Sec-Fetch-Site") ?? ""))) {
+  if (request.method === "POST" && (requestProtocol(request) !== "https:" || request.headers.get("Origin") !== requestOrigin(request) || ["cross-site", "same-site", "none"].includes(request.headers.get("Sec-Fetch-Site") ?? ""))) {
     return json({ error: "Request rejected" }, 403);
   }
   const denied = await options.authorize(request);

@@ -1,4 +1,5 @@
 import type { PortalUser } from "./portal-model";
+import { requestOrigin, requestProtocol } from "./request-origin";
 
 const LOGIN_COOKIE = "__Host-balwyn_google_login";
 const LOGIN_LIFETIME_MS = 10 * 60 * 1000;
@@ -40,8 +41,8 @@ function browserToken(request: Request): string | null {
 export function isSameOriginSignInRequest(request: Request): boolean {
   const url = new URL(request.url);
   const fetchSite = request.headers.get("sec-fetch-site");
-  return request.method === "POST" && url.protocol === "https:"
-    && request.headers.get("origin") === url.origin
+  return request.method === "POST" && requestProtocol(request) === "https:"
+    && request.headers.get("origin") === requestOrigin(request)
     && (!fetchSite || fetchSite === "same-origin")
     && request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() === "application/json";
 }

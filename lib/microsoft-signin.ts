@@ -1,4 +1,5 @@
 import type { PortalUser } from "./portal-model";
+import { requestOrigin, requestProtocol } from "./request-origin";
 
 const AUTHORITY = "https://login.microsoftonline.com";
 const COOKIE = "__Host-balwyn_microsoft_login";
@@ -36,7 +37,7 @@ export function clearMicrosoftSignInCookie(): string {
 export async function createMicrosoftSignInChallenge(db: Database, request: Request, settings: Settings) {
   const url = new URL(request.url);
   const fetchSite = request.headers.get("sec-fetch-site");
-  if (request.method !== "POST" || url.protocol !== "https:" || request.headers.get("origin") !== url.origin
+  if (request.method !== "POST" || requestProtocol(request) !== "https:" || request.headers.get("origin") !== requestOrigin(request)
     || (fetchSite && fetchSite !== "same-origin")) throw new Error("Sign-in request rejected.");
   const state = randomToken();
   const browser = browserToken(request) ?? randomToken();
@@ -107,7 +108,7 @@ async function verifyIdentity(token: string, nonce: string, settings: Settings, 
 
 export async function authenticateMicrosoftSignIn(db: Database, request: Request, settings: Settings, fetcher: typeof fetch = fetch) {
   const url = new URL(request.url);
-  if (request.method !== "GET" || url.protocol !== "https:" || url.pathname !== "/api/auth/microsoft/callback") return null;
+  if (request.method !== "GET" || requestProtocol(request) !== "https:" || url.pathname !== "/api/auth/microsoft/callback") return null;
   const state = url.searchParams.get("state");
   const browser = browserToken(request);
   if (!state || !TOKEN.test(state) || !browser || url.searchParams.getAll("state").length !== 1) return null;
