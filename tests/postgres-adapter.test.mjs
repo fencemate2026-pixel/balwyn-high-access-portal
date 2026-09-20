@@ -6,6 +6,8 @@ import { databaseFixture } from './auth-fixture.mjs';
 test('SQL conversion preserves quoted text and binds parameters independently', () => {
   assert.equal(postgresPlaceholders(`SELECT '?', 'it''s?', "?", ?, ?`), `SELECT '?', 'it''s?', "?", $1, $2`);
   assert.equal(postgresPlaceholders("SELECT 'CURRENT_TIMESTAMP', ?"), "SELECT 'CURRENT_TIMESTAMP', $1");
+  assert.equal(postgresPlaceholders("SELECT 1 -- CURRENT_TIMESTAMP ?\n, ?"), "SELECT 1 -- CURRENT_TIMESTAMP ?\n, $1");
+  assert.equal(postgresPlaceholders("SELECT /* CURRENT_TIMESTAMP ? */ ?"), "SELECT /* CURRENT_TIMESTAMP ? */ $1");
   assert.match(postgresPlaceholders('SELECT CURRENT_TIMESTAMP'), /to_char\(clock_timestamp/);
   assert.throws(() => postgresPlaceholders("SELECT 'unterminated"));
 });
