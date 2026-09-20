@@ -13,7 +13,7 @@ const vite = await createServer({
 });
 after(() => vite.close());
 const { env } = await vite.ssrLoadModule("cloudflare:workers");
-const { createSessionCookie, createAdminSettingsCookie, getSessionUser, requireOperator, assertSameOrigin } = await vite.ssrLoadModule("/lib/portal-auth.ts");
+const { createSessionCookie, createAdminSettingsCookie, getSessionUser, requireOperator, assertSameOrigin, requestFingerprint } = await vite.ssrLoadModule("/lib/portal-auth.ts");
 const { getPortalPlan, assertPlanAllowsModules, planAllowsModule, PlanUpgradeRequiredError } = await vite.ssrLoadModule("/lib/portal-plan.ts");
 const { POST: portalPost } = await vite.ssrLoadModule("/app/api/portal/route.ts");
 const origin = "https://magickeys-balwyn-portal.com";
@@ -150,4 +150,12 @@ test('site email restriction revokes every non-listed identity and confines owne
   const cookie = (await createSessionCookie({ ...user, email: 'owner@example.test', isOwner: true }, { provider: 'microsoft', subject })).split(';')[0];
   assert.equal(Boolean((await getSessionUser(request(cookie))).isOwner), false);
   assert.equal(getPortalPlan(await getSessionUser(request(cookie))).advancedFeatures, false);
+});
+
+test('request fingerprints use the Render edge client address and ignore retired host headers', async () => {
+  const make = headers => new Request(origin, { headers: { 'user-agent': 'test-browser', ...headers } });
+  const first = await requestFingerprint(make({ 'cf-connecting-ip': '192.0.2.1' }));
+  const second = await requestFingerprint(make({ 'cf-connecting-ip': '192.0.2.2' }));
+  assert.notEqual(first, second);
+  assert.equal(first, await requestFingerprint(make({ 'cf-connecting-ip': '192.0.2.1', 'x-nf-client-connection-ip': '203.0.113.2' })));
 });

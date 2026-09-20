@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   }
   try {
     const db = getSql();
-    await reserveSignInAttempt(db, await signInRateKey(`email:ip:${request.headers.get("x-nf-client-connection-ip") ?? "unknown"}`), 24);
+    await reserveSignInAttempt(db, await signInRateKey(`email:ip:${request.headers.get("cf-connecting-ip") ?? "unknown"}`), 24);
     await reserveSignInAttempt(db, await signInRateKey(`email:account:${body.email.trim().toLowerCase()}`));
     const user = await verifyOperatorCredentials(body.email, body.password);
     if (!user) return Response.json({ error: "The email or password was not recognised. Use an approved operator account." }, { status: 401, headers });
