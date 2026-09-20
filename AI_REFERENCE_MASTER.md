@@ -44,7 +44,7 @@ any proposed TCP/IP protocol adapter description; no proprietary ACB packet
 protocol, reader database sync or controller network commands are implemented.
 
 - Service: `pi-door-service/door_service.py`, `POST /doors/{1-4}/open` only.
-- Fixed 300–10,000 ms pulse on exactly one mapped BCM relay pin; default 500 ms.
+- Fixed 300–800 ms pulse on exactly one mapped BCM relay pin; default 500 ms.
 - Mock/dry-run by default; explicit verified hardware configuration required.
 - One-way open-only trigger: no closing, toggling, hold-open or emergency actuation.
 - No live door, lock-release or safety feedback. `pulsed` acknowledges the relay
@@ -87,7 +87,7 @@ hosting build before committing. Test results do not certify field wiring.
 - Demonstrates fire/evacuation (no physical emergency operation through the open-only service)
 - Weekly scheduling per gate
 - Activity logging with audit trail
-- Operator authentication (demo: paul sutton / magic-keys)
+- Operator authentication (demo: paul sutton / REDACTED)
 
 **Tech stack:**
 - **Frontend:** React 19, Next.js 16, TypeScript, Tailwind CSS, shadcn/ui
@@ -165,7 +165,7 @@ cd ~/Downloads/balwyn-high-access-portal
 npm install
 npm run dev
 # Open http://localhost:5173
-# Login: paul sutton / magic-keys
+# Login: paul sutton / REDACTED
 ```
 
 ### **Step 2: Understand Sentinel Wayfinding**

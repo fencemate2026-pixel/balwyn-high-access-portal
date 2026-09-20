@@ -1,6 +1,6 @@
 # Balwyn portal Render migration
 
-The production destination is `fencemate2026-pixel/balwyn-high-access-portal`, branch `main`, deployed as a Render Node web service. The Render workspace/service still needs to be confirmed. This migration branch is not yet the production deployment.
+The production destination is `fencemate2026-pixel/balwyn-high-access-portal`, branch `main`, intended to run as a Render Node web service. The Render workspace/service still needs to be confirmed. The source configuration is prepared; a live Render deployment has not yet been verified.
 
 The runtime source was taken from the working OpenAI-hosted `balwyn-gate-automation` project at commit `f7b245d4529cd346c250d30e5b02d13b8a87b307`. The earlier GitHub tree contained extra Next/PostgreSQL files (`db/queries.ts`, `app/api/system-state/route.ts`) and separate legacy Netlify functions which were absent from that source. Those files caused the unresolved `alertVerifications` import. Earlier GitHub-only source is preserved under `archive/github-legacy/` and in Git history; it is not compiled into this application.
 
@@ -27,7 +27,7 @@ The snapshot contains private operational data and is intentionally absent from 
 3. `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` must be available to the Render web service. The old variable named `SUPABASE_DATABASE_URL` held an HTTPS Supabase API URL, not a PostgreSQL connection string. `SUPABASE_URL` is the explicit replacement.
 4. Transfer the existing profile picture from the original R2 bucket into the private Supabase bucket using the same `avatar_key`. The database profile was copied; the original image bytes are not yet transferred.
 5. Deploy a staging service, verify real owner/school login, MFA, settings unlock, AI assistance and profile image. Verify the existing custom domain and OAuth origins/callbacks. Keep the existing portal available until these checks pass.
-6. Refresh data if needed, merge into `main`, confirm Render builds the repository root using `render.yaml`, and verify the production URL. Change DNS only after a working preview. Retain the old host for rollback until cutover is confirmed.
+6. Refresh data if needed, confirm the Render configuration is on `main`, confirm Render builds the repository root using `render.yaml`, and verify the production URL. Change DNS only after a working preview. Retain the old host for rollback until cutover is confirmed.
 
 Hardware credentials were not configured on the original host at inspection. A successful website deploy does not commission the Compass/Pi connection. Configure the approved door service URL/token and gate map separately, and perform an onsite commissioning check before using gate controls.
 

@@ -15,7 +15,7 @@ spec = importlib.util.spec_from_file_location("door_service", Path(__file__).par
 service = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = service
 spec.loader.exec_module(service)
-TOKEN = "test-only-token-that-is-longer-than-32-chars"
+TOKEN = "REDACTED"
 PINS = (17, 27, 22, 23)
 
 
@@ -80,7 +80,7 @@ class DoorServiceTests(unittest.TestCase):
                 self.assertFalse(any(self.outputs.states.values()))
 
     def test_rejected_requests_never_touch_gpio(self):
-        for token in [None, "incorrect"]:
+        for token in [None, "REDACTED"]:
             self.assertEqual(self.request(token=token)[0], 401)
         for path in ["/doors/0/open", "/doors/5/open", "/doors/-1/open", "/doors/1/close", "/doors/1/open?pin=23", "/doors/01/open"]:
             self.assertEqual(self.request(path)[0], 404)
@@ -155,7 +155,7 @@ class DoorServiceTests(unittest.TestCase):
                 self.assertEqual([c.args for c in gpio.gpio_write.call_args_list][-4:], [(9, p, int(low)) for p in PINS])
 
     def test_configuration_rejects_unsafe_values(self):
-        for pulse in [299, 10001, 500.5, True]:
+        for pulse in [299, 801, 500.5, True]:
             with self.assertRaises(ValueError):
                 service.Config(TOKEN, PINS, pulse_ms=pulse)
         for pins in [(17, 17, 22, 23), (17, 22), (0, 27, 22, 23)]:
@@ -165,14 +165,14 @@ class DoorServiceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 service.Config.from_env()
         with self.assertRaises(ValueError):
-            service.Config("REPLACE_WITH_A_UNIQUE_RANDOM_TOKEN", PINS)
+            service.Config("REDACTED", PINS)
 
     def test_auth_token_is_never_logged(self):
         with self.assertLogs(service.LOG, level="INFO") as logs:
-            self.request(token="bad-token-in-log-check")
+            self.request(token="REDACTED")
             self.request()
         self.assertNotIn(TOKEN, " ".join(logs.output))
-        self.assertNotIn("bad-token-in-log-check", " ".join(logs.output))
+        self.assertNotIn("REDACTED", " ".join(logs.output))
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ export async function executeStatements(statements: Statement[]): Promise<QueryR
 }
 
 function objects<T>(result: QueryResult): T[] {
-  return result.rows.map(row => Object.fromEntries(result.columns.map((name, i) => [name, row[i]])) as T);
+  return result.rows.map((row) => Object.fromEntries(result.columns.map((name, i) => [name, row[i]])) as T);
 }
 
 export class PortalStatement {
