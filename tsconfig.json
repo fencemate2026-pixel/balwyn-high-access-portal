@@ -27,8 +27,7 @@
         "./*"
       ]
     },
-    "tsBuildInfoFile": ".next/tsconfig.tsbuildinfo",
-    "allowImportingTsExtensions": true
+    "tsBuildInfoFile": ".next/tsconfig.tsbuildinfo"
   },
   "include": [
     "next-env.d.ts",
