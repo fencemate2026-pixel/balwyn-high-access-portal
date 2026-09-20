@@ -1,6 +1,6 @@
 import { helpProvider } from '@/lib/help-provider';
-import { env } from "cloudflare:workers";
-import { getD1 } from "@/db";
+import { env } from "@/lib/server-env";
+import { getSql } from "@/db";
 import { assertSameOrigin, getAdminSettingsAccess, requireOperator } from "@/lib/portal-auth";
 import { readEquipment } from "@/lib/equipment-store";
 import { validateEquipment } from "@/lib/equipment-config";
@@ -29,9 +29,9 @@ export async function POST(request: Request) {
     if (text.length > 12000) return json({error:"Settings are too large"},413);
     const config = validateEquipment(JSON.parse(text),GATES);
     await ensurePortalSeeded();
-    await getD1().batch([
-      getD1().prepare("UPDATE portal_settings SET equipment = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1").bind(JSON.stringify(config),auth.user.displayName),
-      getD1().prepare("INSERT INTO activity_log (action,detail,category,actor_name,actor_role) VALUES ('Equipment settings saved','Portal mapping and preferences saved. Pi configuration requires local installation.','settings',?,?)").bind(auth.user.displayName,auth.user.role),
+    await getSql().batch([
+      getSql().prepare("UPDATE portal_settings SET equipment = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1").bind(JSON.stringify(config),auth.user.displayName),
+      getSql().prepare("INSERT INTO activity_log (action,detail,category,actor_name,actor_role) VALUES ('Equipment settings saved','Portal mapping and preferences saved. Pi configuration requires local installation.','settings',?,?)").bind(auth.user.displayName,auth.user.role),
     ]);
     return json({config});
   } catch (error) { return json({error:error instanceof Error ? error.message : "Settings could not be saved"},400); }

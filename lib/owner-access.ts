@@ -1,4 +1,4 @@
-import { env } from 'cloudflare:workers';
+import { env } from '@/lib/server-env';
 import type { PortalUser } from './portal-model';
 
 export function portalEmailAllowed(email: string): boolean {

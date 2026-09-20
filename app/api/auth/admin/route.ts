@@ -1,4 +1,4 @@
-import { getD1 } from "@/db";
+import { getSql } from "@/db";
 import { clearAdminSettingsCookie, createAdminSettingsCookie, getAdminSettingsAccess, requireOperator, signInRateKey, verifyAdministratorPassword } from "@/lib/portal-auth";
 import { isSameOriginSignInRequest } from "@/lib/google-signin";
 import { readSignInBody } from "@/lib/signin-request";
@@ -25,11 +25,11 @@ export async function POST(request: Request) {
   }
   if (typeof body.password !== "string" || !body.password || body.password.length > 1024) return Response.json({ error: "Enter the administrator password." }, { status: 400, headers });
   try {
-    await reserveSignInAttempt(getD1(), await signInRateKey(`admin:ip:${request.headers.get("cf-connecting-ip") ?? "unknown"}`), 16);
-    await reserveSignInAttempt(getD1(), await signInRateKey(`admin:account:${auth.user.email}:${auth.user.displayName}`));
+    await reserveSignInAttempt(getSql(), await signInRateKey(`admin:ip:${request.headers.get("x-nf-client-connection-ip") ?? "unknown"}`), 16);
+    await reserveSignInAttempt(getSql(), await signInRateKey(`admin:account:${auth.user.email}:${auth.user.displayName}`));
     if (!await verifyAdministratorPassword(body.password)) return Response.json({ error: "The administrator password was not accepted." }, { status: 403, headers });
     const { cookie, expiresAt } = await createAdminSettingsCookie(request);
-    await getD1().prepare("INSERT INTO activity_log (action, detail, category, actor_name, actor_role) VALUES ('Administrator settings unlocked', 'Password verified. Configuration access expires after 10 minutes.', 'security', ?, ?)").bind(auth.user.displayName, auth.user.role).run();
+    await getSql().prepare("INSERT INTO activity_log (action, detail, category, actor_name, actor_role) VALUES ('Administrator settings unlocked', 'Password verified. Configuration access expires after 10 minutes.', 'security', ?, ?)").bind(auth.user.displayName, auth.user.role).run();
     headers.append("Set-Cookie", cookie);
     return Response.json({ unlocked: true, expiresAt }, { headers });
   } catch (error) {

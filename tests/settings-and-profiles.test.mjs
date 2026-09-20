@@ -1,3 +1,4 @@
+import { serverFixturePlugin } from "./server-fixture.mjs";
 import assert from "node:assert/strict";
 import test, { after, beforeEach } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -6,8 +7,8 @@ import { databaseFixture, passwordHash } from "./auth-fixture.mjs";
 import { reserveSignInAttempt } from "../lib/signin-rate-limit.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const vite = await createServer({ appType: "custom", configFile: false, root, resolve: { alias: { "@": root } }, server: { middlewareMode: true },
-  plugins: [{ name: "test-worker-env", resolveId(id) { if (id === "cloudflare:workers") return "\0test-env"; }, load(id) { if (id === "\0test-env") return "export const env = {};"; } }],
+const vite = await createServer({ appType: "custom", configFile: false, root, resolve: { alias: { "@": root } }, server: { middlewareMode: true, hmr: false },
+  plugins: [serverFixturePlugin],
 });
 after(() => vite.close());
 const { env } = await vite.ssrLoadModule("cloudflare:workers");
@@ -32,10 +33,10 @@ function request(path, body, cookie = "", overrides = {}) {
   return new Request(`${origin}${path}`, { method: body === undefined ? "GET" : "POST", headers: { Origin: origin, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json", Cookie: cookie, ...overrides }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 }
 async function fixture(t) {
-  const { db, sqlite } = databaseFixture(t);
-  env.DB = db;
+  const { db, pg, fetchDatabase } = await databaseFixture(t);
+  env.fetchDatabase = fetchDatabase;
   const cookie = (await auth.createSessionCookie(user)).split(";")[0];
-  return { db, sqlite, cookie };
+  return { db, pg, cookie };
 }
 async function unlock(cookie) {
   const response = await admin.POST(request("/api/auth/admin", { password }, cookie));
@@ -78,13 +79,13 @@ test("non-administrators and cross-origin requests cannot unlock configuration e
 });
 
 test("an unlocked administrator can persist settings and immediately lock them again", async (t) => {
-  const { cookie, sqlite } = await fixture(t);
+  const { cookie, pg } = await fixture(t);
   assert.equal((await portal.GET(request("/api/portal", undefined, cookie))).status, 200);
   const unlocked = await unlock(cookie);
   const response = await portal.POST(request("/api/portal", { action: "update_settings", patch: { faultAlerts: false, voiceAnnouncements: false } }, unlocked));
   assert.equal(response.status, 200);
   assert.equal((await response.json()).snapshot.settings.faultAlerts, false);
-  assert.equal(sqlite.prepare("SELECT voice_announcements FROM portal_settings WHERE id = 1").get().voice_announcements, 0);
+  assert.equal((await pg.query("SELECT voice_announcements FROM portal_settings WHERE id = 1")).rows[0].voice_announcements, 0);
   const locked = await admin.POST(request("/api/auth/admin", { action: "lock" }, unlocked));
   assert.equal(locked.status, 200);
   assert.match(locked.headers.getSetCookie()[0], /Max-Age=0$/);
@@ -98,7 +99,7 @@ test("concurrent password attempts cannot exceed the database rate limit", async
 });
 
 test("email sign-in requires the second factor, consumes codes once and preserves approval revocation", async (t) => {
-  const { sqlite } = await fixture(t);
+  const { pg } = await fixture(t);
   const response = await email.POST(request("/api/auth/email", { email: user.email, password }));
   const body = await response.json();
   assert.equal(response.status, 200, JSON.stringify(body));
@@ -125,7 +126,7 @@ test("email sign-in requires the second factor, consumes codes once and preserve
   assert.equal((await auth.verifyOperatorCredentials("custom.operator", password)).email, user.email);
   env.PORTAL_PASSWORD_HASH = "rotated-hash";
   assert.equal(await auth.getSessionUser(request("/api/portal", undefined, cookie)), null);
-  assert.equal(sqlite.prepare("SELECT last_used_counter FROM operator_totp").get().last_used_counter, counter);
+  assert.equal((await pg.query("SELECT last_used_counter FROM operator_totp")).rows[0].last_used_counter, counter);
 });
 
 test("own profiles persist; other users require password unlock; profile fields cannot grant permissions", async (t) => {

@@ -1,4 +1,4 @@
-import { getD1 } from "@/db";
+import { getSql } from "@/db";
 import { assertSameOrigin, requireOperator } from "@/lib/portal-auth";
 import { avatarContentType } from "@/lib/profile-model";
 import { editableProfile, profileBucket, publicProfile, type ProfileRow } from "@/lib/profile-store";
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     await bucket.put(key, bytes, { httpMetadata: { contentType } });
     let updated: ProfileRow | null;
     try {
-      updated = await getD1().prepare("UPDATE user_profiles SET avatar_key = ?, updated_at = ? WHERE id = ? RETURNING *").bind(key, new Date().toISOString(), row.id).first<ProfileRow>();
+      updated = await getSql().prepare("UPDATE user_profiles SET avatar_key = ?, updated_at = ? WHERE id = ? RETURNING *").bind(key, new Date().toISOString(), row.id).first<ProfileRow>();
       if (!updated) throw new Error("Profile unavailable.");
     } catch (error) { await bucket.delete(key); throw error; }
     if (row.avatar_key) { try { await bucket.delete(row.avatar_key); } catch { /* Retryable cleanup; the previous key is no longer served. */ } }

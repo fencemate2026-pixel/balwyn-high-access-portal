@@ -1,6 +1,6 @@
 import { helpProvider } from '@/lib/help-provider';
-import { env } from 'cloudflare:workers';
-import { getD1 } from '@/db';
+import { env } from '@/lib/server-env';
+import { getSql } from '@/db';
 import { assertSameOrigin, requireOperator } from '@/lib/portal-auth';
 import { helpTopics, helpPassage } from '@/lib/software-help';
 import { answerHelp, parseHelpInput, type HelpInput } from '@/lib/help-agent';
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     try {
       const fingerprint = `software-help:${auth.user.email}`;
       const cutoff = new Date(Date.now() - 60000).toISOString();
-      const limit = await getD1().prepare('INSERT INTO auth_attempts (fingerprint,success,created_at) SELECT ?,1,? WHERE (SELECT COUNT(*) FROM auth_attempts WHERE fingerprint=? AND created_at>?)<10')
+      const limit = await getSql().prepare('INSERT INTO auth_attempts (fingerprint,success,created_at) SELECT ?,1,? WHERE (SELECT COUNT(*) FROM auth_attempts WHERE fingerprint=? AND created_at>?)<10')
         .bind(fingerprint, new Date().toISOString(), fingerprint, cutoff).run();
       if (!limit.meta.changes) return json({ error: 'Please wait a minute before asking more questions.' }, 429);
     } catch { return json({ error: 'Help is temporarily unavailable. Please try again.' }, 503); }

@@ -1,20 +1,12 @@
-import { env } from "cloudflare:workers";
-import { drizzle } from "drizzle-orm/d1";
+import { drizzle } from "drizzle-orm/pg-proxy";
 import * as schema from "./schema";
+import { executeStatements, PortalSql } from "./postgres-client";
 
 export function getDb() {
-  if (!env.DB) {
-    throw new Error(
-      "Cloudflare D1 binding `DB` is unavailable. Set the `d1` field in .openai/hosting.json to `DB` or let your control plane inject the real binding values before using the database."
-    );
-  }
-
-  return drizzle(env.DB, { schema });
+  return drizzle(async (sql, params) => {
+    const [result] = await executeStatements([{ sql, params }]);
+    return { rows: result.rows };
+  }, { schema });
 }
 
-export function getD1(): D1Database {
-  if (!env.DB) {
-    throw new Error("Cloudflare D1 binding `DB` is unavailable.");
-  }
-  return env.DB as D1Database;
-}
+export function getSql() { return new PortalSql(); }
