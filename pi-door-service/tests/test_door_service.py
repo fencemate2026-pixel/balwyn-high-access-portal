@@ -15,7 +15,7 @@ spec = importlib.util.spec_from_file_location("door_service", Path(__file__).par
 service = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = service
 spec.loader.exec_module(service)
-TOKEN = "REDACTED"
+TOKEN = "0123456789abcdef0123456789abcdef"
 PINS = (17, 27, 22, 23)
 
 
