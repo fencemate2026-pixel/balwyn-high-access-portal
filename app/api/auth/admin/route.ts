@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   }
   if (typeof body.password !== "string" || !body.password || body.password.length > 1024) return Response.json({ error: "Enter the administrator password." }, { status: 400, headers });
   try {
-    await reserveSignInAttempt(getSql(), await signInRateKey(`admin:ip:${request.headers.get("x-nf-client-connection-ip") ?? "unknown"}`), 16);
+    await reserveSignInAttempt(getSql(), await signInRateKey(`admin:ip:${request.headers.get("cf-connecting-ip") ?? "unknown"}`), 16);
     await reserveSignInAttempt(getSql(), await signInRateKey(`admin:account:${auth.user.email}:${auth.user.displayName}`));
     if (!await verifyAdministratorPassword(body.password)) return Response.json({ error: "The administrator password was not accepted." }, { status: 403, headers });
     const { cookie, expiresAt } = await createAdminSettingsCookie(request);

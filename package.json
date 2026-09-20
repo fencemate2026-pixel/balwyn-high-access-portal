@@ -9,15 +9,14 @@
     "install:ci": "bash scripts/install-ci.sh",
     "dev": "next dev --hostname 0.0.0.0",
     "build": "node scripts/build-help-index.mjs && next build --webpack",
-    "build:netlify": "node scripts/build-help-index.mjs && next build --webpack",
     "start": "next start --hostname 0.0.0.0",
     "test": "npm run build && node --test tests/*.test.mjs && python3 -m unittest discover -s controller-agent/tests -p 'test_*.py' && python3 -m unittest discover -s pi-door-service/tests -v",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "test:doors": "node --test tests/remote-open.test.mjs && python3 -m unittest discover -s pi-door-service/tests -v",
-    "build:netlify:verified": "npm run build:netlify",
     "test:netlify-gate": "python3 -m unittest discover -s tests -p 'test_netlify_gate.py' -v",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:render": "npm run build"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

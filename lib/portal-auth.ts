@@ -370,7 +370,7 @@ export async function requireOperator(request: Request, minimum: "viewer" | "ope
 }
 
 export async function requestFingerprint(request: Request): Promise<string> {
-  const address = request.headers.get("x-nf-client-connection-ip") ?? "unknown";
+  const address = request.headers.get("cf-connecting-ip") ?? "unknown";
   const agent = request.headers.get("user-agent") ?? "unknown";
   return hmac(`${address}\n${agent}`, sessionSecret());
 }
