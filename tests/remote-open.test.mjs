@@ -5,7 +5,7 @@ import { GATES } from "../lib/portal-model.ts";
 import { loadRemoteOpenConfig, requestRemoteOpen } from "../lib/remote-open-client.ts";
 
 const origin = "https://portal.example.test";
-const token = "REDACTED";
+const token = "0123456789abcdef0123456789abcdef";
 const requestId = "01b09e77-2f6a-42c6-ab9b-16cf0a93097a";
 const environment = { DOOR_SERVICE_URL: "https://pi.example.test", DOOR_SERVICE_TOKEN: token, DOOR_GATE_MAP: '{"TF-ENTRY":1,"SIDE-ENTRY":4}' };
 const readEnv = (key) => environment[key];
