@@ -9,7 +9,14 @@ export async function executeStatements(statements: Statement[]): Promise<QueryR
   const response = await supabaseFetch("/functions/v1/balwyn-portal-db", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ statements }),
   });
-  if (!response.ok) throw new Error(`Portal database unavailable (${response.status}).`);
+  if (!response.ok) {
+    // Only preserve the SQLSTATE identifier. Upstream messages can contain data.
+    const failure: unknown = await response.json().catch(() => null);
+    const code = failure && typeof failure === "object" && "code" in failure
+      && typeof failure.code === "string" && /^[0-9A-Z]{5}$/.test(failure.code)
+      ? failure.code : "unknown";
+    throw new Error(`Portal database unavailable (${response.status}, SQLSTATE ${code}).`);
+  }
   const body = await response.json();
   if (!Array.isArray(body.results) || body.results.length !== statements.length) throw new Error("Invalid database response.");
   return body.results;

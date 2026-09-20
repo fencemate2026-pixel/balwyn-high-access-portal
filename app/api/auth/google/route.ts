@@ -15,18 +15,23 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "Google did not provide a valid sign-in response." }, { status: 400, headers });
   }
+  let stage = "verify_google_identity";
   try {
     const verifiedUser = await authenticateGoogleSignIn(getSql(), request, body, { clientId: googleClientId(), allowedEmails: googleAllowedEmails(), accountRoles: googleAccountRoles() });
     if (!verifiedUser || !portalEmailAllowed(verifiedUser.email)) return Response.json({ error: "This sign-in request has expired or the Google account is not approved. Please try again with an approved account." }, { status: 403, headers });
     const user = withOwnerAccess(verifiedUser, "google");
+    stage = "seed_portal";
     await ensurePortalSeeded();
+    stage = "read_portal_snapshot";
     const snapshot = await getPortalSnapshot(user);
+    stage = "create_session";
     headers.append("Set-Cookie", await createSessionCookie(user));
     headers.append("Set-Cookie", clearGoogleSignInCookie());
     return Response.json({ snapshot }, { headers });
   } catch (error) {
     // Name + message only. Never the credential, the state or the database key.
     console.error("google_signin_failed", {
+      stage,
       name: error instanceof Error ? error.name : typeof error,
       message: error instanceof Error ? error.message : String(error),
     });
