@@ -18,6 +18,7 @@
     "build",
     "db",
     "drizzle",
+    "drizzle-postgres",
     "examples",
     "worker",
     "vite.config.ts"
