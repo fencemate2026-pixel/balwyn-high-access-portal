@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MagicKeys Status LEDs</title>
+<style>
+  :root{
+    --bg:#0c1016; --panel:#151b24; --line:#232c39; --ink:#e7edf5; --muted:#8fa0b5;
+    --led-size:26px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:24px 16px 56px}
+  .wrap{max-width:980px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 24px}
+  .grid{display:grid;gap:10px}
+  .row{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .meta{flex:1;min-width:0}
+  .name{font-weight:600;font-size:14px}
+  .detail{color:var(--muted);font-size:12.5px}
+  .state{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+
+  /* ---------- the LED ---------- */
+  .led{
+    position:relative;display:inline-block;vertical-align:middle;width:var(--led-size);height:var(--led-size);border-radius:50%;flex:none;
+    background:#0a0d12;
+    /* bezel: dark ring with a top-lit edge, like a panel-mounted indicator */
+    box-shadow:
+      inset 0 0 0 2px #0a0e14,
+      inset 0 1px 1px rgba(255,255,255,.18),
+      inset 0 -2px 4px rgba(0,0,0,.9),
+      0 1px 2px rgba(0,0,0,.6);
+  }
+  /* the lens itself — this is what lights up */
+  .led::before{
+    content:"";position:absolute;inset:3px;border-radius:50%;
+    background:radial-gradient(circle at 34% 28%, var(--lit-hi) 0%, var(--lit) 46%, var(--lit-lo) 100%);
+    box-shadow:0 0 6px 1px var(--glow-in) inset, 0 0 10px 2px var(--glow), 0 0 22px 5px var(--glow-far);
+  }
+  /* specular highlight — the tiny white catch-light that sells it as glass */
+  .led::after{
+    content:"";position:absolute;left:24%;top:16%;width:30%;height:22%;border-radius:50%;
+    background:linear-gradient(180deg,rgba(255,255,255,.85),rgba(255,255,255,0));
+    filter:blur(.4px);pointer-events:none;
+  }
+
+  .led[data-colour="green"]{--lit-hi:#b6ffc9;--lit:#25d94f;--lit-lo:#06862a;--glow-in:rgba(0,90,25,.75);--glow:rgba(40,230,90,.75);--glow-far:rgba(40,230,90,.35)}
+  .led[data-colour="red"]  {--lit-hi:#ffc3b8;--lit:#ff3b2f;--lit-lo:#8c0d05;--glow-in:rgba(110,6,0,.75);--glow:rgba(255,70,55,.75);--glow-far:rgba(255,70,55,.35)}
+  .led[data-colour="amber"]{--lit-hi:#ffe6ad;--lit:#ffab1a;--lit-lo:#9a5800;--glow-in:rgba(110,55,0,.75);--glow:rgba(255,175,35,.8); --glow-far:rgba(255,175,35,.4)}
+  .led[data-colour="off"]  {--lit-hi:#303a47;--lit:#1b222c;--lit-lo:#0d1117;--glow-in:rgba(0,0,0,.85);--glow:rgba(0,0,0,0);  --glow-far:rgba(0,0,0,0)}
+  .led[data-colour="off"]::after{opacity:.25}
+
+  /* behaviours. Animating the LENS only, so the bezel stays put. */
+  @keyframes led-flash{0%,49%{opacity:1}50%,100%{opacity:.12}}
+  @keyframes led-fast {0%,39%{opacity:1}40%,100%{opacity:.08}}
+  @keyframes led-breathe{0%,100%{opacity:.30}50%{opacity:.62}}
+  .led[data-behaviour="flash"]::before     {animation:led-flash 1s steps(1,end) infinite}
+  .led[data-behaviour="fast-flash"]::before{animation:led-fast .42s steps(1,end) infinite}
+  .led[data-behaviour="breathe"]::before   {animation:led-breathe 2.6s ease-in-out infinite}
+  .led[data-behaviour="flash"]::after,
+  .led[data-behaviour="fast-flash"]::after {animation:inherit}
+
+  /* Accessibility: never flash for anyone who has asked the OS not to. */
+  @media (prefers-reduced-motion:reduce){
+    .led::before{animation:none!important;opacity:1!important}
+    .led[data-behaviour="breathe"]::before{opacity:.45!important}
+    .state::after{content:" (flashing)";opacity:.7}
+    .led[data-behaviour="steady"] ~ .state::after{content:""}
+  }
+
+  .legend{margin-top:30px;border-top:1px solid var(--line);padding-top:18px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  td,th{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--muted);font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+  .sw{width:52px}
+  .note{margin-top:22px;font-size:12.5px;color:var(--muted);border-left:2px solid #2d3a4b;padding-left:12px}
+  @media(max-width:560px){.state{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Status indicators — gates, doors and booms</h1>
+  <p class="sub">Every state the portal can actually produce, in the order the safety logic checks them.</p>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="legend">
+    <table>
+      <thead><tr><th>Light</th><th>Means</th><th>Convention</th></tr></thead>
+      <tbody>
+        <tr><td class="sw"><span class="led" data-colour="green"></span></td><td>Confirmed open</td><td>Steady green — safe to pass</td></tr>
+        <tr><td class="sw"><span class="led" data-colour="red"></span></td><td>Confirmed closed / secure</td><td>Steady red — do not pass</td></tr>
+        <tr><td class="sw"><span class="led" data-colour="amber"></span></td><td>Moving, or position not confirmed</td><td>Flashing amber — keep clear, same as a boom in motion</td></tr>
+        <tr><td class="sw"><span class="led" data-colour="red"></span></td><td>Fault, or a command that failed</td><td>Fast flashing red — needs attention</td></tr>
+        <tr><td class="sw"><span class="led" data-colour="off"></span></td><td>No contact / not commissioned</td><td>Dark, slow breath — the portal is not being told anything</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="note"><strong>The rule this enforces:</strong> green and steady red are shown <em>only</em> when a controller has reported that position on a heartbeat less than 90 seconds old. A stale, faulted or silent controller goes dark or amber — it never guesses a position. That is the same conservatism the existing text labels use; the light just keeps &ldquo;moving&rdquo; and &ldquo;fault&rdquo; visible instead of folding them into &ldquo;unknown&rdquo;.</p>
+</div>
+
+<script>
+const rows = [
+  ["Tony Frizza Stadium — main entry", "green", "steady",     "Open",                 "Confirmed open."],
+  ["Staff car park boom",              "red",   "steady",     "Closed",               "Confirmed closed."],
+  ["Side pedestrian gate",             "amber", "flash",      "Moving",               "The gate is in motion. Keep clear."],
+  ["Oval north gate",                  "amber", "flash",      "Position unknown",     "The controller is online but has not reported a confirmed position."],
+  ["Gym roller door",                  "red",   "fast-flash", "Fault",                "The controller is reporting a fault. Do not rely on the position shown."],
+  ["Tennis court gate",                "red",   "fast-flash", "Command failed",       "The last command did not complete. Position unknown."],
+  ["Front reception door",             "off",   "breathe",    "No recent heartbeat",  "The last heartbeat is more than 90 seconds old. Position unknown."],
+  ["Maintenance shed gate",            "off",   "breathe",    "Not commissioned",     "No controller has completed commissioning on this gate yet."],
+  ["Rear service gate",                "off",   "steady",     "Inactive",             "This gate is not in service."],
+];
+document.getElementById("grid").innerHTML = rows.map(([name,colour,behaviour,label,detail]) => `
+  <div class="row">
+    <span class="led" data-colour="${colour}" data-behaviour="${behaviour}" role="img" aria-label="${label}"></span>
+    <span class="meta"><span class="name">${name}</span><br><span class="detail">${detail}</span></span>
+    <span class="state">${label}</span>
+  </div>`).join("");
+</script>
+</body>
+</html>
