@@ -17,6 +17,12 @@ function json(body: unknown, status = 200) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
+function validEmail(value: string) {
+  const at = value.indexOf("@");
+  const dot = value.lastIndexOf(".");
+  return at > 0 && dot > at + 1 && dot < value.length - 1 && !value.includes(" ");
+}
+
 export async function GET(request: Request) {
   const auth = await requireOperator(request, "viewer");
   if (!auth.user) return auth.response;
@@ -60,10 +66,7 @@ export async function POST(request: Request) {
   const depositLeft = Boolean(body?.depositLeft);
   const depositAmount = Number(body?.depositAmount ?? 0);
   if (fullName.length < 1 || fullName.length > 120) return json({ error: "Enter the client's full name." }, 400);
-  if (email && !/^[^
-@\s]+@[^
-@\s]+\.[^
-@\s]+$/.test(email)) return json({ error: "Enter a valid email address." }, 400);
+  if (email && !validEmail(email)) return json({ error: "Enter a valid email address." }, 400);
   if (phone && (phone.length < 6 || phone.length > 40)) return json({ error: "Enter a valid phone number." }, 400);
   if (!AREAS.has(area)) return json({ error: "Choose a hire space." }, 400);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(visitDate)) return json({ error: "Choose the hire date." }, 400);
