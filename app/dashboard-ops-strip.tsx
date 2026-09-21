@@ -81,7 +81,7 @@ export default function DashboardOpsStrip() {
               {days.map((day, index) => (
                 <div key={day.date} className="week-bar-slot" role="listitem" aria-label={`${day.label}: ${counts[index]} confirmed booking${counts[index] === 1 ? "" : "s"}`}>
                   <small className="week-bar-value">{counts[index] || "0"}</small>
-                  <span style={{ height: counts[index] === 0 ? "0%" : `${(counts[index] / max) * 100}%` }}>
+                  <span className={counts[index] === 0 ? "is-empty" : undefined} style={{ height: counts[index] === 0 ? "0%" : `${(counts[index] / max) * 100}%` }}>
                     <i />
                   </span>
                   <small>{day.label}</small>

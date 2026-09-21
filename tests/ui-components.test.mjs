@@ -103,6 +103,7 @@ test("renders dimensional week chart semantics", async () => {
   assert.match(html, /week-bar-value/);
   assert.match(html, /No confirmed hire visits are currently booked this week\./);
   assert.match(html, /height:0%/);
+  assert.match(html, /class="is-empty"/);
 });
 
 test("renders the public landing page with operational overview content", async () => {
