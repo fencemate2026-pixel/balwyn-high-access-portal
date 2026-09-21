@@ -77,9 +77,9 @@ export default function DashboardOpsStrip() {
             <div className="week-chart-grid" aria-hidden="true">
               {[100, 75, 50, 25].map((level) => <i key={level} style={{ bottom: `${level}%` }} />)}
             </div>
-            <div className="week-bars">
+            <div className="week-bars" role="list">
               {days.map((day, index) => (
-                <div key={day.date} className="week-bar-slot" aria-label={`${day.label}: ${counts[index]} confirmed booking${counts[index] === 1 ? "" : "s"}`}>
+                <div key={day.date} className="week-bar-slot" role="listitem" aria-label={`${day.label}: ${counts[index]} confirmed booking${counts[index] === 1 ? "" : "s"}`}>
                   <small className="week-bar-value">{counts[index] || "0"}</small>
                   <span style={{ height: counts[index] === 0 ? "0%" : `${Math.max(8, (counts[index] / max) * 100)}%`, minHeight: counts[index] === 0 ? 0 : 8 }}>
                     <i />
