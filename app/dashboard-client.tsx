@@ -268,6 +268,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const adminUnlocked = isAdministrator && adminAccessUntil > Date.now();
   const configurationView = ["settings", "schedule", "automation"].includes(activeView);
   const [plan, setPlan] = useState(initialData.plan);
+  const [serverTime, setServerTime] = useState(initialData.serverTime);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const advancedFeaturesEnabled = plan?.advancedFeatures === true;
   const [systemMode, setSystemMode] = useState<SystemMode>(initialData.systemMode);
@@ -348,6 +349,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   function applySnapshot(snapshot: PortalSnapshot, preserveSchedule = false) {
     setPlan(snapshot.plan);
+    setServerTime(snapshot.serverTime);
     setSystemMode(snapshot.systemMode);
     setGateRuntime(Object.fromEntries(snapshot.gates.map((gate) => [gate.gateId, gate])));
     if (!preserveSchedule) setSchedules(snapshot.schedules);
@@ -504,6 +506,28 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   function activityTime(value: string) {
     return new Intl.DateTimeFormat("en-AU", { dateStyle: "medium", timeStyle: "medium", timeZone: "Australia/Melbourne" }).format(new Date(value));
+  }
+
+  function relativeHeartbeat(value: string | null) {
+    if (!value || !Number.isFinite(Date.parse(value))) return "Awaiting verified heartbeat";
+    const deltaMinutes = Math.max(0, Math.round((Date.parse(serverTime) - Date.parse(value)) / 60000));
+    if (deltaMinutes < 1) return "Heartbeat just now";
+    if (deltaMinutes === 1) return "Heartbeat 1 minute ago";
+    if (deltaMinutes < 60) return `Heartbeat ${deltaMinutes} minutes ago`;
+    const hours = Math.floor(deltaMinutes / 60);
+    return `Heartbeat ${hours} hour${hours === 1 ? "" : "s"} ago`;
+  }
+
+  function portalTimeLabel(value: string) {
+    return new Intl.DateTimeFormat("en-AU", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      timeZone: "Australia/Melbourne",
+    }).format(new Date(value));
   }
 
   function announceGateCommand(position: GatePosition) {
@@ -724,11 +748,33 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         {list.map((gate) => {
           const position = getPosition(gate);
           const status = gateStatus(gate);
+          const runtime = runtimeFor(gate);
+          const safetyLabel = !gate.active
+            ? "Inactive"
+            : runtime?.controllerState === "online" && runtime?.safetyOk === true
+              ? "Safety healthy"
+              : runtime?.safetyOk === false
+                ? "Safety blocked"
+                : "Safety pending";
           return (
             <button className={`access-card ${gate.active ? "is-active" : "is-inactive"} ${positionMonitoring ? "" : "is-monitoring-paused"} controller-${runtimeFor(gate)?.controllerState ?? "uncommissioned"}`} key={gate.id} aria-label={`${gate.name} · ${gate.active ? "Active" : "Inactive"} · ${status.label}`} aria-haspopup="dialog" onClick={() => setSelectedGate(gate)}>
               <span className="access-card-heading"><span><strong>{gate.name}</strong><small>{gate.type}</small></span><span className={`gate-activation-badge ${gate.active ? "is-active" : "is-inactive"}`}>{gate.active ? "Active" : "Inactive"}</span></span>
+              <span className="access-card-meta">
+                <span>{gate.area}</span>
+                <span>{gate.id}</span>
+              </span>
               <GateIcon gate={gate} position={position} />
-              <span className="access-card-footer"><span><span className={`position-label ${(!gate.active || positionMonitoring) ? status.className : "is-unknown"}`}><i />{!gate.active || positionMonitoring ? status.label : "Monitoring paused"}</span><small className="controller-detail">{!gate.active || positionMonitoring ? status.detail : "Physical feedback hidden"}</small></span><span>{gate.id}</span></span>
+              <span className="access-card-footer">
+                <span className="access-card-context">
+                  <span className={`position-label ${(!gate.active || positionMonitoring) ? status.className : "is-unknown"}`}><i />{!gate.active || positionMonitoring ? status.label : "Monitoring paused"}</span>
+                  <small className="controller-detail">{!gate.active || positionMonitoring ? status.detail : "Physical feedback hidden"}</small>
+                  <small className="controller-heartbeat">{relativeHeartbeat(runtime?.lastSeen ?? null)}</small>
+                </span>
+                <span className="access-card-statuses" aria-hidden="true">
+                  <span className={`status-chip is-${runtime?.controllerState ?? "uncommissioned"}`}>{runtime?.controllerState ?? "uncommissioned"}</span>
+                  <span className={`status-chip ${runtime?.safetyOk === true ? "is-healthy" : runtime?.safetyOk === false ? "is-fault" : "is-pending"}`}>{safetyLabel}</span>
+                </span>
+              </span>
             </button>
           );
         })}
@@ -768,7 +814,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         {systemMode !== "normal" && <EmergencyAlertPanel mode={systemMode} onClear={() => setPendingEmergency("clear")} confirmed={emergencyConfirmed} pending={emergencyPending} failed={emergencyFailed} canClear={isAdministrator} projectorAccess={advancedFeaturesEnabled} />}
 
         <div className="workspace-content">
-          <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span></div><div className="workspace-title-meta"><div className="workspace-powered-by"><span>Powered by RJL Commercial</span><img src="/rjl-commercial-logo.png" alt="RJL Commercial" /></div><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>
+          <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span><div className="workspace-context" aria-label="Portal context"><span>Portal sync · {portalTimeLabel(serverTime)}</span><span>Timezone · Australia/Melbourne</span><span>Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</span></div></div><div className="workspace-title-meta"><div className="workspace-powered-by"><span>Powered by RJL Commercial</span><img src="/rjl-commercial-logo.png" alt="RJL Commercial" /></div><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>
           {activeView === "dashboard" && (
             <div className="desk-service-row">
               <button type="button" onClick={() => { setActiveView("activity"); toast.message("Fault report", { description: "Use the activity log to record the gate, time and fault. Controllers stay amber until a verified heartbeat exists." }); }}>Report a fault</button>

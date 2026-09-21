@@ -39,6 +39,12 @@ declare global {
 }
 
 export default function DemoLogin() {
+  const portalAssurance = [
+    "Approved accounts only · school and RJL review",
+    "Operator actions are session logged and time stamped",
+    "Controller heartbeat context is separated from emergency authority",
+  ] as const;
+
   const [hydrated, setHydrated] = useState(false);
   const [snapshot, setSnapshot] = useState<PortalSnapshot | null>(null);
   const [googleConfig, setGoogleConfig] = useState<GoogleSignInConfig | null>(null);
@@ -233,7 +239,10 @@ export default function DemoLogin() {
       <section className="magic-login-panel" aria-labelledby="magic-login-title">
         <header className="magic-login-brand"><a href="/" aria-label="Magic Keys home"><BrandLogo /><span>Balwyn High School</span></a></header>
         <div className="magic-login-content">
-          <div className="magic-login-heading"><h1 id="magic-login-title">{authenticator ? "Verify your sign-in" : "Welcome back"}</h1><p>{authenticator ? "Enter the code from your authenticator app." : "Sign in to your Magic Keys portal."}</p></div>
+          <div className="magic-login-heading"><h1 id="magic-login-title">{authenticator ? "Verify your sign-in" : "Welcome back"}</h1><p>{authenticator ? "Enter the code from your authenticator app." : "Sign in to the Balwyn High School Magic Keys operations portal."}</p></div>
+          {!authenticator && <ul className="magic-login-assurance" aria-label="Portal assurance">
+            {portalAssurance.map((item) => <li key={item}><ShieldCheck aria-hidden="true" />{item}</li>)}
+          </ul>}
           <form className="magic-login-form" onSubmit={handleEmailSignIn} aria-busy={submitting}>
             {authenticator ? <>
               {enrollment && <div className="magic-login-enrollment"><strong>Set up your authenticator</strong><p>Add a new account in Google Authenticator, Microsoft Authenticator or another authenticator app. Choose a time-based key and enter:</p><code>{enrollment.secret}</code><span>Account: {enrollment.account}</span></div>}

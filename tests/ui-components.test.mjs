@@ -83,3 +83,47 @@ test("renders sidebar skeletons deterministically", async () => {
   assert.equal(first, second);
   assert.match(first, /--skeleton-width:70%/);
 });
+
+test("renders the public landing page with operational overview content", async () => {
+  const { default: PublicAppHome } = await vite.ssrLoadModule("/app/public-app-home.tsx");
+  const html = renderToStaticMarkup(React.createElement(PublicAppHome));
+
+  assert.match(html, /Professional access operations for gates, schedules and controller health/);
+  assert.match(html, /Live operational context/);
+  assert.match(html, /Verified sign-in/);
+  assert.match(html, /Operator sign in/);
+});
+
+test("renders dashboard gate cards with portal sync and heartbeat context", async () => {
+  const { default: DashboardClient } = await vite.ssrLoadModule("/app/dashboard-client.tsx");
+  const { ACTIVE_GATES, makeSchedules } = await vite.ssrLoadModule("/lib/portal-model.ts");
+  const snapshot = {
+    systemMode: "normal",
+    gates: ACTIVE_GATES.map((gate, index) => ({
+      gateId: gate.id,
+      commandedPosition: gate.defaultPosition,
+      reportedPosition: index === 0 ? "open" : "closed",
+      controllerState: "online",
+      safetyOk: true,
+      lastSeen: "2026-09-21T13:58:00.000Z",
+      lastCommandState: "acknowledged",
+      lastCommandId: index + 1,
+      lastError: null,
+      credentialIssued: true,
+      commissioned: true,
+    })),
+    schedules: makeSchedules(),
+    activity: [],
+    automations: [],
+    settings: { positionMonitoring: true, faultAlerts: true, voiceAnnouncements: false, enabledModules: ["mobile"] },
+    plan: { tier: "core", name: "Gate Operations", advancedFeatures: false },
+    user: { displayName: "Test Operator", email: "operator@example.test", role: "administrator" },
+    serverTime: "2026-09-21T14:00:00.000Z",
+  };
+  const html = renderToStaticMarkup(React.createElement(DashboardClient, { user: snapshot.user, initialData: snapshot }));
+
+  assert.match(html, /Portal sync/);
+  assert.match(html, /Timezone · Australia\/Melbourne/);
+  assert.match(html, /Heartbeat 2 minutes ago/);
+  assert.match(html, /Safety healthy/);
+});
