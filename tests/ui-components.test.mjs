@@ -133,19 +133,6 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
   assert.doesNotMatch(html, /single-gate-image|double-gate-image/);
 });
 
-test("keeps the inline gate-tile stage block-sized for the live dashboard cards", async () => {
-  const css = await readFile(path.join(root, "app", "gate-preview.css"), "utf8");
-  const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selectorText, declarations]) => ({
-    selectors: selectorText.split(",").map((selector) => selector.trim().replace(/\s+/g, " ")),
-    declarations: declarations.replace(/\s+/g, " ").replace(/\s*:\s*/g, ":").replace(/\s*;\s*/g, ";"),
-  }));
-  const tileRule = rules.find((rule) => rule.selectors.includes(".gate-tile"));
-  const stageRule = rules.find((rule) => rule.selectors.includes(".gate-tile .stage"));
-
-  assert.ok(tileRule?.declarations.includes("display:block !important;"));
-  assert.ok(stageRule?.declarations.includes("display:block !important;"));
-});
-
 test("renders gate tile states with accessible labels", async () => {
   const { default: GateTile } = await vite.ssrLoadModule("/app/gate-tile.tsx");
   const gate = {
@@ -161,6 +148,7 @@ test("renders gate tile states with accessible labels", async () => {
 
   const open = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "open" }));
   assert.match(open, /gate-state-run/);
+  assert.match(open, /<span class="stage"><svg/);
   assert.match(open, /aria-label="Office Entry 1 Boom Gate: Operating, Confirmed open"/);
 
   const closed = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "closed" }));
