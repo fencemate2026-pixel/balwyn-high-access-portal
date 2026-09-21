@@ -135,12 +135,15 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
 
 test("keeps the inline gate-tile stage block-sized for the live dashboard cards", async () => {
   const css = await readFile(path.join(root, "app", "gate-preview.css"), "utf8");
-  const compact = css.replace(/\s+/g, " ");
-  const tileRule = compact.match(/(?:^|})\s*\.access-card \.gate-tile,\s*\.gate-tile\s*\{([^}]*)\}/);
-  const stageRule = compact.match(/(?:^|})\s*\.gate-tile \.stage\s*\{([^}]*)\}/);
+  const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selectorText, declarations]) => ({
+    selectors: selectorText.split(",").map((selector) => selector.trim().replace(/\s+/g, " ")),
+    declarations: declarations.replace(/\s+/g, " ").replace(/\s*:\s*/g, ":").replace(/\s*;\s*/g, ";"),
+  }));
+  const tileRule = rules.find((rule) => rule.selectors.includes(".gate-tile"));
+  const stageRule = rules.find((rule) => rule.selectors.includes(".gate-tile .stage"));
 
-  assert.ok(tileRule?.[1]?.includes("display:block !important;"));
-  assert.ok(stageRule?.[1]?.includes("display:block !important;"));
+  assert.ok(tileRule?.declarations.includes("display:block !important;"));
+  assert.ok(stageRule?.declarations.includes("display:block !important;"));
 });
 
 test("renders gate tile states with accessible labels", async () => {
