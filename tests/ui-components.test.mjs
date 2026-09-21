@@ -113,4 +113,11 @@ test("renders gate tile states with accessible labels", async () => {
   const issue = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "unknown" }));
   assert.match(issue, /gate-state-issue/);
   assert.match(issue, /aria-label="Office Entry 1 Boom Gate: Issue, Status unknown"/);
+
+  const custom = renderToStaticMarkup(React.createElement(GateTile, {
+    gate,
+    position: "closed",
+    ariaLabel: "Custom office gate label",
+  }));
+  assert.match(custom, /aria-label="Custom office gate label"/);
 });
