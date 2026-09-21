@@ -126,6 +126,8 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
   assert.match(html, /Timezone · Australia\/Melbourne/);
   assert.match(html, /Heartbeat 2 minutes ago/);
   assert.match(html, /Safety healthy/);
+});
+
 test("renders gate tile states with accessible labels", async () => {
   const { default: GateTile } = await vite.ssrLoadModule("/app/gate-tile.tsx");
   const gate = {
