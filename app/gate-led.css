@@ -1,25 +1,110 @@
-/* Hire layout only. Do not restyle dashboard cards, emergency tiles or lamps. */
+/* Lamps only. Do not recolour dashboard cards or emergency tiles. */
 
-.hire-workspace {
-  display: grid;
-  gap: 1.25rem;
+.gate-indicator-light {
+  --led-size: 14px;
+  --lit-hi: #ffe6ad;
+  --lit: #ffab1a;
+  --lit-lo: #9a5800;
+  --glow-in: rgba(110, 55, 0, 0.75);
+  --glow: rgba(255, 175, 35, 0.8);
+  --glow-far: rgba(255, 175, 35, 0.28);
+  position: relative;
+  display: inline-block;
+  width: var(--led-size);
+  height: var(--led-size);
+  border-radius: 50%;
+  flex: none;
+  background: radial-gradient(circle at 50% 60%, #151b22 0%, #05070a 100%);
+  box-shadow:
+    inset 0 0 0 2px #0a0e14,
+    inset 0 2px 2px rgba(255, 255, 255, 0.28),
+    inset 0 -3px 4px rgba(0, 0, 0, 0.9),
+    0 2px 3px rgba(0, 0, 0, 0.45);
 }
 
-.hire-grid {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+.gate-indicator-light::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, var(--lit-hi) 0%, var(--lit) 46%, var(--lit-lo) 100%);
+  box-shadow: 0 0 5px 1px var(--glow-in) inset, 0 0 10px 2px var(--glow), 0 0 16px 4px var(--glow-far);
+  animation: gate-led-amber 0.9s steps(1, end) infinite;
 }
 
+.gate-indicator-light::after {
+  content: "";
+  position: absolute;
+  left: 24%;
+  top: 16%;
+  width: 30%;
+  height: 22%;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+/* Confirmed open — only when the existing visual state is open. */
+.access-icon.is-open .gate-indicator-light {
+  --lit-hi: #b6ffc9;
+  --lit: #25d94f;
+  --lit-lo: #06862a;
+  --glow-in: rgba(0, 90, 25, 0.75);
+  --glow: rgba(40, 230, 90, 0.75);
+  --glow-far: rgba(40, 230, 90, 0.28);
+}
+.access-icon.is-open .gate-indicator-light::before {
+  animation: none;
+}
+
+/* Confirmed closed — only when the existing visual state is closed. */
+.access-icon.is-closed .gate-indicator-light {
+  --lit-hi: #ffc3b8;
+  --lit: #ff3b2f;
+  --lit-lo: #8c0d05;
+  --glow-in: rgba(110, 6, 0, 0.75);
+  --glow: rgba(255, 70, 55, 0.75);
+  --glow-far: rgba(255, 70, 55, 0.28);
+}
+.access-icon.is-closed .gate-indicator-light::before {
+  animation: none;
+}
+
+/* Inactive hardware — lamp off. */
+.access-icon.is-inactive .gate-indicator-light,
+.access-card.is-inactive .gate-indicator-light {
+  --lit-hi: #303a47;
+  --lit: #1b222c;
+  --lit-lo: #0d1117;
+  --glow-in: rgba(0, 0, 0, 0.85);
+  --glow: transparent;
+  --glow-far: transparent;
+}
+.access-icon.is-inactive .gate-indicator-light::before,
+.access-card.is-inactive .gate-indicator-light::before {
+  animation: none;
+}
+.access-icon.is-inactive .gate-indicator-light::after,
+.access-card.is-inactive .gate-indicator-light::after {
+  opacity: 0.25;
+}
+
+@keyframes gate-led-amber {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.12; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gate-indicator-light::before {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
+.hire-workspace { display: grid; gap: 1.25rem; }
+.hire-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .hire-area-list,
-.hire-visit-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.75rem;
-}
-
+.hire-visit-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
 .hire-area-list li,
 .hire-visit-list li {
   display: grid;
@@ -27,16 +112,6 @@
   padding: 0.75rem 0;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
-
 .hire-note,
-.hire-empty {
-  margin: 0;
-  color: inherit;
-  opacity: 0.8;
-}
-
-.hire-workspace h3 {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
+.hire-empty { margin: 0; opacity: 0.8; }
+.hire-workspace h3 { display: flex; align-items: center; gap: 0.4rem; }
