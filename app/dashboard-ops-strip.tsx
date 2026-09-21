@@ -73,11 +73,11 @@ export default function DashboardOpsStrip() {
             <strong>{totalBookings} confirmed booking{totalBookings === 1 ? "" : "s"}</strong>
             <small>{busiestCount ? `${busiestDay} is currently the busiest day with ${busiestCount} booking${busiestCount === 1 ? "" : "s"}.` : "No confirmed hire visits are currently booked this week."}</small>
           </div>
-          <div className="week-chart-stage" role="img" aria-label="Upcoming facility hire demand for the next seven days">
+          <div className="week-chart-stage">
             <div className="week-chart-grid" aria-hidden="true">
               {[100, 75, 50, 25].map((level) => <i key={level} style={{ bottom: `${level}%` }} />)}
             </div>
-            <div className="week-bars" role="list">
+            <div className="week-bars" role="list" aria-label="Upcoming facility hire demand for the next seven days">
               {days.map((day, index) => (
                 <div key={day.date} className="week-bar-slot" role="listitem" aria-label={`${day.label}: ${counts[index]} confirmed booking${counts[index] === 1 ? "" : "s"}`}>
                   <small className="week-bar-value">{counts[index] || "0"}</small>
