@@ -11,6 +11,11 @@ function isAllClear(text: string) {
   return /emergency priority cleared|returning to normal operation/i.test(text);
 }
 
+function findAustralianVoice(voices: SpeechSynthesisVoice[]) {
+  const australian = voices.filter((voice) => /^en[-_]AU(?:[-_]|$)/i.test(voice.lang));
+  return australian.find((voice) => voice.default) ?? australian[0] ?? voices.find((voice) => /^en/i.test(voice.lang));
+}
+
 export default function EmergencyVoiceGuard() {
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -19,6 +24,21 @@ export default function EmergencyVoiceGuard() {
     const originalSpeak = synth.speak.bind(synth);
     const originalCancel = synth.cancel.bind(synth);
     let protect = false;
+
+    function speakNow(mode: "fire" | "lockdown") {
+      const utterance = new SpeechSynthesisUtterance(emergencyVoiceScript(mode));
+      utterance.lang = "en-AU";
+      utterance.rate = 0.92;
+      utterance.pitch = 1;
+      utterance.volume = 1;
+      const voice = findAustralianVoice(synth.getVoices());
+      if (voice) utterance.voice = voice;
+      protect = true;
+      utterance.addEventListener("end", () => { protect = false; });
+      utterance.addEventListener("error", () => { protect = false; });
+      originalCancel();
+      originalSpeak(utterance);
+    }
 
     synth.speak = ((utterance: SpeechSynthesisUtterance) => {
       const incoming = utterance.text || "";
@@ -29,17 +49,10 @@ export default function EmergencyVoiceGuard() {
         return;
       }
       if (isEmergencyWarning(incoming)) {
-        const mode = /lockdown/i.test(incoming) ? "lockdown" : "fire";
-        utterance.text = emergencyVoiceScript(mode);
-        utterance.rate = Math.min(utterance.rate || 0.88, 0.88);
         if (protect && (synth.speaking || synth.pending)) return;
-        protect = true;
-        utterance.addEventListener("end", () => {
-          protect = false;
-        });
-        utterance.addEventListener("error", () => {
-          protect = false;
-        });
+        const mode = /lockdown/i.test(incoming) ? "lockdown" : "fire";
+        speakNow(mode);
+        return;
       }
       originalSpeak(utterance);
     }) as typeof synth.speak;
@@ -49,7 +62,20 @@ export default function EmergencyVoiceGuard() {
       originalCancel();
     }) as typeof synth.cancel;
 
+    function onClick(event: Event) {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const fire = target.closest(".confirm-fire");
+      const lockdown = target.closest(".confirm-lockdown");
+      if (fire) speakNow("fire");
+      else if (lockdown) speakNow("lockdown");
+    }
+
+    document.addEventListener("click", onClick, true);
+    synth.getVoices();
+
     return () => {
+      document.removeEventListener("click", onClick, true);
       synth.speak = originalSpeak;
       synth.cancel = originalCancel;
     };
