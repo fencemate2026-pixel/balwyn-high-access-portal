@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
 import DashboardClient from "./dashboard-client";
@@ -39,6 +40,12 @@ declare global {
 }
 
 export default function DemoLogin() {
+  const portalAssurance = [
+    "Approved accounts only · school and RJL review",
+    "Operator actions are session logged and time stamped",
+    "Controller heartbeat context is separated from emergency authority",
+  ] as const;
+
   const [hydrated, setHydrated] = useState(false);
   const [snapshot, setSnapshot] = useState<PortalSnapshot | null>(null);
   const [googleConfig, setGoogleConfig] = useState<GoogleSignInConfig | null>(null);
@@ -58,10 +65,49 @@ export default function DemoLogin() {
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const signInBusyRef = useRef(false);
 
+  const refreshGoogleSignIn = useCallback(async () => {
+    if (window.location.origin !== GOOGLE_SIGN_IN_ORIGIN) {
+      setGooglePortalLink(true);
+      return;
+    }
+    setGoogleConfig(null);
+    setPreparing(true);
+    setGoogleError("");
+    try {
+      setGoogleConfig(await fetchGoogleSignInConfig());
+    } catch (reason) {
+      setGoogleError(reason instanceof Error ? reason.message : "Google sign-in is temporarily unavailable.");
+    } finally {
+      setPreparing(false);
+    }
+  }, []);
+
+  const handleGoogleCredential = useCallback(async (response: GoogleCredentialResponse, config: GoogleSignInConfig) => {
+    if (signInBusyRef.current) return;
+    signInBusyRef.current = true;
+    setSubmitting(true);
+    setError("");
+    try {
+      if (!response.credential || response.state !== config.state) throw new Error("Your sign-in request has expired. Please try again.");
+      const result = await fetch("/api/auth/google", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential: response.credential, state: response.state }) });
+      const body = await result.json() as { snapshot?: PortalSnapshot; error?: string };
+      if (!result.ok || !body.snapshot) throw new Error(body.error || "Google sign-in was not accepted.");
+      setSnapshot(body.snapshot);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Google sign-in was not accepted.");
+      await refreshGoogleSignIn();
+    } finally {
+      signInBusyRef.current = false;
+      setSubmitting(false);
+    }
+  }, [refreshGoogleSignIn]);
+
   useEffect(() => {
     let active = true;
     if (new URLSearchParams(window.location.search).get("signin") === "microsoft_failed") {
-      setError("Microsoft sign-in was cancelled or this account is not approved. Please try again or choose another sign-in method.");
+      window.queueMicrotask(() => {
+        if (active) setError("Microsoft sign-in was cancelled or this account is not approved. Please try again or choose another sign-in method.");
+      });
       window.history.replaceState(null, "", "/login");
     }
     async function loadSignIn() {
@@ -130,44 +176,7 @@ export default function DemoLogin() {
     };
     document.head.appendChild(script);
     return () => { cancelled = true; observer.disconnect(); };
-  }, [googleConfig, snapshot, authenticator]);
-
-  async function refreshGoogleSignIn() {
-    if (window.location.origin !== GOOGLE_SIGN_IN_ORIGIN) {
-      setGooglePortalLink(true);
-      return;
-    }
-    setGoogleConfig(null);
-    setPreparing(true);
-    setGoogleError("");
-    try {
-      setGoogleConfig(await fetchGoogleSignInConfig());
-    } catch (reason) {
-      setGoogleError(reason instanceof Error ? reason.message : "Google sign-in is temporarily unavailable.");
-    } finally {
-      setPreparing(false);
-    }
-  }
-
-  async function handleGoogleCredential(response: GoogleCredentialResponse, config: GoogleSignInConfig) {
-    if (signInBusyRef.current) return;
-    signInBusyRef.current = true;
-    setSubmitting(true);
-    setError("");
-    try {
-      if (!response.credential || response.state !== config.state) throw new Error("Your sign-in request has expired. Please try again.");
-      const result = await fetch("/api/auth/google", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential: response.credential, state: response.state }) });
-      const body = await result.json() as { snapshot?: PortalSnapshot; error?: string };
-      if (!result.ok || !body.snapshot) throw new Error(body.error || "Google sign-in was not accepted.");
-      setSnapshot(body.snapshot);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Google sign-in was not accepted.");
-      await refreshGoogleSignIn();
-    } finally {
-      signInBusyRef.current = false;
-      setSubmitting(false);
-    }
-  }
+  }, [googleConfig, snapshot, authenticator, handleGoogleCredential]);
 
   async function handleEmailSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -231,9 +240,12 @@ export default function DemoLogin() {
   return (
     <main className="magic-login">
       <section className="magic-login-panel" aria-labelledby="magic-login-title">
-        <header className="magic-login-brand"><a href="/" aria-label="Magic Keys home"><BrandLogo /><span>Balwyn High School</span></a></header>
+        <header className="magic-login-brand"><Link href="/" aria-label="Magic Keys home"><BrandLogo /><span>Balwyn High School</span></Link></header>
         <div className="magic-login-content">
-          <div className="magic-login-heading"><h1 id="magic-login-title">{authenticator ? "Verify your sign-in" : "Welcome back"}</h1><p>{authenticator ? "Enter the code from your authenticator app." : "Sign in to your Magic Keys portal."}</p></div>
+          <div className="magic-login-heading"><h1 id="magic-login-title">{authenticator ? "Verify your sign-in" : "Welcome back"}</h1><p>{authenticator ? "Enter the code from your authenticator app." : "Sign in to the Balwyn High School Magic Keys operations portal."}</p></div>
+          {!authenticator && <ul className="magic-login-assurance" aria-label="Portal assurance">
+            {portalAssurance.map((item) => <li key={item}><ShieldCheck aria-hidden="true" />{item}</li>)}
+          </ul>}
           <form className="magic-login-form" onSubmit={handleEmailSignIn} aria-busy={submitting}>
             {authenticator ? <>
               {enrollment && <div className="magic-login-enrollment"><strong>Set up your authenticator</strong><p>Add a new account in Google Authenticator, Microsoft Authenticator or another authenticator app. Choose a time-based key and enter:</p><code>{enrollment.secret}</code><span>Account: {enrollment.account}</span></div>}

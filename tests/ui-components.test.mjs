@@ -102,4 +102,82 @@ test("renders dimensional week chart semantics", async () => {
   assert.match(html, /week-bar-value/);
   assert.match(html, /No confirmed hire visits are currently booked this week\./);
   assert.match(html, /height:0%;min-height:0/);
+test("renders the public landing page with operational overview content", async () => {
+  const { default: PublicAppHome } = await vite.ssrLoadModule("/app/public-app-home.tsx");
+  const html = renderToStaticMarkup(React.createElement(PublicAppHome));
+
+  assert.match(html, /Professional access operations for gates, schedules and controller health/);
+  assert.match(html, /Live operational context/);
+  assert.match(html, /Verified sign-in/);
+  assert.match(html, /Operator sign in/);
+});
+
+test("renders dashboard gate cards with portal sync and heartbeat context", async () => {
+  const { default: DashboardClient } = await vite.ssrLoadModule("/app/dashboard-client.tsx");
+  const { ACTIVE_GATES, makeSchedules } = await vite.ssrLoadModule("/lib/portal-model.ts");
+  const snapshot = {
+    systemMode: "normal",
+    gates: ACTIVE_GATES.map((gate, index) => ({
+      gateId: gate.id,
+      commandedPosition: gate.defaultPosition,
+      reportedPosition: index === 0 ? "open" : "closed",
+      controllerState: "online",
+      safetyOk: true,
+      lastSeen: "2026-09-21T13:58:00.000Z",
+      lastCommandState: "acknowledged",
+      lastCommandId: index + 1,
+      lastError: null,
+      credentialIssued: true,
+      commissioned: true,
+    })),
+    schedules: makeSchedules(),
+    activity: [],
+    automations: [],
+    settings: { positionMonitoring: true, faultAlerts: true, voiceAnnouncements: false, enabledModules: ["mobile"] },
+    plan: { tier: "core", name: "Gate Operations", advancedFeatures: false },
+    user: { displayName: "Test Operator", email: "operator@example.test", role: "administrator" },
+    serverTime: "2026-09-21T14:00:00.000Z",
+  };
+  const html = renderToStaticMarkup(React.createElement(DashboardClient, { user: snapshot.user, initialData: snapshot }));
+
+  assert.match(html, /Portal sync/);
+  assert.match(html, /Timezone · Australia\/Melbourne/);
+  assert.match(html, /Heartbeat 2 minutes ago/);
+  assert.match(html, /Safety healthy/);
+test("renders gate tile states with accessible labels", async () => {
+  const { default: GateTile } = await vite.ssrLoadModule("/app/gate-tile.tsx");
+  const gate = {
+    id: "OFFICE-ENTRY-BOOM1",
+    name: "Office Entry 1 Boom Gate",
+    area: "Office",
+    type: "Boom gate",
+    kind: "boom",
+    active: true,
+    group: "front",
+    defaultPosition: "closed",
+  };
+
+  const open = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "open" }));
+  assert.match(open, /gate-state-run/);
+  assert.match(open, /aria-label="Office Entry 1 Boom Gate: Operating, Confirmed open"/);
+
+  const closed = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "closed" }));
+  assert.match(closed, /gate-state-stop/);
+  assert.match(closed, /aria-label="Office Entry 1 Boom Gate: Stop, Confirmed closed"/);
+
+  const moving = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "moving" }));
+  assert.match(moving, /gate-state-run/);
+  assert.match(moving, /is-moving/);
+  assert.match(moving, /aria-label="Office Entry 1 Boom Gate: Operating, Moving, keep clear"/);
+
+  const issue = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "unknown" }));
+  assert.match(issue, /gate-state-issue/);
+  assert.match(issue, /aria-label="Office Entry 1 Boom Gate: Issue, Status unknown"/);
+
+  const custom = renderToStaticMarkup(React.createElement(GateTile, {
+    gate,
+    position: "closed",
+    ariaLabel: "Custom office gate label",
+  }));
+  assert.match(custom, /aria-label="Custom office gate label"/);
 });

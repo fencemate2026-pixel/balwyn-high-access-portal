@@ -7,7 +7,7 @@ import { operatorTotp } from "@/db/schema";
 import { googleAccountRoles, microsoftAccountRoles } from "./auth-settings";
 import { configuredRole } from "./account-roles";
 import { portalEmailAllowed, withOwnerAccess } from "./owner-access";
-import { requestOrigin, requestProtocol } from "./request-origin";
+import { requestOrigin, requestProtocol } from "./request-origin.ts";
 
 const COOKIE_NAME = "balwyn_operator_session";
 const MFA_COOKIE_NAME = "balwyn_operator_mfa";

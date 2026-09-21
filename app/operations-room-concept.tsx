@@ -3,7 +3,6 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import BrandLogo from './brand-logo';
 import GuidanceProjection, { EXAMPLE_ROUTE } from './guidance-projection';
 import { CONCEPT_SCENES, type ScreenCorners } from '@/lib/concept-scenes';
 function screenStyle(corners:ScreenCorners,width:number,height:number):CSSProperties {
