@@ -19,8 +19,13 @@ function lampKey(position: GateVisualState): LampKey {
 function gateStateText(position: GateVisualState) {
   if (position === "closed") return { state: "Stop", detail: "Confirmed closed" };
   if (position === "open") return { state: "Operating", detail: "Confirmed open" };
-  if (position === "moving") return { state: "Operating", detail: "Moving — keep clear" };
+  if (position === "moving") return { state: "Operating", detail: "Moving, keep clear" };
   return { state: "Issue", detail: "Not commissioned" };
+}
+
+export function formatGateTileAriaLabel(gateName: string, position: GateVisualState) {
+  const status = gateStateText(position);
+  return `${gateName}: ${status.state}, ${status.detail}`;
 }
 
 function Defs({ id, k }: { id: string; k: LampKey }) {
@@ -93,13 +98,12 @@ function Lamp({ id, k, x, y, r, pill }: { id: string; k: LampKey; x: number; y: 
   );
 }
 
-export default function GateTile({ gate, position }: { gate: Gate; position: GateVisualState }) {
+export default function GateTile({ gate, position, ariaLabel }: { gate: Gate; position: GateVisualState; ariaLabel?: string }) {
   const k = lampKey(position);
   const id = gate.id.replace(/[^a-zA-Z0-9]/g, "");
   const moving = position === "moving";
-  const status = gateStateText(position);
   const className = `tile gate-tile access-icon gate-state-${k}${moving ? " is-moving" : ""} is-${position} ${gate.kind}`;
-  const label = `${gate.name}: ${status.state}, ${status.detail}`;
+  const label = ariaLabel ?? formatGateTileAriaLabel(gate.name, position);
 
   if (gate.kind === "boom") {
     return (

@@ -100,7 +100,7 @@ test("renders gate tile states with accessible labels", async () => {
   const moving = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "moving" }));
   assert.match(moving, /gate-state-run/);
   assert.match(moving, /is-moving/);
-  assert.match(moving, /aria-label="Office Entry 1 Boom Gate: Operating, Moving — keep clear"/);
+  assert.match(moving, /aria-label="Office Entry 1 Boom Gate: Operating, Moving, keep clear"/);
 
   const issue = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "unknown" }));
   assert.match(issue, /gate-state-issue/);

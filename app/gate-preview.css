@@ -57,7 +57,8 @@
 .gate-tile.gate-state-run.is-moving .leaf{animation:swing 5s ease-in-out infinite}
 @keyframes swing{0%,15%{transform:none}45%,65%{transform:skewY(-10deg) scaleX(.32)}95%,100%{transform:none}}
 
-.area-icon .gate-tile .stage{
+.area-icon .gate-tile .stage,
+.area-icon.gate-tile .stage{
   width:68px !important;
   height:68px !important;
   aspect-ratio:auto !important;
