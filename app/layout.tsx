@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./gate-led.css";
+import EmergencyVoiceGuard from "./emergency-voice-guard";
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#0b2942" };
 
@@ -19,6 +20,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en-AU">
       <body>
+        <EmergencyVoiceGuard />
         <svg className="logo-filter-definitions" aria-hidden="true" focusable="false">
           <defs>
             <filter id="logo-clear-background" colorInterpolationFilters="sRGB">
