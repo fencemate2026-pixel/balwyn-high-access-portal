@@ -1,122 +1,93 @@
-/* Container query units: size follows the panel, not only breakpoints. */
 .workspace-inset,
 .workspace-content,
 .dashboard-split,
 .overview-grid,
 .access-grid,
 .hire-overlay,
-.hire-workspace {
-  container-type: inline-size;
-}
-
-.workspace-main,
-.workspace-content { max-width: none; }
+.hire-workspace { container-type: inline-size; }
 
 .workspace-content {
-  padding-top: clamp(0.55rem, 1.6cqi, 0.85rem) !important;
-  padding-bottom: clamp(0.7rem, 2cqi, 1.1rem) !important;
-  padding-left: clamp(0.75rem, 2.2cqi, 1.5rem);
-  padding-right: clamp(0.75rem, 2.2cqi, 1.5rem);
-}
-
-.workspace-title-row {
-  margin-bottom: clamp(0.4rem, 1.2cqi, 0.75rem);
-  gap: clamp(0.45rem, 1.4cqi, 0.85rem);
-}
-
-.workspace-title-row h1,
-.view-panel-heading h2 {
-  font-size: clamp(1.35rem, 3.2cqi, 2rem);
-}
-
-.panel,
-.access-card,
-.hero-panel,
-.overview-card {
-  border-radius: clamp(8px, 1.1cqi, 12px);
-  box-shadow: none;
-}
-
-.dashboard-split,
-.overview-grid,
-.hero-metrics,
-.workspace-kpis,
-.hire-grid {
-  gap: clamp(0.45rem, 1.3cqi, 0.8rem) !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 1rem !important;
 }
 
 .access-grid {
   display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(clamp(148px, 28cqi, 200px), 1fr)) !important;
-  gap: clamp(8px, 1.4cqi, 14px) !important;
+  width: 100% !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)) !important;
+  gap: 14px !important;
 }
 
 .access-grid .access-card {
-  grid-template-rows: 3.4rem minmax(88px, 18cqmin) auto;
+  display: grid;
+  grid-template-rows: auto minmax(140px, 28cqmin) auto;
+  min-width: 0;
   background: #fff !important;
   border: 1px solid #e2e5e8 !important;
 }
 
+.access-grid .access-card-heading strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .access-grid .access-icon {
-  height: clamp(88px, 18cqmin, 128px);
+  height: clamp(120px, 28cqmin, 180px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .access-grid .single-gate-visual,
 .access-grid .double-gate-visual,
 .access-grid .single-gate-image,
 .access-grid .double-gate-image {
-  width: clamp(96px, 16cqmin, 140px) !important;
-  height: clamp(80px, 14cqmin, 112px) !important;
+  width: min(220px, 80%) !important;
+  height: clamp(110px, 24cqmin, 160px) !important;
   object-fit: contain !important;
 }
 
-.gate-indicator-light {
-  --led-size: clamp(8px, 1.6cqi, 12px);
+.status-why {
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  max-width: 16rem;
+  line-height: 1.2;
 }
 
-.hire-overlay {
-  padding: clamp(0.75rem, 2cqi, 1.4rem);
+.hire-form {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: 1fr 1fr;
+}
+.hire-form label { display: grid; gap: 0.25rem; font-size: 0.85rem; }
+.hire-form .wide { grid-column: 1 / -1; }
+.hire-form input,
+.hire-form select,
+.hire-form textarea {
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+}
+.hire-form button {
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 
 @container (max-width: 920px) {
   .dashboard-split,
-  .overview-grid {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-  }
-  .hero-metrics,
-  .workspace-kpis {
-    display: grid !important;
-    grid-template-columns: 1fr 1fr !important;
-  }
+  .overview-grid { grid-template-columns: 1fr !important; }
 }
-
 @container (max-width: 640px) {
-  .hero-metrics,
-  .workspace-kpis,
-  .hire-grid { grid-template-columns: 1fr !important; }
-  .access-grid { grid-template-columns: 1fr 1fr !important; }
-  .workspace-title-row { flex-direction: column; align-items: flex-start; }
-}
-
-@container (max-width: 420px) {
+  .hire-form { grid-template-columns: 1fr; }
   .access-grid { grid-template-columns: 1fr !important; }
 }
 
 @media (max-width: 768px) {
-  .workspace-header { flex-wrap: wrap; row-gap: 0.5rem; }
-  .workspace-header-right {
-    width: 100%;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-  .system-status-cluster small { display: none; }
-  .emergency-actions,
-  .priority-controls {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
-    width: 100%;
-  }
+  .workspace-header { flex-wrap: wrap; }
   .hire-overlay { left: 0 !important; top: 7.25rem !important; }
+  .system-status-cluster small { display: none; }
 }
