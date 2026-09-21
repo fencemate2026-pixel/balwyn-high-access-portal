@@ -102,6 +102,7 @@ import BrandLogo from "./brand-logo";
 import AdminSettingsUnlock from "./admin-settings-unlock";
 import UserProfileEditor from "./user-profile-editor";
 import OperationsRoomConcept from "./operations-room-concept";
+import GateTile from "./gate-tile";
 import type { UserProfile } from "@/lib/profile-model";
 import { PROTECTED_SETTINGS_ACTIONS } from "@/lib/protected-settings";
 import {
@@ -190,37 +191,7 @@ function timeToPercent(value: string) {
 }
 
 function GateIcon({ gate, position }: { gate: Gate; position: GateVisualState }) {
-  const light = <span className="gate-indicator-light" />;
-  if (gate.kind === "single-swing") {
-    const open = position === "open";
-    return (
-      <span className={`access-icon single-gate-visual is-${position}`} aria-hidden="true">
-        <img
-          key={`${gate.id}-${position}`}
-          className="single-gate-image"
-          src={open ? "/single-gate-open-transparent.png" : "/single-gate-closed-transparent.png"}
-          alt=""
-        />
-        {light}
-      </span>
-    );
-  }
-  if (gate.kind === "double-swing") {
-    return (
-      <span className={`access-icon double-gate-visual is-${position}`} aria-hidden="true">
-        <img className="double-gate-image" src="/double-gate-icon.png" alt="" />
-        {light}
-        <span className="gate-indicator-light secondary" />
-      </span>
-    );
-  }
-  return (
-    <span className={`access-icon boom-gate-visual is-${position}`} aria-hidden="true">
-      <span className="boom-gate-base"><i /></span>
-      <span className="boom-gate-arm"><i /></span>
-      <span className="boom-gate-rest" />
-    </span>
-  );
+  return <GateTile gate={gate} position={position} />;
 }
 
 function SafetyCommand({ mode, active, authorised, onConfirm }: { mode: "lockdown" | "fire"; active: boolean; authorised: boolean; onConfirm: () => void }) {
@@ -228,7 +199,7 @@ function SafetyCommand({ mode, active, authorised, onConfirm }: { mode: "lockdow
   const Icon = lockdown ? ShieldAlert : Flame;
   return (
     <button
-      className={`safety-command ${mode}`}
+      className={`safety-command ${mode}${active ? " is-live" : ""}`}
       aria-label={lockdown ? "Review emergency lockdown gate commands" : "Review fire evacuation gate commands"}
       aria-pressed={active}
       disabled={!authorised}
@@ -236,8 +207,8 @@ function SafetyCommand({ mode, active, authorised, onConfirm }: { mode: "lockdow
     >
       <span className="safety-command-icon"><Icon /></span>
       <span>
-        <strong>{lockdown ? "LOCKDOWN · CLOSE ACTIVE" : "FIRE / EVACUATION · OPEN ACTIVE"}</strong>
-        <em>{!authorised ? "Administrator approval required" : active ? "Priority active · review or reissue packets" : `Review ${lockdown ? "CLOSE" : "OPEN"} commands for ${activeGates.length} active gates`}</em>
+        <strong>{active ? (lockdown ? "LOCKDOWN · ACTIVE" : "FIRE / EVACUATION · ACTIVE") : (lockdown ? "START LOCKDOWN" : "START FIRE / EVACUATION")}</strong>
+        <em>{!authorised ? "Administrator approval required" : active ? "Priority active · confirmation required to reissue" : lockdown ? "Queues CLOSE commands · confirmation required" : "Queues OPEN commands · confirmation required"}</em>
       </span>
     </button>
   );
@@ -287,6 +258,7 @@ function EmergencyAlertPanel({
 export default function DashboardClient({ user, initialData, signOutHref = "/", onSignOut }: DashboardClientProps) {
   const canOperate = user.role === "operator" || user.role === "administrator";
   const isAdministrator = user.role === "administrator";
+  const roleLabel = isAdministrator ? "System administrator" : canOperate ? "Authorised operator" : "View-only operator";
   const [activeView, setActiveView] = useState<ViewKey>("dashboard");
   const [adminAccessUntil, setAdminAccessUntil] = useState(0);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -770,22 +742,25 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         <SidebarHeader className="portal-sidebar-header"><div className="magic-sidebar-brand"><BrandLogo /><span>Balwyn High School</span></div></SidebarHeader>
         <SidebarSeparator />
         <SidebarContent>
-          <SidebarGroup><SidebarGroupLabel>Operations</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("dashboard", LayoutDashboard)}{navItem("gates", DoorOpen, String(gates.length))}{navItem("cctv", Camera)}{navItem("guidance", MapPin)}{navItem("schedule", CalendarDays)}{navItem("automation", Workflow, String(automations.filter((rule) => rule.enabled).length))}{navItem("safety", ShieldCheck)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
+          <SidebarGroup><SidebarGroupLabel>Operations</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("dashboard", LayoutDashboard)}{navItem("gates", DoorOpen, String(activeGates.length))}{navItem("cctv", Camera)}{navItem("guidance", MapPin)}{navItem("schedule", CalendarDays)}{navItem("automation", Workflow, String(automations.filter((rule) => rule.enabled).length))}{navItem("safety", ShieldCheck)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
           <SidebarGroup><SidebarGroupLabel>Administration</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("access", Users)}{navItem("activity", ClipboardList, activity.length ? String(activity.length) : undefined)}{navItem("settings", Settings2)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
           <div className="sidebar-system-card"><span><Wifi /> System connection</span><strong><i /> Portal online</strong><small>{activeGates.length} active · {gates.length - activeGates.length} inactive</small><small>{onlineCount} of {activeGates.length} active gate controllers online</small><small>{commissionedCount} commissioned · {credentialCount} credentials issued</small><small className="voice-status"><Volume2 /> Gate voice · {voiceAnnouncements ? "On" : "Off"}</small></div>
         </SidebarContent>
         <SidebarSeparator />
-        <SidebarFooter className="operator-footer"><Avatar size="lg"><AvatarImage src={profileImage} alt={`${user.displayName} profile`} /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><div className="operator-footer-copy"><strong>{displayName}</strong><span>{user.email}</span><small>{isAdministrator ? "System administrator" : canOperate ? "Authorised operator" : "View-only operator"}</small></div>{onSignOut ? <button type="button" className="operator-sign-out" onClick={onSignOut} aria-label="Sign out of Magic Keys"><LogOut /></button> : <a href={signOutHref} target="_top" aria-label="Sign out of Magic Keys"><LogOut /></a>}</SidebarFooter>
+        <SidebarFooter className="operator-footer"><Avatar size="lg"><AvatarImage src={profileImage} alt={`${user.displayName} profile`} /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><div className="operator-footer-copy"><strong>{displayName}</strong><span>{user.email}</span><small>{roleLabel}</small></div>{onSignOut ? <button type="button" className="operator-sign-out" onClick={onSignOut} aria-label="Sign out of Magic Keys"><LogOut /></button> : <a href={signOutHref} target="_top" aria-label="Sign out of Magic Keys"><LogOut /></a>}</SidebarFooter>
       </Sidebar>
 
       <SidebarInset className="portal-workspace">
         <header className="workspace-header">
           <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="location-logo"><img src="/balwyn-watermark.png" alt="" /></span><div><small>Managed site</small><strong>Balwyn High School</strong></div></div>
-          <div className="workspace-header-right"><span className="connection-pill"><i /> Encrypted connection</span><button className="notification-button" aria-label="View system alerts" onClick={() => onlineCount === activeGates.length ? toast.success("All controllers online", { description: "Physical gate feedback is available for every access point." }) : toast.warning(`${activeGates.length - onlineCount} active gate controllers are not online`, { description: `${commissionedCount} have completed a verified heartbeat; ${credentialCount} credentials have been issued.` })}><Bell /></button><div className="header-operator"><Avatar><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><span><strong>{displayName}</strong><small>{userProfile?.jobTitle || (userProfile?.username ? `@${userProfile.username}` : "Verified Magic Keys operator")}</small></span></div></div>
+          <div className="workspace-header-right"><span className="connection-pill"><i /> Encrypted connection</span><button className="notification-button" aria-label="View system alerts" onClick={() => onlineCount === activeGates.length ? toast.success("All controllers online", { description: "Physical gate feedback is available for every access point." }) : toast.warning(`${activeGates.length - onlineCount} active gate controllers are not online`, { description: `${commissionedCount} have completed a verified heartbeat; ${credentialCount} credentials have been issued.` })}><Bell /></button><div className="header-operator"><Avatar><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><span><strong>{displayName}</strong><small>{roleLabel}</small></span></div></div>
         </header>
 
         <section className="safety-bar" aria-label="Emergency gate commands">
-          <div className="safety-bar-label"><ShieldAlert /><span><strong>Emergency operations</strong><small>Priority controls</small></span></div>
+          <div className={`safety-bar-status${systemMode === "normal" ? "" : " is-alert"}`}>
+            <i className="status-dot" />
+            <span><small>System state</small><strong>{systemMode === "normal" ? "No emergency active" : systemMode === "lockdown" ? "Lockdown active" : "Fire / evacuation active"}</strong></span>
+          </div>
           <div className="safety-command-grid"><SafetyCommand mode="lockdown" active={systemMode === "lockdown"} authorised={isAdministrator} onConfirm={() => setPendingEmergency("lockdown")} /><SafetyCommand mode="fire" active={systemMode === "fire"} authorised={isAdministrator} onConfirm={() => setPendingEmergency("fire")} /></div>
           <div className="command-safety-note"><Radio /> Local safety circuits remain authoritative</div>
         </section>
@@ -794,6 +769,12 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
         <div className="workspace-content">
           <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span></div><div className="workspace-title-meta"><div className="workspace-powered-by"><span>Powered by RJL Commercial</span><img src="/rjl-commercial-logo.png" alt="RJL Commercial" /></div><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>
+          {activeView === "dashboard" && (
+            <div className="desk-service-row">
+              <button type="button" onClick={() => { setActiveView("activity"); toast.message("Fault report", { description: "Use the activity log to record the gate, time and fault. Controllers stay amber until a verified heartbeat exists." }); }}>Report a fault</button>
+              <span className="service-chip">Next scheduled service<small>Countdown starts after commissioning</small></span>
+            </div>
+          )}
 
           {activeView === "dashboard" && (
             <>
