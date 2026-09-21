@@ -17,3 +17,84 @@
 #hire-nav-item.is-hire-open .portal-nav-button {
   background: rgba(255, 255, 255, 0.08);
 }
+
+.system-status-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-right: 0.75rem;
+  padding: 0.35rem 0.65rem 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #1b2a36, #101820);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 6px 14px rgba(0,0,0,.18);
+  color: #d7e4ee;
+}
+.system-status-cluster small {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.status-lamps {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.2rem 0.28rem;
+  border-radius: 999px;
+  background: #070b10;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.7);
+}
+.status-lamp {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 60%, #2a323b, #0b0e12);
+  box-shadow: inset 0 0 0 2px #0a0e14, inset 0 2px 2px rgba(255,255,255,.2);
+  position: relative;
+}
+.status-lamp::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  opacity: 0.18;
+}
+.status-lamp.green.is-on {
+  box-shadow: inset 0 0 0 2px #0a0e14, 0 0 10px rgba(40,230,90,.55);
+}
+.status-lamp.green.is-on::before {
+  opacity: 1;
+  background: radial-gradient(circle at 34% 28%, #b6ffc9, #25d94f 55%, #06862a);
+}
+.status-lamp.amber.is-on::before,
+.status-lamp.amber.is-flash::before {
+  opacity: 1;
+  background: radial-gradient(circle at 34% 28%, #ffe6ad, #ffab1a 55%, #9a5800);
+}
+.status-lamp.amber.is-flash {
+  box-shadow: inset 0 0 0 2px #0a0e14, 0 0 10px rgba(255,175,35,.55);
+}
+.status-lamp.amber.is-flash::before {
+  animation: gate-led-amber 0.9s steps(1, end) infinite;
+}
+.status-lamp.red.is-on,
+.status-lamp.red.is-flash {
+  box-shadow: inset 0 0 0 2px #0a0e14, 0 0 10px rgba(255,50,40,.6);
+}
+.status-lamp.red.is-on::before,
+.status-lamp.red.is-flash::before {
+  opacity: 1;
+  background: radial-gradient(circle at 34% 28%, #ffc3b8, #ff3b2f 55%, #8c0d05);
+}
+.status-lamp.red.is-flash::before {
+  animation: fire-beacon 0.45s steps(1, end) infinite;
+}
+
+.sidebar-rjl-mark {
+  display: flex;
+  justify-content: center;
+  padding: 0.35rem 0.75rem 0.85rem;
+}
+.sidebar-rjl-mark img {
+  width: 118px;
+  height: auto;
+  opacity: 0.92;
+}

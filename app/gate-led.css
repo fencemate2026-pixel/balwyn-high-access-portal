@@ -1,17 +1,19 @@
-/* Lamps only on the existing indicator. Cards stay on the light dashboard theme. */
+/* Lamps sit on the gate artwork. Cards stay on the light dashboard theme. */
+
+.access-icon {
+  position: relative;
+}
 
 .gate-indicator-light {
-  --led-size: 14px;
+  --led-size: 13px;
   --lit-hi: #ffe6ad;
   --lit: #ffab1a;
   --lit-lo: #9a5800;
   --glow-in: rgba(110, 55, 0, 0.75);
-  --glow: rgba(255, 175, 35, 0.8);
-  --glow-far: rgba(255, 175, 35, 0.28);
+  --glow: rgba(255, 175, 35, 0.85);
+  --glow-far: rgba(255, 175, 35, 0.3);
   position: absolute;
-  right: 10px;
-  top: 10px;
-  display: inline-block;
+  display: block;
   width: var(--led-size);
   height: var(--led-size);
   border-radius: 50%;
@@ -20,18 +22,40 @@
     inset 0 0 0 2px #0a0e14,
     inset 0 2px 2px rgba(255, 255, 255, 0.28),
     inset 0 -3px 4px rgba(0, 0, 0, 0.9),
-    0 2px 3px rgba(0, 0, 0, 0.45);
-  z-index: 2;
+    0 0 10px rgba(255, 175, 35, 0.55);
+  z-index: 3;
+}
+
+/* Sit on the painted lamp in the single-swing artwork. */
+.single-gate-visual .gate-indicator-light {
+  left: 29%;
+  top: 31%;
+  right: auto;
+}
+
+.double-gate-visual .gate-indicator-light {
+  left: 18%;
+  top: 16%;
+  right: auto;
+}
+.double-gate-visual .gate-indicator-light.secondary {
+  left: auto;
+  right: 18%;
+}
+
+.boom-gate-visual .gate-indicator-light {
+  left: 18%;
+  top: 22%;
 }
 
 .gate-indicator-light::before {
   content: "";
   position: absolute;
-  inset: 3px;
+  inset: 2px;
   border-radius: 50%;
   background: radial-gradient(circle at 34% 28%, var(--lit-hi) 0%, var(--lit) 46%, var(--lit-lo) 100%);
   box-shadow: 0 0 5px 1px var(--glow-in) inset, 0 0 10px 2px var(--glow), 0 0 16px 4px var(--glow-far);
-  animation: gate-led-amber 0.9s steps(1, end) infinite;
+  animation: gate-led-amber 0.85s steps(1, end) infinite;
 }
 
 .gate-indicator-light::after {
@@ -58,6 +82,15 @@
 }
 .access-icon.is-closed .gate-indicator-light::before { animation: none; }
 
+.access-icon.is-unknown .gate-indicator-light,
+.access-card.controller-uncommissioned .gate-indicator-light {
+  --lit-hi: #ffe6ad; --lit: #ffab1a; --lit-lo: #9a5800;
+}
+.access-icon.is-unknown .gate-indicator-light::before,
+.access-card.controller-uncommissioned .gate-indicator-light::before {
+  animation: gate-led-amber 0.85s steps(1, end) infinite;
+}
+
 .access-icon.is-inactive .gate-indicator-light,
 .access-card.is-inactive .gate-indicator-light {
   --lit-hi: #303a47; --lit: #1b222c; --lit-lo: #0d1117;
@@ -74,7 +107,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gate-indicator-light::before { animation: none !important; opacity: 1 !important; }
+  .gate-indicator-light::before,
+  .status-lamp::before { animation: none !important; opacity: 1 !important; }
   .emergency-alert-panel.fire .emergency-alert-pulse,
   .control-portal.mode-fire::before { animation: none !important; }
 }
@@ -140,7 +174,6 @@
 }
 .access-grid .boom-gate-visual { width: 132px; height: 132px; transform: none; }
 
-/* Fire priority — red strobe. Text on the panel stays readable. */
 .control-portal.mode-fire::before {
   content: "";
   position: fixed;
