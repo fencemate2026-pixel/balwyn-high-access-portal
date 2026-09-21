@@ -97,6 +97,7 @@ test("renders the public landing page with operational overview content", async 
 test("renders dashboard gate cards with portal sync and heartbeat context", async () => {
   const { default: DashboardClient } = await vite.ssrLoadModule("/app/dashboard-client.tsx");
   const { ACTIVE_GATES, makeSchedules } = await vite.ssrLoadModule("/lib/portal-model.ts");
+  const now = new Date().toISOString();
   const snapshot = {
     systemMode: "normal",
     gates: ACTIVE_GATES.map((gate, index) => ({
@@ -105,7 +106,7 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
       reportedPosition: index === 0 ? "open" : "closed",
       controllerState: "online",
       safetyOk: true,
-      lastSeen: "2026-09-21T13:58:00.000Z",
+      lastSeen: now,
       lastCommandState: "acknowledged",
       lastCommandId: index + 1,
       lastError: null,
@@ -118,14 +119,27 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
     settings: { positionMonitoring: true, faultAlerts: true, voiceAnnouncements: false, enabledModules: ["mobile"] },
     plan: { tier: "core", name: "Gate Operations", advancedFeatures: false },
     user: { displayName: "Test Operator", email: "operator@example.test", role: "administrator" },
-    serverTime: "2026-09-21T14:00:00.000Z",
+    serverTime: now,
   };
   const html = renderToStaticMarkup(React.createElement(DashboardClient, { user: snapshot.user, initialData: snapshot }));
 
   assert.match(html, /Portal sync/);
   assert.match(html, /Timezone · Australia\/Melbourne/);
-  assert.match(html, /Heartbeat 2 minutes ago/);
+  assert.match(html, /Heartbeat just now/);
   assert.match(html, /Safety healthy/);
+  assert.match(html, /Heartbeat coverage · 2\/2 active controllers/);
+  assert.match(html, /class=\"tile gate-tile access-icon gate-state-run is-open single-swing\"/);
+  assert.match(html, /class=\"tile gate-tile access-icon gate-state-stop is-closed single-swing\"/);
+  assert.doesNotMatch(html, /single-gate-image|double-gate-image/);
+});
+
+test("keeps the inline gate-tile stage block-sized for the live dashboard cards", async () => {
+  const css = await readFile(path.join(root, "app", "gate-preview.css"), "utf8");
+
+  assert.match(css, /\.gate-tile\{[\s\S]*display:block !important;/);
+  assert.match(css, /\.gate-tile \.stage\{[\s\S]*display:block !important;/);
+});
+
 test("renders gate tile states with accessible labels", async () => {
   const { default: GateTile } = await vite.ssrLoadModule("/app/gate-tile.tsx");
   const gate = {
