@@ -1,5 +1,5 @@
 import type { PortalUser } from "./portal-model";
-import { requestOrigin, requestProtocol } from "./request-origin";
+import { requestOrigin, requestProtocol } from "./request-origin.ts";
 
 const AUTHORITY = "https://login.microsoftonline.com";
 const COOKIE = "__Host-balwyn_microsoft_login";
