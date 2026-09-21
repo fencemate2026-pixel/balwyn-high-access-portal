@@ -102,7 +102,7 @@ test("renders dimensional week chart semantics", async () => {
   assert.match(html, /Upcoming facility hire demand for the next seven days/);
   assert.match(html, /week-bar-value/);
   assert.match(html, /No confirmed hire visits are currently booked this week\./);
-  assert.match(html, /height:0%/);
+  assert.match(html, /height:3px/);
   assert.match(html, /class="is-empty"/);
 });
 
