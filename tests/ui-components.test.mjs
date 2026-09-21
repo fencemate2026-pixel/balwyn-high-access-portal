@@ -83,3 +83,26 @@ test("renders sidebar skeletons deterministically", async () => {
   assert.equal(first, second);
   assert.match(first, /--skeleton-width:70%/);
 });
+
+test("renders gate tile states with accessible labels", async () => {
+  const { default: GateTile } = await vite.ssrLoadModule("/app/gate-tile.tsx");
+  const gate = {
+    id: "OFFICE-ENTRY-BOOM1",
+    name: "Office Entry 1 Boom Gate",
+    area: "Office",
+    type: "Boom gate",
+    kind: "boom",
+    active: true,
+    group: "front",
+    defaultPosition: "closed",
+  };
+
+  const moving = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "moving" }));
+  assert.match(moving, /gate-state-run/);
+  assert.match(moving, /is-moving/);
+  assert.match(moving, /aria-label="Office Entry 1 Boom Gate: Operating, Moving — keep clear"/);
+
+  const issue = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "unknown" }));
+  assert.match(issue, /gate-state-issue/);
+  assert.match(issue, /aria-label="Office Entry 1 Boom Gate: Issue, Not commissioned"/);
+});

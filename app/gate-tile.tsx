@@ -16,6 +16,13 @@ function lampKey(position: GateVisualState): LampKey {
   return "issue";
 }
 
+function gateStateText(position: GateVisualState) {
+  if (position === "closed") return { state: "Stop", detail: "Confirmed closed" };
+  if (position === "open") return { state: "Operating", detail: "Confirmed open" };
+  if (position === "moving") return { state: "Operating", detail: "Moving — keep clear" };
+  return { state: "Issue", detail: "Not commissioned" };
+}
+
 function Defs({ id, k }: { id: string; k: LampKey }) {
   const c = COL[k];
   return (
@@ -90,13 +97,15 @@ export default function GateTile({ gate, position }: { gate: Gate; position: Gat
   const k = lampKey(position);
   const id = gate.id.replace(/[^a-zA-Z0-9]/g, "");
   const moving = position === "moving";
-  const className = `tile gate-tile access-icon ${k}${moving ? " moving" : ""} is-${position} ${gate.kind}`;
+  const status = gateStateText(position);
+  const className = `tile gate-tile access-icon gate-state-${k}${moving ? " is-moving" : ""} is-${position} ${gate.kind}`;
+  const label = `${gate.name}: ${status.state}, ${status.detail}`;
 
   if (gate.kind === "boom") {
     return (
-      <span className={className} aria-hidden="true">
+      <span className={className} role="img" aria-label={label}>
         <span className="stage">
-          <svg viewBox="0 0 200 200" role="img">
+          <svg viewBox="0 0 200 200" aria-hidden="true">
             <Defs id={id} k={k} />
             <ellipse cx="148" cy="176" rx="40" ry="7" fill="#000" opacity=".4" filter={`url(#s${id})`} />
             <rect x="126" y="54" width="42" height="120" rx="4" fill={`url(#cab${id})`} />
@@ -119,9 +128,9 @@ export default function GateTile({ gate, position }: { gate: Gate; position: Gat
   }
 
   return (
-    <span className={className} aria-hidden="true">
+    <span className={className} role="img" aria-label={label}>
       <span className="stage">
-        <svg viewBox="0 0 200 200" role="img">
+        <svg viewBox="0 0 200 200" aria-hidden="true">
           <Defs id={id} k={k} />
           <ellipse cx="100" cy="177" rx="72" ry="6" fill="#000" opacity=".35" filter={`url(#s${id})`} />
           <rect x="46" y="40" width="14" height="136" rx="2" fill={`url(#st${id})`} stroke="#5c636b" strokeWidth=".8" />
