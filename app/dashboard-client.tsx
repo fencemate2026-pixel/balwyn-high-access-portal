@@ -26,7 +26,6 @@ import {
   LogOut,
   MapPin,
   Maximize2,
-  MoreVertical,
   MonitorUp,
   Network,
   PhoneCall,
@@ -260,14 +259,16 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const isAdministrator = user.role === "administrator";
   const roleLabel = isAdministrator ? "System administrator" : canOperate ? "Authorised operator" : "View-only operator";
   const [activeView, setActiveView] = useState<ViewKey>("dashboard");
+  const [currentTime, setCurrentTime] = useState(() => Date.parse(initialData.serverTime));
   const [adminAccessUntil, setAdminAccessUntil] = useState(0);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const displayName = userProfile?.displayName || user.displayName;
   const profileImage = userProfile?.avatarUrl || undefined;
   const [adminUnlockOpen, setAdminUnlockOpen] = useState(false);
-  const adminUnlocked = isAdministrator && adminAccessUntil > Date.now();
+  const adminUnlocked = isAdministrator && adminAccessUntil > currentTime;
   const configurationView = ["settings", "schedule", "automation"].includes(activeView);
   const [plan, setPlan] = useState(initialData.plan);
+  const [serverTime, setServerTime] = useState(initialData.serverTime);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const advancedFeaturesEnabled = plan?.advancedFeatures === true;
   const [systemMode, setSystemMode] = useState<SystemMode>(initialData.systemMode);
@@ -300,13 +301,6 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const selectedVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
 
   useEffect(() => {
-    if (!advancedFeaturesEnabled) {
-      setPtzTrackingActive(false);
-      setGuidancePrepared(false);
-    }
-  }, [advancedFeaturesEnabled]);
-
-  useEffect(() => {
     if (!isAdministrator) return;
     let active = true;
     void fetch("/api/auth/admin", { cache: "no-store" }).then(async (response) => response.ok ? response.json() : null).then((body) => {
@@ -317,9 +311,16 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   useEffect(() => {
     if (!adminAccessUntil) return;
-    const timer = window.setTimeout(() => { setAdminAccessUntil(0); setControllerCredential(null); }, Math.max(0, adminAccessUntil - Date.now()));
+    const timer = window.setTimeout(() => { setAdminAccessUntil(0); setControllerCredential(null); setCurrentTime(Date.now()); }, Math.max(0, adminAccessUntil - Date.now()));
     return () => window.clearTimeout(timer);
   }, [adminAccessUntil]);
+
+  useEffect(() => {
+    const tick = () => setCurrentTime(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -348,6 +349,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   function applySnapshot(snapshot: PortalSnapshot, preserveSchedule = false) {
     setPlan(snapshot.plan);
+    setServerTime(snapshot.serverTime);
+    setCurrentTime(Date.parse(snapshot.serverTime));
     setSystemMode(snapshot.systemMode);
     setGateRuntime(Object.fromEntries(snapshot.gates.map((gate) => [gate.gateId, gate])));
     if (!preserveSchedule) setSchedules(snapshot.schedules);
@@ -357,6 +360,10 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     setFaultAlerts(snapshot.settings.faultAlerts);
     setVoiceAnnouncements(snapshot.settings.voiceAnnouncements);
     setEnabledModules(new Set(snapshot.settings.enabledModules));
+    if (!snapshot.plan.advancedFeatures) {
+      setPtzTrackingActive(false);
+      setGuidancePrepared(false);
+    }
   }
 
   async function postPortal(payload: Record<string, unknown>, label: string) {
@@ -408,10 +415,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!("speechSynthesis" in window)) {
-      setVoiceStatus("Voice announcements are unavailable in this browser.");
-      return;
-    }
+    if (!("speechSynthesis" in window)) return;
     const prepareAustralianVoice = () => {
       const voice = findAustralianVoice(window.speechSynthesis.getVoices());
       selectedVoiceRef.current = voice ?? null;
@@ -453,6 +457,10 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       window.speechSynthesis?.cancel();
     };
   }, [systemMode, voiceAnnouncements]);
+
+  const voiceStatusText = typeof window !== "undefined" && !("speechSynthesis" in window)
+    ? "Voice announcements are unavailable in this browser."
+    : voiceStatus;
 
   const selectedScheduleGate = gates.find((gate) => gate.id === selectedScheduleGateId) ?? gates[0];
   const selectedWeek = schedules[selectedScheduleGate.id];
@@ -504,6 +512,28 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   function activityTime(value: string) {
     return new Intl.DateTimeFormat("en-AU", { dateStyle: "medium", timeStyle: "medium", timeZone: "Australia/Melbourne" }).format(new Date(value));
+  }
+
+  function relativeHeartbeat(value: string | null) {
+    if (!value || !Number.isFinite(Date.parse(value))) return "Awaiting verified heartbeat";
+    const deltaMinutes = Math.max(0, Math.round((currentTime - Date.parse(value)) / 60000));
+    if (deltaMinutes < 1) return "Heartbeat just now";
+    if (deltaMinutes === 1) return "Heartbeat 1 minute ago";
+    if (deltaMinutes < 60) return `Heartbeat ${deltaMinutes} minutes ago`;
+    const hours = Math.floor(deltaMinutes / 60);
+    return `Heartbeat ${hours} hour${hours === 1 ? "" : "s"} ago`;
+  }
+
+  function portalTimeLabel(value: string) {
+    return new Intl.DateTimeFormat("en-AU", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      timeZone: "Australia/Melbourne",
+    }).format(new Date(value));
   }
 
   function announceGateCommand(position: GatePosition) {
@@ -724,11 +754,33 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         {list.map((gate) => {
           const position = getPosition(gate);
           const status = gateStatus(gate);
+          const runtime = runtimeFor(gate);
+          const safetyLabel = !gate.active
+            ? "Inactive"
+            : runtime?.controllerState === "online" && runtime?.safetyOk === true
+              ? "Safety healthy"
+              : runtime?.safetyOk === false
+                ? "Safety blocked"
+                : "Safety pending";
           return (
             <button className={`access-card ${gate.active ? "is-active" : "is-inactive"} ${positionMonitoring ? "" : "is-monitoring-paused"} controller-${runtimeFor(gate)?.controllerState ?? "uncommissioned"}`} key={gate.id} aria-label={`${gate.name} · ${gate.active ? "Active" : "Inactive"} · ${status.label}`} aria-haspopup="dialog" onClick={() => setSelectedGate(gate)}>
               <span className="access-card-heading"><span><strong>{gate.name}</strong><small>{gate.type}</small></span><span className={`gate-activation-badge ${gate.active ? "is-active" : "is-inactive"}`}>{gate.active ? "Active" : "Inactive"}</span></span>
+              <span className="access-card-meta">
+                <span>{gate.area}</span>
+                <span>{gate.id}</span>
+              </span>
               <GateIcon gate={gate} position={position} />
-              <span className="access-card-footer"><span><span className={`position-label ${(!gate.active || positionMonitoring) ? status.className : "is-unknown"}`}><i />{!gate.active || positionMonitoring ? status.label : "Monitoring paused"}</span><small className="controller-detail">{!gate.active || positionMonitoring ? status.detail : "Physical feedback hidden"}</small></span><span>{gate.id}</span></span>
+              <span className="access-card-footer">
+                <span className="access-card-context">
+                  <span className={`position-label ${(!gate.active || positionMonitoring) ? status.className : "is-unknown"}`}><i />{!gate.active || positionMonitoring ? status.label : "Monitoring paused"}</span>
+                  <small className="controller-detail">{!gate.active || positionMonitoring ? status.detail : "Physical feedback hidden"}</small>
+                  <small className="controller-heartbeat">{relativeHeartbeat(runtime?.lastSeen ?? null)}</small>
+                </span>
+                <span className="access-card-statuses" aria-hidden="true">
+                  <span className={`status-chip is-${runtime?.controllerState ?? "uncommissioned"}`}>{runtime?.controllerState ?? "uncommissioned"}</span>
+                  <span className={`status-chip ${runtime?.safetyOk === true ? "is-healthy" : runtime?.safetyOk === false ? "is-fault" : "is-pending"}`}>{safetyLabel}</span>
+                </span>
+              </span>
             </button>
           );
         })}
@@ -768,7 +820,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         {systemMode !== "normal" && <EmergencyAlertPanel mode={systemMode} onClear={() => setPendingEmergency("clear")} confirmed={emergencyConfirmed} pending={emergencyPending} failed={emergencyFailed} canClear={isAdministrator} projectorAccess={advancedFeaturesEnabled} />}
 
         <div className="workspace-content">
-          <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span></div><div className="workspace-title-meta"><div className="workspace-powered-by"><span>Powered by RJL Commercial</span><img src="/rjl-commercial-logo.png" alt="RJL Commercial" /></div><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>
+          <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span><div className="workspace-context" aria-label="Portal context"><span>Portal sync · {portalTimeLabel(serverTime)}</span><span>Timezone · Australia/Melbourne</span><span>Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</span></div></div><div className="workspace-title-meta"><div className="workspace-powered-by"><span>Powered by RJL Commercial</span><img src="/rjl-commercial-logo.png" alt="RJL Commercial" /></div><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>
           {activeView === "dashboard" && (
             <div className="desk-service-row">
               <button type="button" onClick={() => { setActiveView("activity"); toast.message("Fault report", { description: "Use the activity log to record the gate, time and fault. Controllers stay amber until a verified heartbeat exists." }); }}>Report a fault</button>
@@ -1077,7 +1129,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
               <section className="plan-summary"><div><span>Current plan</span><h2>{plan?.name ?? "Gate Operations"}</h2><p>{advancedFeaturesEnabled ? "Advanced features included. Connected equipment requires commissioning." : "CCTV, PTZ tracking, emergency guidance and projector broadcasts require an upgrade."}</p></div>{!advancedFeaturesEnabled && <Button onClick={() => setUpgradeOpen(true)}><LockKeyhole /> Upgrade plan <ChevronRight /></Button>}</section>
               <div className="admin-settings-shortcuts"><Button variant="outline" onClick={() => setActiveView("access")}><Network /> Relay controllers</Button><Button variant="outline" onClick={() => setActiveView("schedule")}><CalendarDays /> Operating schedules</Button><Button variant="outline" onClick={() => setActiveView("automation")}><Workflow /> Automation rules</Button></div>
               <CompassWiringReference />
-              <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Monitoring</h2><small>Persistent system behaviour · administrator only</small></div><Gauge /></div><label><span><strong>Gate-position monitoring</strong><small>Display independent open and closed inputs</small></span><Switch checked={positionMonitoring} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ positionMonitoring: value }, "setting-position")} /></label><label><span><strong>Fault and offline alerts</strong><small>Highlight controllers that stop reporting</small></span><Switch checked={faultAlerts} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ faultAlerts: value }, "setting-faults")} /></label><label><span><strong>Australian English announcements</strong><small>{voiceStatus}</small></span><Switch checked={voiceAnnouncements} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ voiceAnnouncements: value }, "setting-voice")} /></label></article><article className="settings-card"><div className="panel-heading"><div><h2>Magic Keys</h2><small>System information</small></div><Power /></div><div className="setting-info"><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Access points</span><strong>{gates.length}</strong></div><div><span>Portal</span><strong className="online-text"><i /> Secure service online</strong></div><div><span>Controllers</span><strong>{onlineCount} online · {commissionedCount} commissioned · {credentialCount} credentials</strong></div><div><span>Position feedback</span><strong>{activeGates.length - unknownCount} of {activeGates.length} active gates confirmed</strong></div><div><span>Emergency integration</span><strong>Not complete until school-approved commissioning</strong></div></div></article></section>
+              <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Monitoring</h2><small>Persistent system behaviour · administrator only</small></div><Gauge /></div><label><span><strong>Gate-position monitoring</strong><small>Display independent open and closed inputs</small></span><Switch checked={positionMonitoring} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ positionMonitoring: value }, "setting-position")} /></label><label><span><strong>Fault and offline alerts</strong><small>Highlight controllers that stop reporting</small></span><Switch checked={faultAlerts} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ faultAlerts: value }, "setting-faults")} /></label><label><span><strong>Australian English announcements</strong><small>{voiceStatusText}</small></span><Switch checked={voiceAnnouncements} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ voiceAnnouncements: value }, "setting-voice")} /></label></article><article className="settings-card"><div className="panel-heading"><div><h2>Magic Keys</h2><small>System information</small></div><Power /></div><div className="setting-info"><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Access points</span><strong>{gates.length}</strong></div><div><span>Portal</span><strong className="online-text"><i /> Secure service online</strong></div><div><span>Controllers</span><strong>{onlineCount} online · {commissionedCount} commissioned · {credentialCount} credentials</strong></div><div><span>Position feedback</span><strong>{activeGates.length - unknownCount} of {activeGates.length} active gates confirmed</strong></div><div><span>Emergency integration</span><strong>Not complete until school-approved commissioning</strong></div></div></article></section>
               <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Compass ACB-004 integration</h2><small>Existing school control system · retained</small></div><Network /></div><div className="setting-info"><div><span>Control platform</span><strong>Existing Compass ACB-004 · four doors</strong></div><div><span>Interface method</span><strong>Pi isolated relay · open-only trigger</strong></div><div><span>ACB-004 feedback</span><strong>No live position or safety feedback</strong></div><div><span>Output mapping</span><strong>Awaiting onsite schedule and terminal verification</strong></div><div><span>Command policy</span><strong>Blocked until each output is commissioned</strong></div></div></article><article className="settings-card"><div className="panel-heading"><div><h2>Integration safeguards</h2><small>Required before live relay control</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> Document each Compass output and served gate</span><span><CheckCircle2 /> Verify NO/NC state and pulse or maintained mode</span><span><CheckCircle2 /> Retain local gate safety and manual controls</span><span><CheckCircle2 /> Confirm independent open and closed feedback</span><span><CheckCircle2 /> Witness normal, fire and lockdown scenarios</span></div></article></section>
               <section className="module-marketplace">
                 <div className="module-heading"><div><h2>Platform modules</h2><p>Add capabilities as the school’s operational requirements expand.</p></div><Badge variant="outline">{enabledModules.size} of {platformModules.length} configured</Badge></div>

@@ -20,12 +20,11 @@ export default function UserProfileEditor({ ownProfile, adminUnlocked, isAdminis
   const [reload, setReload] = useState(0);
   useEffect(() => {
     let active = true;
-    setError("");
     void fetch(`/api/profile${adminUnlocked ? "?scope=all" : ""}`, { cache: "no-store" }).then(async (response) => {
       const result = await response.json() as { profile?: UserProfile; profiles?: UserProfile[]; error?: string };
       if (!response.ok || !result.profile) throw new Error(result.error || "Profiles could not be loaded.");
       if (!active) return;
-      setProfiles(result.profiles ?? [result.profile]); setDraft(result.profile); setRemovePhoto(false); onSaved(result.profile);
+      setError(""); setProfiles(result.profiles ?? [result.profile]); setDraft(result.profile); setRemovePhoto(false); onSaved(result.profile);
     }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : "Profiles could not be loaded."); });
     return () => { active = false; };
   // onSaved is an event callback; changing it must not discard an editing draft.
