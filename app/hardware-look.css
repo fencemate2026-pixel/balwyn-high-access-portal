@@ -1,0 +1,75 @@
+/* Readable 3D: white cards, navy text, physical lamps. No dark wash. */
+.access-card,
+.panel,
+.overview-card,
+.hero-panel {
+  background: linear-gradient(180deg, #ffffff 0%, #f4f7fa 100%) !important;
+  border: 1px solid #d5dde3 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.95),
+    0 8px 18px rgba(16, 36, 54, 0.08) !important;
+  color: #17324a !important;
+}
+
+.access-card .access-card-heading,
+.access-card p,
+.access-card small,
+.panel h3,
+.panel small,
+.panel p {
+  color: #17324a !important;
+}
+
+.single-gate-visual,
+.double-gate-visual {
+  position: relative !important;
+  filter: drop-shadow(0 10px 12px rgba(20, 36, 52, 0.18));
+}
+
+.gate-indicator-light {
+  --led-size: 16px;
+  position: absolute !important;
+  left: 12% !important;
+  top: 16% !important;
+  width: var(--led-size) !important;
+  height: var(--led-size) !important;
+  min-width: 14px !important;
+  min-height: 14px !important;
+  border-radius: 50% !important;
+  background: #0b0e12 !important;
+  box-shadow:
+    inset 0 0 0 2px #1a222b,
+    0 0 0 2px #8b939b,
+    0 2px 3px rgba(0,0,0,.35) !important;
+  transform: none !important;
+  z-index: 5 !important;
+}
+.gate-indicator-light::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #fff3c4, #ffb000 52%, #8a4b00);
+  box-shadow: 0 0 10px 3px rgba(255, 176, 0, 0.75);
+  animation: gate-led-amber 0.7s steps(1, end) infinite;
+}
+.access-icon.is-open .gate-indicator-light::before {
+  animation: none;
+  background: radial-gradient(circle at 32% 28%, #d9ffe4, #22c55e 55%, #047857);
+  box-shadow: 0 0 10px 3px rgba(34, 197, 94, 0.7);
+}
+.access-icon.is-closed .gate-indicator-light::before {
+  animation: none;
+  background: radial-gradient(circle at 32% 28%, #ffd0c8, #ef4444 55%, #7f1d1d);
+  box-shadow: 0 0 10px 3px rgba(239, 68, 68, 0.7);
+}
+
+.status-lamp {
+  width: 16px !important;
+  height: 16px !important;
+  box-shadow: inset 0 0 0 2px #0a0e14, 0 0 0 1px #6b7280 !important;
+}
+.header-strobe {
+  width: 22px !important;
+  height: 28px !important;
+}
