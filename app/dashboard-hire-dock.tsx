@@ -12,21 +12,20 @@ function portalMode() {
   return "normal";
 }
 
-function correctUnconfirmedGateArt() {
-  const selectors = [
-    ".access-icon.is-unknown .single-gate-image",
-    ".access-icon.is-inactive .single-gate-image",
-    ".access-card.controller-uncommissioned .single-gate-image",
-  ];
-  document.querySelectorAll<HTMLImageElement>(selectors.join(",")).forEach((image) => {
-    if (image.getAttribute("src") === "/gate-position-unknown.svg") return;
-    image.setAttribute("src", "/gate-position-unknown.svg");
-  });
-  document.querySelectorAll<HTMLImageElement>(".access-icon.is-open .single-gate-image").forEach((image) => {
-    if (!image.getAttribute("src")?.includes("open")) image.setAttribute("src", "/single-gate-open-transparent.png");
-  });
-  document.querySelectorAll<HTMLImageElement>(".access-icon.is-closed .single-gate-image").forEach((image) => {
-    if (!image.getAttribute("src")?.includes("closed")) image.setAttribute("src", "/single-gate-closed-transparent.png");
+function applyLiveGateArt() {
+  document.querySelectorAll<HTMLImageElement>("img.single-gate-image").forEach((image) => {
+    const icon = image.closest(".access-icon");
+    const open = icon?.classList.contains("is-open");
+    const closed = icon?.classList.contains("is-closed");
+    if (open) {
+      if (!image.src.includes("single-gate-open-transparent.png")) image.src = "/single-gate-open-transparent.png";
+      return;
+    }
+    if (closed) {
+      if (!image.src.includes("single-gate-closed-transparent.png")) image.src = "/single-gate-closed-transparent.png";
+      return;
+    }
+    if (!image.src.includes("single-gate-live.svg")) image.src = "/single-gate-live.svg";
   });
 }
 
@@ -82,7 +81,7 @@ export default function DashboardHireDock() {
         systemCard.parentElement?.insertBefore(mark, systemCard);
       }
 
-      correctUnconfirmedGateArt();
+      applyLiveGateArt();
       return Boolean(document.querySelector(".workspace-header-right") && document.querySelector(".sidebar-system-card"));
     }
 
@@ -96,7 +95,7 @@ export default function DashboardHireDock() {
       setMode(portalMode());
       const badge = document.querySelector(".concept-badge")?.textContent || "";
       setAttention(/commissioning|attention/i.test(badge));
-      correctUnconfirmedGateArt();
+      applyLiveGateArt();
     }
     sync();
     const timer = window.setInterval(sync, 1500);

@@ -1,55 +1,56 @@
-/* Clean, proportional operations desk. Same navy/white theme. */
+/* Imagine-like: airy canvas, even cards, navy header unchanged. */
 .workspace-main,
 .workspace-content {
-  max-width: 1180px;
+  max-width: 1120px;
 }
 .workspace-title-row {
-  align-items: end;
-  gap: 1rem;
-}
-.workspace-kpis,
-.hero-metrics {
-  gap: 0.75rem;
+  align-items: flex-end;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
 }
 .panel,
 .access-card,
-.hero-panel {
-  border-radius: 12px;
+.hero-panel,
+.overview-card {
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(16, 36, 54, 0.05);
+}
+.dashboard-split,
+.overview-grid {
+  gap: 1rem;
 }
 .access-grid {
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
-  gap: 16px !important;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
+  gap: 18px !important;
 }
 .access-grid .access-card {
-  min-height: 0;
-  padding-bottom: 0.75rem;
+  background: #fff !important;
+  border: 1px solid #e6eaee !important;
 }
 .access-grid .access-icon {
-  height: 140px;
+  height: 148px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .access-grid .single-gate-visual,
 .access-grid .double-gate-visual {
-  height: 120px !important;
+  width: 168px !important;
+  height: 132px !important;
 }
 .access-grid .single-gate-image,
 .access-grid .double-gate-image {
-  height: 120px !important;
+  width: 168px !important;
+  height: 132px !important;
+  object-fit: contain !important;
+  filter: none !important;
+  box-shadow: none !important;
 }
 .system-status-cluster {
-  height: 40px;
-  padding: 0.25rem 0.65rem;
+  height: 38px;
 }
-.header-strobe {
-  width: 18px;
-  height: 24px;
-}
-.sidebar-rjl-mark {
-  padding: 0.2rem 0.75rem 0.6rem;
-}
-.sidebar-rjl-mark img {
-  width: 96px;
-}
+.sidebar-rjl-mark img { width: 100px; }
 .hire-overlay {
-  background: #eef3f6;
-  padding: 1.5rem 2rem 2.5rem;
+  background: #eef2f5;
+  padding: 1.75rem 2rem 2.5rem;
 }
