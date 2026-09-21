@@ -1,0 +1,123 @@
+/* Magic Keys desk corrections: emergency status, tiles, weather, role, density, logo */
+
+.safety-bar {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: #0f2a47 !important;
+  color: #fff;
+  border-radius: 16px;
+  padding: 14px 16px !important;
+}
+.safety-bar-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 14px;
+  margin-right: 4px;
+  border-right: 1px solid rgba(255,255,255,.15);
+}
+.safety-bar-status small {
+  display: block;
+  color: #9fb3c8;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.safety-bar-status strong { display: block; font-size: 14px; }
+.safety-bar-status .status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #2ee05a;
+  box-shadow: 0 0 10px #2ee05a;
+}
+.safety-bar-status.is-alert .status-dot {
+  background: #ff3b2f;
+  box-shadow: 0 0 10px #ff3b2f;
+}
+.safety-command-grid {
+  display: flex !important;
+  flex: 1 1 420px;
+  gap: 10px;
+}
+.safety-command {
+  flex: 1 1 200px;
+  text-align: left;
+}
+.safety-command strong { letter-spacing: .03em; }
+.safety-command:not(.is-live) strong { font-weight: 800; }
+.command-safety-note { margin-left: auto; color: #9fb3c8 !important; }
+
+.workspace-title-row h1 {
+  font-size: 1.35rem !important;
+  margin: 0 !important;
+}
+.workspace-title-row {
+  margin-bottom: 10px !important;
+  align-items: center !important;
+}
+.workspace-powered-by {
+  background: #0f2a47;
+  color: #fff !important;
+  border-radius: 12px;
+  padding: 6px 10px;
+  gap: 10px !important;
+}
+.workspace-powered-by span {
+  max-width: none !important;
+  color: #d5e2ee !important;
+  font-size: .7rem !important;
+}
+.workspace-powered-by img {
+  width: 168px !important;
+  height: 48px !important;
+  object-fit: contain !important;
+  filter: none !important;
+  background: #fff;
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+
+.area-list .access-icon,
+.area-icon .access-icon,
+.area-icon .gate-tile {
+  width: 72px !important;
+  height: 72px !important;
+}
+.access-grid .gate-tile,
+.access-grid .access-icon.gate-tile {
+  width: 100% !important;
+  height: 168px !important;
+  display: block !important;
+}
+.gate-tile svg { width: 100%; height: 100%; display: block; }
+.gate-tile.is-issue .gate-tile-lamp { animation: gate-led-amber 1s steps(1, end) infinite; }
+.area-list button { align-items: center; }
+
+.desk-service-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0 4px;
+}
+.desk-service-row button,
+.desk-service-row .service-chip {
+  border: 1px solid #d4dbe4;
+  background: #fff;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font: 650 12px/1.2 inherit;
+  color: #17324a;
+}
+.service-chip small { display: block; color: #5b6b80; font-weight: 500; }
+
+.forecast-day .wx-icon { width: 28px; height: 28px; display: block; margin: 2px auto; }
+.wx { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gate-tile.is-issue .gate-tile-lamp { animation: none !important; }
+}
