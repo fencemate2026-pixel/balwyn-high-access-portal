@@ -69,7 +69,7 @@ function Lamp({ id, k, x, y, r, pill }: { id: string; k: LampKey; x: number; y: 
   const c = COL[k];
   if (pill) {
     return (
-      <g className="gate-tile-lamp">
+      <g className="blink gate-tile-lamp">
         <rect x={x - r * 2.4} y={y - r * 1.3} width={r * 4.8} height={r * 2.6} rx={r * 1.3} fill={c.g} filter={`url(#b${id})`} />
         <rect x={x - r * 2} y={y - r * 0.8} width={r * 4} height={r * 1.6} rx={r * 0.8} fill={`url(#l${id})`} />
         <rect x={x - r * 1.4} y={y - r * 0.55} width={r * 1.8} height={r * 0.45} rx={r * 0.22} fill="#fff" opacity=".75" />
@@ -77,7 +77,7 @@ function Lamp({ id, k, x, y, r, pill }: { id: string; k: LampKey; x: number; y: 
     );
   }
   return (
-    <g className="gate-tile-lamp">
+    <g className="blink gate-tile-lamp">
       <circle cx={x} cy={y} r={r * 2} fill={c.g} filter={`url(#b${id})`} />
       <circle cx={x} cy={y} r={r * 1.25} fill="#2a2f35" />
       <circle cx={x} cy={y} r={r} fill={`url(#l${id})`} />
@@ -89,8 +89,7 @@ function Lamp({ id, k, x, y, r, pill }: { id: string; k: LampKey; x: number; y: 
 export default function GateTile({ gate, position }: { gate: Gate; position: GateVisualState }) {
   const k = lampKey(position);
   const id = gate.id.replace(/[^a-zA-Z0-9]/g, "");
-  const open = position === "open";
-  const className = `gate-tile access-icon is-${position} ${gate.kind} ${open ? "is-open" : position === "closed" ? "is-closed" : "is-issue"}`;
+  const className = `gate-tile access-icon stage-host ${k} is-${position} ${gate.kind}`;
 
   if (gate.kind === "boom") {
     return (
@@ -102,7 +101,7 @@ export default function GateTile({ gate, position }: { gate: Gate; position: Gat
           <line x1="137" y1="58" x2="137" y2="172" stroke="#2b3037" strokeWidth="1" />
           <rect x="123" y="47" width="22" height="9" rx="2" fill={`url(#cap${id})`} />
           <rect x="146" y="49" width="25" height="9" rx="2" fill={`url(#cap${id})`} />
-          <g className="gate-tile-arm" style={{ transformOrigin: "150px 104px", transform: open ? "rotate(80deg)" : undefined }}>
+          <g className="arm gate-tile-arm">
             <rect x="54" y="99" width="100" height="11" rx="5.5" fill={`url(#pole${id})`} />
             <rect x="54" y="99.5" width="100" height="3" rx="1.5" fill="#fff" opacity=".4" />
             <ellipse cx="56" cy="104.5" rx="4" ry="5.5" fill="#6d747c" />
@@ -126,7 +125,7 @@ export default function GateTile({ gate, position }: { gate: Gate; position: Gat
         <Lamp id={id} k={k} x={53} y={35.5} r={4.2} />
         <rect x="59" y="58" width="5" height="10" rx="1" fill="#8e959d" />
         <rect x="59" y="146" width="5" height="10" rx="1" fill="#8e959d" />
-        <g className="gate-tile-leaf" style={{ transformOrigin: "63px 106px", transform: open ? "skewY(-10deg) scaleX(.32)" : undefined }}>
+        <g className="leaf gate-tile-leaf">
           <rect x="63" y="50" width="100" height="112" rx="2" fill="none" stroke={`url(#st${id})`} strokeWidth="7" />
           <rect x="63" y="50" width="100" height="112" rx="2" fill="none" stroke="#5c636b" strokeWidth=".8" />
           <g fill={`url(#bar${id})`} stroke="#6b727a" strokeWidth=".5">

@@ -1,0 +1,86 @@
+/* Preview tile chrome — dark stage, lamps, STOP/OPERATING/ISSUE */
+:root{
+  --mk-tile:#3d444e;
+  --mk-tile-hi:#4a525d;
+}
+.access-card,
+.gate-preview-tile {
+  background:#fff !important;
+  border:1px solid #d4dbe4 !important;
+  border-radius:18px !important;
+  overflow:hidden !important;
+  box-shadow:0 1px 0 rgba(255,255,255,.8) inset,0 10px 24px -14px rgba(15,27,45,.35) !important;
+}
+.access-grid .access-card {
+  display:grid !important;
+  grid-template-areas: "stage" "head" "foot" !important;
+  grid-template-rows: minmax(220px,1fr) auto auto !important;
+  padding:0 !important;
+}
+.access-card .access-card-heading { grid-area: head; padding: 12px 14px 0 !important; }
+.access-card .gate-tile, .access-card .stage-host { grid-area: stage; }
+.access-card .access-card-footer { grid-area: foot; }
+.access-card .gate-tile,
+.access-card .stage-host {
+  display:block !important;
+  width:100% !important;
+  height:auto !important;
+  aspect-ratio:1/1 !important;
+  background:radial-gradient(120% 90% at 30% 15%,var(--mk-tile-hi) 0%,var(--mk-tile) 55%,#333941 100%) !important;
+}
+.access-card .gate-tile svg,
+.stage-host svg {
+  width:100% !important;
+  height:100% !important;
+  display:block !important;
+}
+.access-card .access-card-footer {
+  padding:12px 14px 14px !important;
+  display:flex !important;
+  align-items:center !important;
+  gap:10px !important;
+  border-top:1px solid #d4dbe4 !important;
+  background:#fff !important;
+}
+.area-icon,
+.area-icon .stage-host,
+.area-icon .gate-tile {
+  background:radial-gradient(120% 90% at 30% 15%,var(--mk-tile-hi) 0%,var(--mk-tile) 55%,#333941 100%) !important;
+  border-radius:12px !important;
+}
+
+.arm, .gate-tile-arm {
+  transform-box:view-box;
+  transform-origin:150px 104px;
+  transition:transform 1.6s cubic-bezier(.45,.05,.25,1);
+}
+.run .arm, .run .gate-tile-arm, .is-open .arm, .is-open .gate-tile-arm { transform:rotate(80deg); }
+.leaf, .gate-tile-leaf {
+  transform-box:view-box;
+  transform-origin:63px 106px;
+  transition:transform 1.6s cubic-bezier(.45,.05,.25,1);
+}
+.run .leaf, .run .gate-tile-leaf, .is-open .leaf, .is-open .gate-tile-leaf { transform:skewY(-10deg) scaleX(.32); }
+.issue .blink, .issue .gate-tile-lamp { animation:mk-blink 1s steps(1,end) infinite; }
+@keyframes mk-blink { 0%,55%{opacity:1} 56%,100%{opacity:.08} }
+
+.safety-command.lockdown:not(.is-live),
+.safety-command.fire:not(.is-live),
+.safety-command.lockdown.is-live,
+.safety-command.fire.is-live {
+  color:#fff !important;
+}
+.safety-command.lockdown:not(.is-live),
+.safety-command.lockdown.is-live {
+  background:linear-gradient(#c62a2a,#9d1d1d) !important;
+  border:0 !important;
+}
+.safety-command.fire:not(.is-live),
+.safety-command.fire.is-live {
+  background:linear-gradient(#e89414,#b86d06) !important;
+  border:0 !important;
+}
+
+@media (prefers-reduced-motion:reduce){
+  .blink,.arm,.leaf,.gate-tile-arm,.gate-tile-leaf,.gate-tile-lamp { animation:none !important; transition:none !important; }
+}
