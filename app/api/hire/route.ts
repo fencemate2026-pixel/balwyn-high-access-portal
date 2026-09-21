@@ -3,15 +3,13 @@ import { requireOperator } from "@/lib/portal-auth";
 
 export const dynamic = "force-dynamic";
 
-const DIRECTORY = [
-  { key: "tony-frizza-stadium", label: "Tony Frizza Stadium", active: true, sort_order: 10 },
-  { key: "oval", label: "Oval and grounds", active: true, sort_order: 20 },
-  { key: "tennis-courts", label: "Tennis courts", active: true, sort_order: 30 },
-  { key: "gymnasium", label: "Gymnasium", active: true, sort_order: 40 },
-  { key: "car-park", label: "Car park", active: true, sort_order: 50 },
-];
-
-const AREAS = new Set(DIRECTORY.map((area) => area.key));
+const AREAS = new Set([
+  "tony-frizza-stadium",
+  "oval",
+  "tennis-courts",
+  "gymnasium",
+  "car-park",
+]);
 
 function json(body: unknown, status = 200) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -34,20 +32,26 @@ export async function GET(request: Request) {
     const visits = await d1.prepare(
       "SELECT occurrence_id, schedule_name, full_name, organisation, starts_at, ends_at, duration_hours, areas, status, deposit_status, deposit_amount FROM hire_schedule_view ORDER BY starts_at LIMIT 40",
     ).all<Record<string, unknown>>();
-    const fromDb = areas.results.length > 0;
+    if (!areas.results.length) {
+      return json({
+        areas: [],
+        visits: [],
+        source: "unavailable",
+        error: "No hire areas in balwyn_portal. The directory fallback has been removed.",
+      });
+    }
     return json({
-      areas: fromDb ? areas.results : DIRECTORY,
+      areas: areas.results,
       visits: visits.results,
-      source: fromDb ? "database" : "directory",
-      error: fromDb ? undefined : "Hire tables are not in balwyn_portal yet. Showing the area list only.",
+      source: "database",
     });
   } catch (reason) {
     return json({
-      areas: DIRECTORY,
+      areas: [],
       visits: [],
-      source: "directory",
+      source: "unavailable",
       error: reason instanceof Error ? reason.message : "Hire database query failed.",
-    });
+    }, 503);
   }
 }
 

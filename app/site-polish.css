@@ -7,23 +7,46 @@
 .hire-workspace { container-type: inline-size; }
 
 .workspace-content {
-  padding-top: 0.75rem !important;
-  padding-bottom: 1rem !important;
+  padding: 0.85rem 1.15rem 1.15rem !important;
+}
+
+.workspace-title-row,
+.section-heading,
+.panel-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dashboard-split,
+.overview-grid,
+.hire-grid {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) !important;
+  gap: 14px !important;
+  align-items: stretch;
+}
+
+.hero-metrics,
+.workspace-kpis {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 10px !important;
 }
 
 .access-grid {
   display: grid !important;
   width: 100% !important;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)) !important;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)) !important;
   gap: 14px !important;
+  align-items: stretch;
 }
 
 .access-grid .access-card {
   display: grid;
-  grid-template-rows: auto minmax(140px, 28cqmin) auto;
+  grid-template-rows: 3.5rem 148px auto;
   min-width: 0;
-  background: #fff !important;
-  border: 1px solid #e2e5e8 !important;
 }
 
 .access-grid .access-card-heading strong {
@@ -34,7 +57,7 @@
 }
 
 .access-grid .access-icon {
-  height: clamp(120px, 28cqmin, 180px);
+  height: 148px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -44,50 +67,17 @@
 .access-grid .double-gate-visual,
 .access-grid .single-gate-image,
 .access-grid .double-gate-image {
-  width: min(220px, 80%) !important;
-  height: clamp(110px, 24cqmin, 160px) !important;
+  width: 168px !important;
+  height: 128px !important;
   object-fit: contain !important;
-}
-
-.status-why {
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  max-width: 16rem;
-  line-height: 1.2;
-}
-
-.hire-form {
-  display: grid;
-  gap: 0.65rem;
-  grid-template-columns: 1fr 1fr;
-}
-.hire-form label { display: grid; gap: 0.25rem; font-size: 0.85rem; }
-.hire-form .wide { grid-column: 1 / -1; }
-.hire-form input,
-.hire-form select,
-.hire-form textarea {
-  border: 1px solid #d0d7de;
-  border-radius: 8px;
-  padding: 0.5rem 0.65rem;
-  font: inherit;
-}
-.hire-form button {
-  grid-column: 1 / -1;
-  justify-self: start;
 }
 
 @container (max-width: 920px) {
   .dashboard-split,
-  .overview-grid { grid-template-columns: 1fr !important; }
-}
-@container (max-width: 640px) {
-  .hire-form { grid-template-columns: 1fr; }
-  .access-grid { grid-template-columns: 1fr !important; }
-}
-
-@media (max-width: 768px) {
-  .workspace-header { flex-wrap: wrap; }
-  .hire-overlay { left: 0 !important; top: 7.25rem !important; }
-  .system-status-cluster small { display: none; }
+  .overview-grid,
+  .hire-grid,
+  .hero-metrics,
+  .workspace-kpis {
+    grid-template-columns: 1fr !important;
+  }
 }
