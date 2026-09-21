@@ -26,7 +26,6 @@ import {
   LogOut,
   MapPin,
   Maximize2,
-  MoreVertical,
   MonitorUp,
   Network,
   PhoneCall,
@@ -265,7 +264,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const displayName = userProfile?.displayName || user.displayName;
   const profileImage = userProfile?.avatarUrl || undefined;
   const [adminUnlockOpen, setAdminUnlockOpen] = useState(false);
-  const adminUnlocked = isAdministrator && adminAccessUntil > Date.now();
+  const adminUnlocked = isAdministrator && adminAccessUntil > 0;
   const configurationView = ["settings", "schedule", "automation"].includes(activeView);
   const [plan, setPlan] = useState(initialData.plan);
   const [serverTime, setServerTime] = useState(initialData.serverTime);
@@ -299,13 +298,6 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const [pendingGateCommand, setPendingGateCommand] = useState<{ gate: Gate; position: GatePosition } | null>(null);
   const [controllerCredential, setControllerCredential] = useState<{ gateId: string; token: string } | null>(null);
   const selectedVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
-
-  useEffect(() => {
-    if (!advancedFeaturesEnabled) {
-      setPtzTrackingActive(false);
-      setGuidancePrepared(false);
-    }
-  }, [advancedFeaturesEnabled]);
 
   useEffect(() => {
     if (!isAdministrator) return;
@@ -410,10 +402,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!("speechSynthesis" in window)) {
-      setVoiceStatus("Voice announcements are unavailable in this browser.");
-      return;
-    }
+    if (!("speechSynthesis" in window)) return;
     const prepareAustralianVoice = () => {
       const voice = findAustralianVoice(window.speechSynthesis.getVoices());
       selectedVoiceRef.current = voice ?? null;
@@ -455,6 +444,10 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       window.speechSynthesis?.cancel();
     };
   }, [systemMode, voiceAnnouncements]);
+
+  const voiceStatusText = typeof window !== "undefined" && !("speechSynthesis" in window)
+    ? "Voice announcements are unavailable in this browser."
+    : voiceStatus;
 
   const selectedScheduleGate = gates.find((gate) => gate.id === selectedScheduleGateId) ?? gates[0];
   const selectedWeek = schedules[selectedScheduleGate.id];
@@ -1123,7 +1116,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
               <section className="plan-summary"><div><span>Current plan</span><h2>{plan?.name ?? "Gate Operations"}</h2><p>{advancedFeaturesEnabled ? "Advanced features included. Connected equipment requires commissioning." : "CCTV, PTZ tracking, emergency guidance and projector broadcasts require an upgrade."}</p></div>{!advancedFeaturesEnabled && <Button onClick={() => setUpgradeOpen(true)}><LockKeyhole /> Upgrade plan <ChevronRight /></Button>}</section>
               <div className="admin-settings-shortcuts"><Button variant="outline" onClick={() => setActiveView("access")}><Network /> Relay controllers</Button><Button variant="outline" onClick={() => setActiveView("schedule")}><CalendarDays /> Operating schedules</Button><Button variant="outline" onClick={() => setActiveView("automation")}><Workflow /> Automation rules</Button></div>
               <CompassWiringReference />
-              <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Monitoring</h2><small>Persistent system behaviour · administrator only</small></div><Gauge /></div><label><span><strong>Gate-position monitoring</strong><small>Display independent open and closed inputs</small></span><Switch checked={positionMonitoring} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ positionMonitoring: value }, "setting-position")} /></label><label><span><strong>Fault and offline alerts</strong><small>Highlight controllers that stop reporting</small></span><Switch checked={faultAlerts} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ faultAlerts: value }, "setting-faults")} /></label><label><span><strong>Australian English announcements</strong><small>{voiceStatus}</small></span><Switch checked={voiceAnnouncements} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ voiceAnnouncements: value }, "setting-voice")} /></label></article><article className="settings-card"><div className="panel-heading"><div><h2>Magic Keys</h2><small>System information</small></div><Power /></div><div className="setting-info"><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Access points</span><strong>{gates.length}</strong></div><div><span>Portal</span><strong className="online-text"><i /> Secure service online</strong></div><div><span>Controllers</span><strong>{onlineCount} online · {commissionedCount} commissioned · {credentialCount} credentials</strong></div><div><span>Position feedback</span><strong>{activeGates.length - unknownCount} of {activeGates.length} active gates confirmed</strong></div><div><span>Emergency integration</span><strong>Not complete until school-approved commissioning</strong></div></div></article></section>
+              <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Monitoring</h2><small>Persistent system behaviour · administrator only</small></div><Gauge /></div><label><span><strong>Gate-position monitoring</strong><small>Display independent open and closed inputs</small></span><Switch checked={positionMonitoring} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ positionMonitoring: value }, "setting-position")} /></label><label><span><strong>Fault and offline alerts</strong><small>Highlight controllers that stop reporting</small></span><Switch checked={faultAlerts} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ faultAlerts: value }, "setting-faults")} /></label><label><span><strong>Australian English announcements</strong><small>{voiceStatusText}</small></span><Switch checked={voiceAnnouncements} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ voiceAnnouncements: value }, "setting-voice")} /></label></article><article className="settings-card"><div className="panel-heading"><div><h2>Magic Keys</h2><small>System information</small></div><Power /></div><div className="setting-info"><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Access points</span><strong>{gates.length}</strong></div><div><span>Portal</span><strong className="online-text"><i /> Secure service online</strong></div><div><span>Controllers</span><strong>{onlineCount} online · {commissionedCount} commissioned · {credentialCount} credentials</strong></div><div><span>Position feedback</span><strong>{activeGates.length - unknownCount} of {activeGates.length} active gates confirmed</strong></div><div><span>Emergency integration</span><strong>Not complete until school-approved commissioning</strong></div></div></article></section>
               <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Compass ACB-004 integration</h2><small>Existing school control system · retained</small></div><Network /></div><div className="setting-info"><div><span>Control platform</span><strong>Existing Compass ACB-004 · four doors</strong></div><div><span>Interface method</span><strong>Pi isolated relay · open-only trigger</strong></div><div><span>ACB-004 feedback</span><strong>No live position or safety feedback</strong></div><div><span>Output mapping</span><strong>Awaiting onsite schedule and terminal verification</strong></div><div><span>Command policy</span><strong>Blocked until each output is commissioned</strong></div></div></article><article className="settings-card"><div className="panel-heading"><div><h2>Integration safeguards</h2><small>Required before live relay control</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> Document each Compass output and served gate</span><span><CheckCircle2 /> Verify NO/NC state and pulse or maintained mode</span><span><CheckCircle2 /> Retain local gate safety and manual controls</span><span><CheckCircle2 /> Confirm independent open and closed feedback</span><span><CheckCircle2 /> Witness normal, fire and lockdown scenarios</span></div></article></section>
               <section className="module-marketplace">
                 <div className="module-heading"><div><h2>Platform modules</h2><p>Add capabilities as the school’s operational requirements expand.</p></div><Badge variant="outline">{enabledModules.size} of {platformModules.length} configured</Badge></div>

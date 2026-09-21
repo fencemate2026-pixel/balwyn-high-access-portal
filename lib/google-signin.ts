@@ -1,5 +1,5 @@
 import type { PortalUser } from "./portal-model";
-import { requestOrigin, requestProtocol } from "./request-origin";
+import { requestOrigin, requestProtocol } from "./request-origin.ts";
 
 const LOGIN_COOKIE = "__Host-balwyn_google_login";
 const LOGIN_LIFETIME_MS = 10 * 60 * 1000;

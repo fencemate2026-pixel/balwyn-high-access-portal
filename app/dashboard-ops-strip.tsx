@@ -31,7 +31,7 @@ export default function DashboardOpsStrip() {
       })
       .catch(() => { if (active) setCounts([0, 0, 0, 0, 0, 0, 0]); });
     return () => { active = false; };
-  }, []);
+  }, [days]);
 
   useEffect(() => {
     const header = document.querySelector(".workspace-header-right");

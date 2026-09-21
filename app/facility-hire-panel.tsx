@@ -55,7 +55,16 @@ export default function FacilityHirePanel() {
   }
 
   useEffect(() => {
-    void load().catch((reason) => setError(reason instanceof Error ? reason.message : "Hire records could not be loaded."));
+    let active = true;
+    async function loadVisits() {
+      try {
+        await load();
+      } catch (reason) {
+        if (active) setError(reason instanceof Error ? reason.message : "Hire records could not be loaded.");
+      }
+    }
+    void loadVisits();
+    return () => { active = false; };
   }, []);
 
   async function onSubmit(event: FormEvent) {
