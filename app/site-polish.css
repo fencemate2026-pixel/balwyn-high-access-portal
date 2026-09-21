@@ -1,4 +1,4 @@
-/* Container queries: panels react to their own width, not only the viewport. */
+/* Container query units: size follows the panel, not only breakpoints. */
 .workspace-inset,
 .workspace-content,
 .dashboard-split,
@@ -11,34 +11,71 @@
 
 .workspace-main,
 .workspace-content { max-width: none; }
-.workspace-title-row { margin-bottom: 0.65rem; gap: 0.75rem; }
-.workspace-content { padding-top: 0.75rem !important; padding-bottom: 1rem !important; }
+
+.workspace-content {
+  padding-top: clamp(0.55rem, 1.6cqi, 0.85rem) !important;
+  padding-bottom: clamp(0.7rem, 2cqi, 1.1rem) !important;
+  padding-left: clamp(0.75rem, 2.2cqi, 1.5rem);
+  padding-right: clamp(0.75rem, 2.2cqi, 1.5rem);
+}
+
+.workspace-title-row {
+  margin-bottom: clamp(0.4rem, 1.2cqi, 0.75rem);
+  gap: clamp(0.45rem, 1.4cqi, 0.85rem);
+}
+
+.workspace-title-row h1,
+.view-panel-heading h2 {
+  font-size: clamp(1.35rem, 3.2cqi, 2rem);
+}
+
 .panel,
 .access-card,
 .hero-panel,
-.overview-card { border-radius: 10px; box-shadow: none; }
+.overview-card {
+  border-radius: clamp(8px, 1.1cqi, 12px);
+  box-shadow: none;
+}
+
 .dashboard-split,
 .overview-grid,
 .hero-metrics,
-.workspace-kpis { gap: 0.65rem !important; }
+.workspace-kpis,
+.hire-grid {
+  gap: clamp(0.45rem, 1.3cqi, 0.8rem) !important;
+}
+
 .access-grid {
   display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)) !important;
-  gap: 10px !important;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(148px, 28cqi, 200px), 1fr)) !important;
+  gap: clamp(8px, 1.4cqi, 14px) !important;
 }
+
 .access-grid .access-card {
-  grid-template-rows: 3.6rem 112px auto;
+  grid-template-rows: 3.4rem minmax(88px, 18cqmin) auto;
   background: #fff !important;
   border: 1px solid #e2e5e8 !important;
 }
-.access-grid .access-icon { height: 112px; }
+
+.access-grid .access-icon {
+  height: clamp(88px, 18cqmin, 128px);
+}
+
 .access-grid .single-gate-visual,
-.access-grid .double-gate-visual { width: 128px !important; height: 100px !important; }
+.access-grid .double-gate-visual,
 .access-grid .single-gate-image,
 .access-grid .double-gate-image {
-  width: 128px !important;
-  height: 100px !important;
+  width: clamp(96px, 16cqmin, 140px) !important;
+  height: clamp(80px, 14cqmin, 112px) !important;
   object-fit: contain !important;
+}
+
+.gate-indicator-light {
+  --led-size: clamp(8px, 1.6cqi, 12px);
+}
+
+.hire-overlay {
+  padding: clamp(0.75rem, 2cqi, 1.4rem);
 }
 
 @container (max-width: 920px) {
@@ -57,22 +94,13 @@
 @container (max-width: 640px) {
   .hero-metrics,
   .workspace-kpis,
-  .hire-grid {
-    grid-template-columns: 1fr !important;
-  }
-  .access-grid {
-    grid-template-columns: 1fr 1fr !important;
-  }
-  .workspace-title-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+  .hire-grid { grid-template-columns: 1fr !important; }
+  .access-grid { grid-template-columns: 1fr 1fr !important; }
+  .workspace-title-row { flex-direction: column; align-items: flex-start; }
 }
 
 @container (max-width: 420px) {
-  .access-grid {
-    grid-template-columns: 1fr !important;
-  }
+  .access-grid { grid-template-columns: 1fr !important; }
 }
 
 @media (max-width: 768px) {
@@ -90,8 +118,5 @@
     grid-template-columns: 1fr !important;
     width: 100%;
   }
-  .hire-overlay {
-    left: 0 !important;
-    top: 7.25rem !important;
-  }
+  .hire-overlay { left: 0 !important; top: 7.25rem !important; }
 }
