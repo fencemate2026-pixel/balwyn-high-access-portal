@@ -316,6 +316,13 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   }, [adminAccessUntil]);
 
   useEffect(() => {
+    const tick = () => setCurrentTime(Date.now());
+    tick();
+    const timer = window.setInterval(tick, 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     void fetch("/api/profile", { cache: "no-store" }).then(async (response) => response.ok ? response.json() : null)
       .then((body) => { if (active && body?.profile) setUserProfile(body.profile); }).catch(() => undefined);
@@ -509,7 +516,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   function relativeHeartbeat(value: string | null) {
     if (!value || !Number.isFinite(Date.parse(value))) return "Awaiting verified heartbeat";
-    const deltaMinutes = Math.max(0, Math.round((Date.parse(serverTime) - Date.parse(value)) / 60000));
+    const deltaMinutes = Math.max(0, Math.round((currentTime - Date.parse(value)) / 60000));
     if (deltaMinutes < 1) return "Heartbeat just now";
     if (deltaMinutes === 1) return "Heartbeat 1 minute ago";
     if (deltaMinutes < 60) return `Heartbeat ${deltaMinutes} minutes ago`;
