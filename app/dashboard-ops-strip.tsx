@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { weekCounts, weekDates, type HireVisit } from "./week-board";
+import WeatherIcon from "./weather-icon";
 
 type WeatherDay = {
   date: string;
@@ -49,7 +50,7 @@ export default function DashboardOpsStrip() {
         {(weather ?? []).slice(0, 7).map((day) => (
           <span key={day.date} className="forecast-day">
             <small>{new Intl.DateTimeFormat("en-AU", { weekday: "short", timeZone: "Australia/Melbourne" }).format(new Date(`${day.date}T12:00:00+10:00`))}</small>
-            <i className={`wx ${day.icon || "cloud"}`} aria-hidden="true" />
+            <WeatherIcon kind={day.icon || "cloud"} />
             <b>{day.max == null ? "—" : `${Math.round(day.max)}°`}</b>
           </span>
         ))}
