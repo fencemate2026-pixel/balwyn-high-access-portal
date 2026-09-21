@@ -22,7 +22,6 @@
         "name": "next"
       }
     ],
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./*"
@@ -50,4 +49,3 @@
     "drizzle.config.ts"
   ]
 }
-

@@ -83,3 +83,21 @@ test("renders sidebar skeletons deterministically", async () => {
   assert.equal(first, second);
   assert.match(first, /--skeleton-width:70%/);
 });
+
+test("renders upgraded public entry UX cues", async () => {
+  const { default: PublicAppHome } = await vite.ssrLoadModule("/app/public-app-home.tsx");
+  const html = renderToStaticMarkup(React.createElement(PublicAppHome));
+
+  assert.match(html, /magic-entry-kicker/);
+  assert.match(html, /Status-first dashboard/);
+  assert.match(html, /Commissioning-aware simulation cues/);
+});
+
+test("renders dimensional week chart semantics", async () => {
+  const { default: DashboardOpsStrip } = await vite.ssrLoadModule("/app/dashboard-ops-strip.tsx");
+  const html = renderToStaticMarkup(React.createElement(DashboardOpsStrip));
+
+  assert.match(html, /week-chart-stage/);
+  assert.match(html, /Upcoming facility hire demand for the next seven days/);
+  assert.match(html, /week-bar-value/);
+});

@@ -10,11 +10,20 @@ export default function PublicAppHome() {
       </div>
 
       <section className="magic-entry-access" aria-labelledby="magic-entry-title">
-        <div>
+        <div className="magic-entry-copy">
+          <span className="magic-entry-kicker">Balwyn High access operations</span>
           <h1 id="magic-entry-title">Magic Keys – Balwyn High School</h1>
-          <p>Gate controls, schedules and activity records for authorised school and RJL personnel.</p>
+          <p>Gate controls, schedules, safety-aware workflows and activity records for authorised school and RJL personnel.</p>
+          <div className="magic-entry-highlights" aria-label="Portal highlights">
+            <span>Status-first dashboard</span>
+            <span>Readable analytics panels</span>
+            <span>Commissioning-aware simulation cues</span>
+          </div>
         </div>
-        <Link href="/login" className="magic-entry-signin">Operator sign in <ArrowRight aria-hidden="true" /></Link>
+        <div className="magic-entry-actions">
+          <Link href="/login" className="magic-entry-signin">Operator sign in <ArrowRight aria-hidden="true" /></Link>
+          <p>Designed for clear scanning on desktop, tablet and mobile without implying live emergency authority where integrations remain a demonstration.</p>
+        </div>
       </section>
 
       <footer className="magic-entry-footer">

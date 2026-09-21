@@ -43,15 +43,20 @@ export default function DashboardOpsStrip() {
   });
 
   const max = Math.max(1, ...counts);
+  const totalBookings = counts.reduce((sum, value) => sum + value, 0);
+  const busiestIndex = counts.reduce((best, value, index, array) => value > array[best] ? index : best, 0);
+  const busiestCount = counts[busiestIndex] ?? 0;
+  const busiestDay = days[busiestIndex]?.label ?? "";
 
   return (
     <>
       <div id="balwyn-forecast" className="balwyn-forecast" aria-label="Balwyn 7 day forecast">
         {(weather ?? []).slice(0, 7).map((day) => (
-          <span key={day.date} className="forecast-day">
+          <span key={day.date} className="forecast-day" role="listitem">
             <small>{new Intl.DateTimeFormat("en-AU", { weekday: "short", timeZone: "Australia/Melbourne" }).format(new Date(`${day.date}T12:00:00+10:00`))}</small>
             <WeatherIcon kind={day.icon || "cloud"} />
             <b>{day.max == null ? "—" : `${Math.round(day.max)}°`}</b>
+            <em>{day.min == null ? "No overnight low" : `Low ${Math.round(day.min)}°`}</em>
           </span>
         ))}
       </div>
@@ -62,13 +67,28 @@ export default function DashboardOpsStrip() {
             <small>Confirmed hire in Australia/Melbourne. Zero means nothing is booked that day.</small>
           </div>
         </div>
-        <div className="week-bars">
-          {days.map((day, index) => (
-            <div key={day.date}>
-              <span style={{ height: `${Math.max(6, (counts[index] / max) * 88)}px` }}>{counts[index] || ""}</span>
-              <small>{day.label}</small>
+        <div className="week-chart-shell">
+          <div className="week-chart-meta">
+            <span className="week-chart-kicker">Facility demand</span>
+            <strong>{totalBookings} confirmed booking{totalBookings === 1 ? "" : "s"}</strong>
+            <small>{busiestCount ? `${busiestDay} is currently the busiest day with ${busiestCount} booking${busiestCount === 1 ? "" : "s"}.` : "No confirmed hire visits are currently booked this week."}</small>
+          </div>
+          <div className="week-chart-stage" role="img" aria-label="Upcoming facility hire demand for the next seven days">
+            <div className="week-chart-grid" aria-hidden="true">
+              {[100, 75, 50, 25].map((level) => <i key={level} style={{ bottom: `${level}%` }} />)}
             </div>
-          ))}
+            <div className="week-bars">
+              {days.map((day, index) => (
+                <div key={day.date} className="week-bar-slot" aria-label={`${day.label}: ${counts[index]} confirmed booking${counts[index] === 1 ? "" : "s"}`}>
+                  <small className="week-bar-value">{counts[index] || "0"}</small>
+                  <span style={{ height: `${Math.max(8, (counts[index] / max) * 100)}%` }}>
+                    <i />
+                  </span>
+                  <small>{day.label}</small>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </article>
     </>

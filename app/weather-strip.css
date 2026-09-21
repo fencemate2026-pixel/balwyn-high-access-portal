@@ -2,26 +2,36 @@
   display: flex;
   gap: 0.28rem;
   margin-right: 0.55rem;
-  padding: 0.22rem;
+  padding: 0.28rem;
   border-radius: 14px;
-  background: linear-gradient(180deg, #3b82f6, #1d4ed8 55%, #1e3a8a);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 8px 16px rgba(15, 23, 42, .28);
+  background:
+   linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,0) 24%),
+   linear-gradient(180deg, #3b82f6, #1d4ed8 55%, #1e3a8a);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 -1px 0 rgba(9, 25, 57, .28), 0 10px 24px rgba(15, 23, 42, .3);
 }
 .forecast-day {
   width: 46px;
-  min-height: 74px;
+  min-height: 88px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: 0.28rem 0.15rem 0.32rem;
+  padding: 0.35rem 0.15rem 0.38rem;
   border-radius: 10px;
   color: #eaf2ff;
-  background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(15,23,42,.18));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.28);
+  background:
+   linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.05) 38%, rgba(15,23,42,.24)),
+   linear-gradient(180deg, rgba(255,255,255,.06), rgba(15,23,42,.16));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(15,23,42,.2), 0 7px 14px rgba(9, 20, 46, .16);
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
 }
 .forecast-day small { font-size: 0.58rem; letter-spacing: 0.04em; text-transform: uppercase; }
 .forecast-day b { font-size: 0.78rem; }
+.forecast-day em { color: rgba(234, 242, 255, .84); font-size: 0.54rem; font-style: normal; text-align: center; line-height: 1.2; }
+.forecast-day:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.32), inset 0 -1px 0 rgba(15,23,42,.18), 0 10px 18px rgba(9, 20, 46, .22);
+}
 .wx {
   width: 18px; height: 18px; border-radius: 50%; display: none;
   box-shadow: 0 4px 8px rgba(0,0,0,.18);
@@ -40,22 +50,99 @@
 .week-hire-chart .week-bars {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
+  gap: 10px;
   align-items: end;
-  min-height: 120px;
-  padding: 0.4rem 0.2rem;
+  min-height: 168px;
+  padding: 0.6rem 0.2rem 0.1rem;
+  position: relative;
+  z-index: 1;
 }
-.week-hire-chart .week-bars div {
-  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+.week-chart-shell {
+  display: grid;
+  gap: 1rem;
+}
+.week-chart-meta {
+  display: grid;
+  gap: 0.32rem;
+}
+.week-chart-kicker {
+  color: #587082;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.week-chart-meta strong {
+  color: #18384d;
+  font-size: 1.12rem;
+}
+.week-chart-meta small {
+  color: #5f7585;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+.week-chart-stage {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(151, 177, 193, .65);
+  border-radius: 18px;
+  padding: 0.95rem 0.8rem 0.7rem;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.92), rgba(232, 239, 244, .94)),
+    linear-gradient(180deg, rgba(18, 52, 76, .05), rgba(18, 52, 76, 0));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -18px 28px rgba(179, 197, 209, .18), 0 10px 18px rgba(17, 49, 71, .08);
+}
+.week-chart-grid {
+  position: absolute;
+  inset: 0.9rem 0.8rem 1.55rem;
+  pointer-events: none;
+}
+.week-chart-grid i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid rgba(108, 137, 155, .22);
+  box-shadow: 0 1px 0 rgba(255,255,255,.72);
+}
+.week-hire-chart .week-bar-slot {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.42rem;
+}
+.week-hire-chart .week-bar-value {
+  color: #21455f;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 .week-hire-chart .week-bars span {
   width: 100%;
-  min-height: 6px;
-  border-radius: 6px 6px 2px 2px;
-  background: #0f3b57;
+  min-height: 8px;
+  border-radius: 14px 14px 5px 5px;
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, #6ba2cd 0%, #2c6488 16%, #17435f 58%, #0f3046 100%);
   color: #fff;
   font-size: 0.7rem;
-  display: flex; align-items: flex-end; justify-content: center;
+  display: flex;
+  align-items: flex-start;
+  justify-content: stretch;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.36), inset 0 -2px 0 rgba(5, 23, 35, .28), 0 10px 16px rgba(15, 47, 69, .2);
+}
+.week-hire-chart .week-bars span i {
+  width: 100%;
+  flex: 1 1 auto;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.3), rgba(255,255,255,.05) 32%, rgba(255,255,255,.22) 70%, rgba(8, 34, 49, .16)),
+    linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,0));
+}
+.week-hire-chart .week-bars .week-bar-slot > small:last-child {
+  color: #526979;
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 .hire-matrix {
   width: 100%;
@@ -72,4 +159,15 @@
 .hire-matrix .area { text-align: left; font-weight: 650; width: 11rem; }
 @media (max-width: 900px) {
   .balwyn-forecast { display: none; }
+}
+@media (max-width: 700px) {
+  .week-chart-stage {
+    padding-inline: 0.65rem;
+  }
+  .week-hire-chart .week-bars {
+    gap: 0.42rem;
+  }
+  .week-hire-chart .week-bars .week-bar-slot > small:last-child {
+    font-size: 0.66rem;
+  }
 }
