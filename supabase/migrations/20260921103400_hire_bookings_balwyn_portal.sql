@@ -1,9 +1,5 @@
 -- Facility hire — after-hours and weekend use of the stadium and grounds.
 -- Targets schema balwyn_portal, NOT public.
--- The portal reaches the database through balwyn-portal-db:
---     SET LOCAL ROLE balwyn_app
---     SET LOCAL search_path = balwyn_portal, pg_catalog
--- Money: numeric(12,2). Times: start/end as time; occurrences use timestamptz.
 
 CREATE TABLE IF NOT EXISTS balwyn_portal.hire_clients (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -91,9 +87,6 @@ CREATE TABLE IF NOT EXISTS balwyn_portal.hire_bookings (
        AND season_end >= season_start)
   )
 );
-
-COMMENT ON COLUMN balwyn_portal.hire_bookings.name IS
-  'Schedule name shown to staff, e.g. "Balwyn Basketball - Saturday".';
 
 CREATE INDEX IF NOT EXISTS idx_hire_bookings_client ON balwyn_portal.hire_bookings (client_id);
 CREATE INDEX IF NOT EXISTS idx_hire_bookings_status ON balwyn_portal.hire_bookings (status)
@@ -206,3 +199,4 @@ CREATE POLICY balwyn_server_access ON balwyn_portal.hire_comments            TO 
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA balwyn_portal TO balwyn_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA balwyn_portal TO balwyn_app;
+GRANT SELECT ON balwyn_portal.hire_schedule_view TO balwyn_app;
