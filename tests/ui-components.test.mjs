@@ -97,6 +97,14 @@ test("renders gate tile states with accessible labels", async () => {
     defaultPosition: "closed",
   };
 
+  const open = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "open" }));
+  assert.match(open, /gate-state-run/);
+  assert.match(open, /aria-label="Office Entry 1 Boom Gate: Operating, Confirmed open"/);
+
+  const closed = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "closed" }));
+  assert.match(closed, /gate-state-stop/);
+  assert.match(closed, /aria-label="Office Entry 1 Boom Gate: Stop, Confirmed closed"/);
+
   const moving = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "moving" }));
   assert.match(moving, /gate-state-run/);
   assert.match(moving, /is-moving/);
@@ -104,5 +112,5 @@ test("renders gate tile states with accessible labels", async () => {
 
   const issue = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "unknown" }));
   assert.match(issue, /gate-state-issue/);
-  assert.match(issue, /aria-label="Office Entry 1 Boom Gate: Issue, Not commissioned"/);
+  assert.match(issue, /aria-label="Office Entry 1 Boom Gate: Issue, Status unknown"/);
 });

@@ -20,7 +20,8 @@ function gateStateText(position: GateVisualState) {
   if (position === "closed") return { state: "Stop", detail: "Confirmed closed" };
   if (position === "open") return { state: "Operating", detail: "Confirmed open" };
   if (position === "moving") return { state: "Operating", detail: "Moving, keep clear" };
-  return { state: "Issue", detail: "Not commissioned" };
+  if (position === "inactive") return { state: "Inactive", detail: "Not in service" };
+  return { state: "Issue", detail: "Status unknown" };
 }
 
 export function formatGateTileAriaLabel(gateName: string, position: GateVisualState) {
