@@ -12,6 +12,13 @@ function portalMode() {
   return "normal";
 }
 
+function statusCopy(mode: "normal" | "fire" | "lockdown", attention: boolean) {
+  if (mode === "fire") return "FIRE — open packets queued, no confirmed movement";
+  if (mode === "lockdown") return "LOCKDOWN — close packets queued, no confirmed movement";
+  if (attention) return "Amber: commissioning — 0 controllers online, no verified heartbeat";
+  return "Normal — portal online";
+}
+
 function applyLiveGateArt() {
   document.querySelectorAll<HTMLImageElement>("img.single-gate-image").forEach((image) => {
     const icon = image.closest(".access-icon");
@@ -68,6 +75,7 @@ export default function DashboardHireDock() {
             <i class="status-lamp red" title="Emergency priority"></i>
           </div>
           <span class="header-strobe" title="Site beacon"><i></i></span>
+          <b class="status-why"></b>
         `;
         header.prepend(cluster);
       }
@@ -108,12 +116,14 @@ export default function DashboardHireDock() {
     const amber = cluster.querySelector(".status-lamp.amber");
     const red = cluster.querySelector(".status-lamp.red");
     const strobe = cluster.querySelector(".header-strobe");
+    const why = cluster.querySelector(".status-why");
     amber?.classList.toggle("is-flash", attention && mode === "normal");
     amber?.classList.toggle("is-on", attention && mode === "normal");
     red?.classList.toggle("is-flash", mode !== "normal");
     red?.classList.toggle("is-on", mode !== "normal");
     strobe?.classList.toggle("is-amber", attention && mode === "normal");
     strobe?.classList.toggle("is-red", mode !== "normal");
+    if (why) why.textContent = statusCopy(mode, attention);
   }, [mode, attention]);
 
   useEffect(() => {
