@@ -1,178 +1,101 @@
-/* Lamps sit on the gate artwork. Cards stay on the light dashboard theme. */
+/* Gate strobe sits on the artwork, not in empty card space. */
+.access-icon { position: relative; }
 
-.access-icon {
+.access-grid .single-gate-visual,
+.access-grid .double-gate-visual {
   position: relative;
-}
-
-.gate-indicator-light {
-  --led-size: 13px;
-  --lit-hi: #ffe6ad;
-  --lit: #ffab1a;
-  --lit-lo: #9a5800;
-  --glow-in: rgba(110, 55, 0, 0.75);
-  --glow: rgba(255, 175, 35, 0.85);
-  --glow-far: rgba(255, 175, 35, 0.3);
-  position: absolute;
-  display: block;
-  width: var(--led-size);
-  height: var(--led-size);
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 60%, #151b22 0%, #05070a 100%);
-  box-shadow:
-    inset 0 0 0 2px #0a0e14,
-    inset 0 2px 2px rgba(255, 255, 255, 0.28),
-    inset 0 -3px 4px rgba(0, 0, 0, 0.9),
-    0 0 10px rgba(255, 175, 35, 0.55);
-  z-index: 3;
-}
-
-/* Sit on the painted lamp in the single-swing artwork. */
-.single-gate-visual .gate-indicator-light {
-  left: 29%;
-  top: 31%;
-  right: auto;
-}
-
-.double-gate-visual .gate-indicator-light {
-  left: 18%;
-  top: 16%;
-  right: auto;
-}
-.double-gate-visual .gate-indicator-light.secondary {
-  left: auto;
-  right: 18%;
-}
-
-.boom-gate-visual .gate-indicator-light {
-  left: 18%;
-  top: 22%;
-}
-
-.gate-indicator-light::before {
-  content: "";
-  position: absolute;
-  inset: 2px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 28%, var(--lit-hi) 0%, var(--lit) 46%, var(--lit-lo) 100%);
-  box-shadow: 0 0 5px 1px var(--glow-in) inset, 0 0 10px 2px var(--glow), 0 0 16px 4px var(--glow-far);
-  animation: gate-led-amber 0.85s steps(1, end) infinite;
-}
-
-.gate-indicator-light::after {
-  content: "";
-  position: absolute;
-  left: 24%;
-  top: 16%;
-  width: 30%;
-  height: 22%;
-  border-radius: 50%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0));
-  pointer-events: none;
-}
-
-.access-icon.is-open .gate-indicator-light {
-  --lit-hi: #b6ffc9; --lit: #25d94f; --lit-lo: #06862a;
-  --glow-in: rgba(0, 90, 25, 0.75); --glow: rgba(40, 230, 90, 0.75); --glow-far: rgba(40, 230, 90, 0.28);
-}
-.access-icon.is-open .gate-indicator-light::before { animation: none; }
-
-.access-icon.is-closed .gate-indicator-light {
-  --lit-hi: #ffc3b8; --lit: #ff3b2f; --lit-lo: #8c0d05;
-  --glow-in: rgba(110, 6, 0, 0.75); --glow: rgba(255, 70, 55, 0.75); --glow-far: rgba(255, 70, 55, 0.28);
-}
-.access-icon.is-closed .gate-indicator-light::before { animation: none; }
-
-.access-icon.is-unknown .gate-indicator-light,
-.access-card.controller-uncommissioned .gate-indicator-light {
-  --lit-hi: #ffe6ad; --lit: #ffab1a; --lit-lo: #9a5800;
-}
-.access-icon.is-unknown .gate-indicator-light::before,
-.access-card.controller-uncommissioned .gate-indicator-light::before {
-  animation: gate-led-amber 0.85s steps(1, end) infinite;
-}
-
-.access-icon.is-inactive .gate-indicator-light,
-.access-card.is-inactive .gate-indicator-light {
-  --lit-hi: #303a47; --lit: #1b222c; --lit-lo: #0d1117;
-  --glow-in: rgba(0, 0, 0, 0.85); --glow: transparent; --glow-far: transparent;
-}
-.access-icon.is-inactive .gate-indicator-light::before,
-.access-card.is-inactive .gate-indicator-light::before { animation: none; }
-.access-icon.is-inactive .gate-indicator-light::after,
-.access-card.is-inactive .gate-indicator-light::after { opacity: 0.25; }
-
-@keyframes gate-led-amber {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0.12; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .gate-indicator-light::before,
-  .status-lamp::before { animation: none !important; opacity: 1 !important; }
-  .emergency-alert-panel.fire .emergency-alert-pulse,
-  .control-portal.mode-fire::before { animation: none !important; }
-}
-
-.hire-workspace { display: grid; gap: 1.25rem; }
-.hire-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-.hire-area-list,
-.hire-visit-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
-.hire-area-list li,
-.hire-visit-list li {
-  display: grid;
-  gap: 0.2rem;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-}
-.hire-note,
-.hire-empty { margin: 0; opacity: 0.8; }
-.hire-workspace h3 { display: flex; align-items: center; gap: 0.4rem; }
-
-.access-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
-  gap: 14px;
-  align-items: stretch;
-}
-
-.access-grid .access-card {
-  display: grid;
-  grid-template-rows: 4.6rem 150px auto;
-  align-items: stretch;
-  min-width: 0;
-  background: #fff !important;
-  color: #17324a !important;
-  border: 1px solid #e2e5e8 !important;
-  box-shadow: none !important;
-}
-
-.access-grid .access-card-heading { min-height: 4.6rem; align-self: start; }
-.access-grid .access-card-heading strong {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.access-grid .access-icon {
-  position: relative;
-  width: 100%;
-  height: 150px;
-  margin: 0;
-  display: flex;
+  width: auto !important;
+  height: 132px !important;
+  display: inline-flex !important;
   align-items: center;
   justify-content: center;
 }
+
 .access-grid .single-gate-image,
 .access-grid .double-gate-image {
   width: auto !important;
   height: 132px !important;
   max-width: 100%;
   object-fit: contain !important;
-  object-position: center;
-  border-radius: 8px;
+  display: block;
   box-shadow: none !important;
 }
-.access-grid .boom-gate-visual { width: 132px; height: 132px; transform: none; }
+
+.gate-indicator-light {
+  --led-size: 11px;
+  --lit-hi: #ffe6ad;
+  --lit: #ffab1a;
+  --lit-lo: #9a5800;
+  position: absolute;
+  width: var(--led-size);
+  height: var(--led-size);
+  border-radius: 50%;
+  background: #0b0e12;
+  box-shadow: inset 0 0 0 1px #07090c, 0 0 8px rgba(255,175,35,.7);
+  z-index: 3;
+}
+.single-gate-visual .gate-indicator-light {
+  left: 11%;
+  top: 18%;
+  right: auto;
+}
+.double-gate-visual .gate-indicator-light { left: 14%; top: 12%; right: auto; }
+.double-gate-visual .gate-indicator-light.secondary { left: auto; right: 14%; }
+
+.gate-indicator-light::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, var(--lit-hi), var(--lit) 55%, var(--lit-lo));
+  animation: gate-led-amber 0.7s steps(1, end) infinite;
+}
+.gate-indicator-light::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  top: 16%;
+  width: 32%;
+  height: 22%;
+  border-radius: 50%;
+  background: rgba(255,255,255,.75);
+}
+
+.access-icon.is-open .gate-indicator-light {
+  --lit-hi: #b6ffc9; --lit: #25d94f; --lit-lo: #06862a;
+}
+.access-icon.is-open .gate-indicator-light::before { animation: none; }
+.access-icon.is-closed .gate-indicator-light {
+  --lit-hi: #ffc3b8; --lit: #ff3b2f; --lit-lo: #8c0d05;
+}
+.access-icon.is-closed .gate-indicator-light::before { animation: none; }
+.access-icon.is-inactive .gate-indicator-light::before { animation: none; opacity: .2; }
+
+@keyframes gate-led-amber {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.12; }
+}
+
+.access-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: 14px;
+}
+.access-grid .access-card {
+  display: grid;
+  grid-template-rows: 4.6rem 150px auto;
+  background: #fff !important;
+  color: #17324a !important;
+  border: 1px solid #e2e5e8 !important;
+  box-shadow: none !important;
+}
+.access-grid .access-icon {
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.access-grid .boom-gate-visual { width: 132px; height: 132px; }
 
 .control-portal.mode-fire::before {
   content: "";
@@ -180,22 +103,19 @@
   inset: 0;
   pointer-events: none;
   z-index: 70;
-  background: rgba(255, 8, 8, 0.16);
+  background: rgba(255, 8, 8, 0.14);
   animation: fire-room-strobe 0.55s steps(1, end) infinite;
 }
-
 .emergency-alert-panel.fire .emergency-alert-pulse {
   background: #ff1a1a !important;
-  box-shadow: 0 0 0 3px rgba(255, 26, 26, 0.35), 0 0 18px 6px rgba(255, 30, 30, 0.75);
   animation: fire-beacon 0.45s steps(1, end) infinite;
 }
+@keyframes fire-room-strobe { 0%, 42% { opacity: 1; } 43%, 100% { opacity: 0; } }
+@keyframes fire-beacon { 0%, 45% { opacity: 1; } 46%, 100% { opacity: 0.15; } }
 
-@keyframes fire-room-strobe {
-  0%, 42% { opacity: 1; }
-  43%, 100% { opacity: 0; }
-}
-
-@keyframes fire-beacon {
-  0%, 45% { opacity: 1; }
-  46%, 100% { opacity: 0.15; }
+@media (prefers-reduced-motion: reduce) {
+  .gate-indicator-light::before,
+  .header-strobe i::after,
+  .status-lamp::before,
+  .control-portal.mode-fire::before { animation: none !important; }
 }

@@ -50,6 +50,7 @@ export default function DashboardHireDock() {
             <i class="status-lamp amber is-flash" title="Attention required"></i>
             <i class="status-lamp red" title="Emergency priority"></i>
           </div>
+          <span class="header-strobe" title="Site beacon"><i></i></span>
         `;
         header.prepend(cluster);
       }
@@ -89,10 +90,13 @@ export default function DashboardHireDock() {
     if (!cluster) return;
     const amber = cluster.querySelector(".status-lamp.amber");
     const red = cluster.querySelector(".status-lamp.red");
+    const strobe = cluster.querySelector(".header-strobe");
     amber?.classList.toggle("is-flash", attention && mode === "normal");
     amber?.classList.toggle("is-on", attention && mode === "normal");
     red?.classList.toggle("is-flash", mode !== "normal");
     red?.classList.toggle("is-on", mode !== "normal");
+    strobe?.classList.toggle("is-amber", attention && mode === "normal");
+    strobe?.classList.toggle("is-red", mode !== "normal");
   }, [mode, attention]);
 
   useEffect(() => {
