@@ -26,12 +26,19 @@ export async function GET(request: Request) {
     const visits = await d1.prepare(
       "SELECT occurrence_id, schedule_name, full_name, organisation, starts_at, ends_at, duration_hours, areas, status FROM hire_schedule_view ORDER BY starts_at LIMIT 40",
     ).all<Record<string, unknown>>();
+    const fromDb = areas.results.length > 0;
     return json({
-      areas: areas.results.length ? areas.results : DIRECTORY,
+      areas: fromDb ? areas.results : DIRECTORY,
       visits: visits.results,
-      source: areas.results.length ? "database" : "directory",
+      source: fromDb ? "database" : "directory",
+      error: fromDb ? undefined : "Hire tables are not in balwyn_portal yet. Showing the area list only.",
     });
-  } catch {
-    return json({ areas: DIRECTORY, visits: [], source: "directory" });
+  } catch (reason) {
+    return json({
+      areas: DIRECTORY,
+      visits: [],
+      source: "directory",
+      error: reason instanceof Error ? reason.message : "Hire database query failed.",
+    });
   }
 }

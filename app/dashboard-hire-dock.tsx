@@ -12,6 +12,24 @@ function portalMode() {
   return "normal";
 }
 
+function correctUnconfirmedGateArt() {
+  const selectors = [
+    ".access-icon.is-unknown .single-gate-image",
+    ".access-icon.is-inactive .single-gate-image",
+    ".access-card.controller-uncommissioned .single-gate-image",
+  ];
+  document.querySelectorAll<HTMLImageElement>(selectors.join(",")).forEach((image) => {
+    if (image.getAttribute("src") === "/gate-position-unknown.svg") return;
+    image.setAttribute("src", "/gate-position-unknown.svg");
+  });
+  document.querySelectorAll<HTMLImageElement>(".access-icon.is-open .single-gate-image").forEach((image) => {
+    if (!image.getAttribute("src")?.includes("open")) image.setAttribute("src", "/single-gate-open-transparent.png");
+  });
+  document.querySelectorAll<HTMLImageElement>(".access-icon.is-closed .single-gate-image").forEach((image) => {
+    if (!image.getAttribute("src")?.includes("closed")) image.setAttribute("src", "/single-gate-closed-transparent.png");
+  });
+}
+
 export default function DashboardHireDock() {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"normal" | "fire" | "lockdown">("normal");
@@ -64,13 +82,12 @@ export default function DashboardHireDock() {
         systemCard.parentElement?.insertBefore(mark, systemCard);
       }
 
+      correctUnconfirmedGateArt();
       return Boolean(document.querySelector(".workspace-header-right") && document.querySelector(".sidebar-system-card"));
     }
 
-    if (placeChrome()) return;
-    const timer = window.setInterval(() => {
-      if (placeChrome()) window.clearInterval(timer);
-    }, 200);
+    placeChrome();
+    const timer = window.setInterval(placeChrome, 800);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -79,6 +96,7 @@ export default function DashboardHireDock() {
       setMode(portalMode());
       const badge = document.querySelector(".concept-badge")?.textContent || "";
       setAttention(/commissioning|attention/i.test(badge));
+      correctUnconfirmedGateArt();
     }
     sync();
     const timer = window.setInterval(sync, 1500);
