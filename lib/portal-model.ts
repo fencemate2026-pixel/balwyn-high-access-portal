@@ -112,13 +112,14 @@ export function isGateActive(gateId: string): boolean {
   return ACTIVE_GATES.some((gate) => gate.id === gateId);
 }
 
-export type GateVisualState = GatePosition | "unknown" | "inactive";
+export type GateVisualState = GatePosition | "moving" | "unknown" | "inactive";
 
 export function gateVisualState(gate: Gate, runtime?: GateRuntime, monitoring = true): GateVisualState {
   if (!gate.active) return "inactive";
   if (!monitoring || !runtime?.commissioned || runtime.controllerState !== "online") return "unknown";
   if (!runtime.lastSeen || !Number.isFinite(Date.parse(runtime.lastSeen)) || Date.now() - Date.parse(runtime.lastSeen) > 90_000) return "unknown";
-  if (["queued", "dispatched", "failed", "blocked"].includes(runtime.lastCommandState)) return "unknown";
+  if (["failed", "blocked"].includes(runtime.lastCommandState)) return "unknown";
+  if (runtime.reportedPosition === "moving" || ["queued", "dispatched"].includes(runtime.lastCommandState)) return "moving";
   return runtime.reportedPosition === "open" || runtime.reportedPosition === "closed" ? runtime.reportedPosition : "unknown";
 }
 

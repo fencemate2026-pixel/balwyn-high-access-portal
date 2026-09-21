@@ -1,86 +1,89 @@
-/* Preview tile chrome — dark stage, lamps, STOP/OPERATING/ISSUE */
+/* Exact tile behaviour from magickeys-gates-weather-preview.html */
 :root{
-  --mk-tile:#3d444e;
-  --mk-tile-hi:#4a525d;
+  --page:#e9edf2; --ink:#0f1b2d; --muted:#5b6b80; --navy:#0f2a47; --line:#d4dbe4;
+  --tile:#3d444e; --tile-hi:#4a525d;
 }
-.access-card,
-.gate-preview-tile {
+
+.access-grid{
+  display:grid !important;
+  grid-template-columns:repeat(auto-fill,minmax(250px,1fr)) !important;
+  gap:16px !important;
+}
+
+.access-card.tile,
+.tile{
   background:#fff !important;
-  border:1px solid #d4dbe4 !important;
+  border:1px solid var(--line) !important;
   border-radius:18px !important;
   overflow:hidden !important;
   box-shadow:0 1px 0 rgba(255,255,255,.8) inset,0 10px 24px -14px rgba(15,27,45,.35) !important;
-}
-.access-grid .access-card {
-  display:grid !important;
-  grid-template-areas: "stage" "head" "foot" !important;
-  grid-template-rows: minmax(220px,1fr) auto auto !important;
   padding:0 !important;
 }
-.access-card .access-card-heading { grid-area: head; padding: 12px 14px 0 !important; }
-.access-card .gate-tile, .access-card .stage-host { grid-area: stage; }
-.access-card .access-card-footer { grid-area: foot; }
-.access-card .gate-tile,
-.access-card .stage-host {
-  display:block !important;
-  width:100% !important;
-  height:auto !important;
-  aspect-ratio:1/1 !important;
-  background:radial-gradient(120% 90% at 30% 15%,var(--mk-tile-hi) 0%,var(--mk-tile) 55%,#333941 100%) !important;
+.access-grid .access-card{
+  display:flex !important;
+  flex-direction:column !important;
 }
-.access-card .gate-tile svg,
-.stage-host svg {
+.stage{
+  position:relative !important;
+  aspect-ratio:1/1 !important;
+  width:100% !important;
+  background:radial-gradient(120% 90% at 30% 15%,var(--tile-hi) 0%,var(--tile) 55%,#333941 100%) !important;
+}
+.stage svg{
+  position:absolute !important;
+  inset:0 !important;
   width:100% !important;
   height:100% !important;
-  display:block !important;
 }
-.access-card .access-card-footer {
-  padding:12px 14px 14px !important;
-  display:flex !important;
-  align-items:center !important;
-  gap:10px !important;
-  border-top:1px solid #d4dbe4 !important;
-  background:#fff !important;
-}
-.area-icon,
-.area-icon .stage-host,
-.area-icon .gate-tile {
-  background:radial-gradient(120% 90% at 30% 15%,var(--mk-tile-hi) 0%,var(--mk-tile) 55%,#333941 100%) !important;
+
+.stop  {--led:#ff3b2f;--led-hi:#ffd0c8;--led-lo:#8c0d05;--glow:rgba(255,59,47,.85)}
+.run   {--led:#2ee05a;--led-hi:#d4ffe0;--led-lo:#077a27;--glow:rgba(46,224,90,.85)}
+.issue {--led:#ffab1a;--led-hi:#fff0cc;--led-lo:#9a5800;--glow:rgba(255,171,26,.9)}
+.stop  .pill{background:#fde8e6;color:#b3190f}
+.run   .pill{background:#e3f8ea;color:#0b7a2f}
+.issue .pill{background:#fff2d9;color:#8a5200}
+
+.issue .blink{animation:blink 1s steps(1,end) infinite}
+.run.moving .blink{animation:blink 1.2s steps(1,end) infinite}
+@keyframes blink{0%,55%{opacity:1}56%,100%{opacity:.08}}
+
+.arm{transform-box:view-box;transform-origin:150px 104px;transition:transform 1.6s cubic-bezier(.45,.05,.25,1)}
+.run .arm{transform:rotate(80deg)}
+.run.moving .arm{animation:boom 5s ease-in-out infinite}
+@keyframes boom{0%,15%{transform:rotate(0)}45%,65%{transform:rotate(80deg)}95%,100%{transform:rotate(0)}}
+
+.leaf{transform-box:view-box;transform-origin:63px 106px;transition:transform 1.6s cubic-bezier(.45,.05,.25,1)}
+.run .leaf{transform:skewY(-10deg) scaleX(.32)}
+.run.moving .leaf{animation:swing 5s ease-in-out infinite}
+@keyframes swing{0%,15%{transform:none}45%,65%{transform:skewY(-10deg) scaleX(.32)}95%,100%{transform:none}}
+
+.area-icon .stage{
+  width:68px !important;
+  height:68px !important;
+  aspect-ratio:auto !important;
   border-radius:12px !important;
 }
 
-.arm, .gate-tile-arm {
-  transform-box:view-box;
-  transform-origin:150px 104px;
-  transition:transform 1.6s cubic-bezier(.45,.05,.25,1);
+.access-card .access-card-heading,
+.access-card .access-card-footer{
+  padding:12px 14px !important;
 }
-.run .arm, .run .gate-tile-arm, .is-open .arm, .is-open .gate-tile-arm { transform:rotate(80deg); }
-.leaf, .gate-tile-leaf {
-  transform-box:view-box;
-  transform-origin:63px 106px;
-  transition:transform 1.6s cubic-bezier(.45,.05,.25,1);
+.access-card .access-card-footer{
+  border-top:1px solid var(--line) !important;
+  margin-top:auto !important;
 }
-.run .leaf, .run .gate-tile-leaf, .is-open .leaf, .is-open .gate-tile-leaf { transform:skewY(-10deg) scaleX(.32); }
-.issue .blink, .issue .gate-tile-lamp { animation:mk-blink 1s steps(1,end) infinite; }
-@keyframes mk-blink { 0%,55%{opacity:1} 56%,100%{opacity:.08} }
 
-.safety-command.lockdown:not(.is-live),
-.safety-command.fire:not(.is-live),
-.safety-command.lockdown.is-live,
-.safety-command.fire.is-live {
-  color:#fff !important;
-}
-.safety-command.lockdown:not(.is-live),
-.safety-command.lockdown.is-live {
+.safety-command.lockdown{
   background:linear-gradient(#c62a2a,#9d1d1d) !important;
   border:0 !important;
+  color:#fff !important;
 }
-.safety-command.fire:not(.is-live),
-.safety-command.fire.is-live {
+.safety-command.fire{
   background:linear-gradient(#e89414,#b86d06) !important;
   border:0 !important;
+  color:#fff !important;
 }
 
 @media (prefers-reduced-motion:reduce){
-  .blink,.arm,.leaf,.gate-tile-arm,.gate-tile-leaf,.gate-tile-lamp { animation:none !important; transition:none !important; }
+  .blink,.arm,.leaf,.sun-rays,.cloud,.drop{animation:none!important;transition:none!important}
 }
