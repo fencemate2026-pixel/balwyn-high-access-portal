@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { weekCounts, weekDates, type HireVisit } from "./week-board";
 
-type WeatherDay = { date: string; label: string; max: number | null; min: number | null };
+type WeatherDay = {
+  date: string;
+  label: string;
+  icon?: string;
+  max: number | null;
+  min: number | null;
+};
 
 export default function DashboardOpsStrip() {
   const [weather, setWeather] = useState<WeatherDay[] | null>(null);
@@ -20,8 +26,7 @@ export default function DashboardOpsStrip() {
       .then((response) => response.json())
       .then((body) => {
         if (!active) return;
-        const visits = Array.isArray(body.visits) ? body.visits as HireVisit[] : [];
-        setCounts(weekCounts(visits, days));
+        setCounts(weekCounts(Array.isArray(body.visits) ? body.visits as HireVisit[] : [], days));
       })
       .catch(() => { if (active) setCounts([0, 0, 0, 0, 0, 0, 0]); });
     return () => { active = false; };
@@ -30,14 +35,10 @@ export default function DashboardOpsStrip() {
   useEffect(() => {
     const header = document.querySelector(".workspace-header-right");
     const weatherRoot = document.getElementById("balwyn-forecast");
-    if (header && weatherRoot && weatherRoot.parentElement !== header) {
-      header.insertBefore(weatherRoot, header.firstChild);
-    }
+    if (header && weatherRoot && weatherRoot.parentElement !== header) header.insertBefore(weatherRoot, header.firstChild);
     const gates = document.querySelector(".active-dashboard-gates, .quick-gates-section");
     const chart = document.getElementById("week-hire-chart");
-    if (gates && chart && chart.parentElement !== gates.parentElement) {
-      gates.parentElement?.insertBefore(chart, gates);
-    }
+    if (gates && chart) gates.parentElement?.insertBefore(chart, gates);
   });
 
   const max = Math.max(1, ...counts);
@@ -48,9 +49,8 @@ export default function DashboardOpsStrip() {
         {(weather ?? []).slice(0, 7).map((day) => (
           <span key={day.date} className="forecast-day">
             <small>{new Intl.DateTimeFormat("en-AU", { weekday: "short", timeZone: "Australia/Melbourne" }).format(new Date(`${day.date}T12:00:00+10:00`))}</small>
+            <i className={`wx ${day.icon || "cloud"}`} aria-hidden="true" />
             <b>{day.max == null ? "—" : `${Math.round(day.max)}°`}</b>
-            <em>{day.min == null ? "" : `${Math.round(day.min)}°`}</em>
-            <i>{day.label}</i>
           </span>
         ))}
       </div>
@@ -58,10 +58,10 @@ export default function DashboardOpsStrip() {
         <div className="panel-heading">
           <div>
             <h2>Upcoming week</h2>
-            <small>Confirmed hire occurrences in Australia/Melbourne. Empty days are unused, not estimated.</small>
+            <small>Confirmed hire in Australia/Melbourne. Zero means nothing is booked that day.</small>
           </div>
         </div>
-        <div className="week-bars" role="img" aria-label="Hire bookings this week">
+        <div className="week-bars">
           {days.map((day, index) => (
             <div key={day.date}>
               <span style={{ height: `${Math.max(6, (counts[index] / max) * 88)}px` }}>{counts[index] || ""}</span>
