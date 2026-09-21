@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "balwyn-repo-guard": {
+      "command": "node",
+      "args": [
+        "./mcp/server.mjs"
+      ],
+      "env": {
+        "BALWYN_REPO_ROOT": ".",
+        "BALWYN_DEFAULT_BRANCH": "main"
+      }
+    }
+  }
+}
