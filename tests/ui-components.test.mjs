@@ -97,7 +97,7 @@ test("renders the public landing page with operational overview content", async 
 test("renders dashboard gate cards with portal sync and heartbeat context", async () => {
   const { default: DashboardClient } = await vite.ssrLoadModule("/app/dashboard-client.tsx");
   const { ACTIVE_GATES, makeSchedules } = await vite.ssrLoadModule("/lib/portal-model.ts");
-  const now = new Date().toISOString();
+  const now = new Date(Date.now() + 60_000).toISOString();
   const snapshot = {
     systemMode: "normal",
     gates: ACTIVE_GATES.map((gate, index) => ({
