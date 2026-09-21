@@ -89,8 +89,9 @@ test("renders upgraded public entry UX cues", async () => {
   const html = renderToStaticMarkup(React.createElement(PublicAppHome));
 
   assert.match(html, /magic-entry-kicker/);
-  assert.match(html, /Status-first dashboard/);
-  assert.match(html, /Commissioning-aware simulation cues/);
+  assert.match(html, /Demonstration portal · Australia\/Melbourne/);
+  assert.match(html, /Operational overview/);
+  assert.match(html, /Controller context/);
 });
 
 test("renders dimensional week chart semantics", async () => {
@@ -102,6 +103,8 @@ test("renders dimensional week chart semantics", async () => {
   assert.match(html, /week-bar-value/);
   assert.match(html, /No confirmed hire visits are currently booked this week\./);
   assert.match(html, /height:0%;min-height:0/);
+});
+
 test("renders the public landing page with operational overview content", async () => {
   const { default: PublicAppHome } = await vite.ssrLoadModule("/app/public-app-home.tsx");
   const html = renderToStaticMarkup(React.createElement(PublicAppHome));
@@ -144,6 +147,8 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
   assert.match(html, /Timezone · Australia\/Melbourne/);
   assert.match(html, /Heartbeat 2 minutes ago/);
   assert.match(html, /Safety healthy/);
+});
+
 test("renders gate tile states with accessible labels", async () => {
   const { default: GateTile } = await vite.ssrLoadModule("/app/gate-tile.tsx");
   const gate = {
