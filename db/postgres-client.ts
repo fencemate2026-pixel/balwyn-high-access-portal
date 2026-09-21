@@ -5,17 +5,20 @@ type QueryResult = { rows: unknown[][]; columns: string[]; count: number };
 
 import { postgresPlaceholders } from "./sql-dialect";
 
+function safeFailureCode(failure: unknown): string {
+  if (!failure || typeof failure !== "object" || !("code" in failure) || typeof failure.code !== "string") return "unknown";
+  if (/^[0-9A-Z]{5}$/.test(failure.code) || /^[A-Z][A-Z0-9_]{1,40}$/.test(failure.code)) return failure.code;
+  return "unknown";
+}
+
 export async function executeStatements(statements: Statement[]): Promise<QueryResult[]> {
   const response = await supabaseFetch("/functions/v1/balwyn-portal-db", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ statements }),
   });
   if (!response.ok) {
-    // Only preserve the SQLSTATE identifier. Upstream messages can contain data.
+    // Only preserve a SQLSTATE or a short transport identifier. Upstream messages can contain data.
     const failure: unknown = await response.json().catch(() => null);
-    const code = failure && typeof failure === "object" && "code" in failure
-      && typeof failure.code === "string" && /^[0-9A-Z]{5}$/.test(failure.code)
-      ? failure.code : "unknown";
-    throw new Error(`Portal database unavailable (${response.status}, SQLSTATE ${code}).`);
+    throw new Error(`Portal database unavailable (${response.status}, SQLSTATE ${safeFailureCode(failure)}).`);
   }
   const body = await response.json();
   if (!Array.isArray(body.results) || body.results.length !== statements.length) throw new Error("Invalid database response.");

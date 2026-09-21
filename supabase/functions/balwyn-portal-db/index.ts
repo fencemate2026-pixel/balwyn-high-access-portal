@@ -6,6 +6,12 @@ const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, {
   prepare: false, max: 1, idle_timeout: 10, connect_timeout: 10,
 });
 
+function safeFailureCode(error: unknown): string {
+  const raw = typeof error === "object" && error && "code" in error ? String(error.code) : "unavailable";
+  if (/^[0-9A-Z]{5}$/.test(raw) || /^[A-Z][A-Z0-9_]{1,40}$/.test(raw)) return raw;
+  return "unavailable";
+}
+
 async function authorised(request: Request) {
   const supplied = request.headers.get("authorization")?.replace(/^Bearer /, "");
   if (!supplied) return false;
@@ -45,13 +51,14 @@ Deno.serve(async request => {
       const results = [];
       for (const statement of statements) {
         const result = await transaction.unsafe(statement.sql, statement.params).values();
-        results.push({ rows: Array.from(result), columns: result.columns.map(c => c.name), count: result.count });
+        const columns = Array.isArray(result.columns) ? result.columns.map(column => column.name) : [];
+        results.push({ rows: Array.from(result ?? []), columns, count: Number(result.count ?? 0) });
       }
       return results;
     });
     return Response.json({ results }, { headers });
   } catch (error) {
-    const code = typeof error === "object" && error && "code" in error ? String(error.code) : "unavailable";
+    const code = safeFailureCode(error);
     console.error("balwyn_database_error", code);
     return Response.json({ error: "Database operation failed", code }, { status: 503, headers });
   }
