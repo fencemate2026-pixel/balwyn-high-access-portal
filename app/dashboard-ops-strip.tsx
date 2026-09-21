@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { weekCounts, weekDates, type HireVisit } from "./week-board";
 import WeatherIcon from "./weather-icon";
 
@@ -15,7 +15,7 @@ type WeatherDay = {
 export default function DashboardOpsStrip() {
   const [weather, setWeather] = useState<WeatherDay[] | null>(null);
   const [counts, setCounts] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
-  const days = weekDates();
+  const days = useMemo(() => weekDates(), []);
 
   useEffect(() => {
     let active = true;
@@ -31,7 +31,7 @@ export default function DashboardOpsStrip() {
       })
       .catch(() => { if (active) setCounts([0, 0, 0, 0, 0, 0, 0]); });
     return () => { active = false; };
-  }, []);
+  }, [days]);
 
   useEffect(() => {
     const header = document.querySelector(".workspace-header-right");
@@ -50,7 +50,7 @@ export default function DashboardOpsStrip() {
 
   return (
     <>
-      <div id="balwyn-forecast" className="balwyn-forecast" aria-label="Balwyn 7 day forecast">
+      <div id="balwyn-forecast" className="balwyn-forecast" aria-label="Balwyn 7 day forecast" role="list">
         {(weather ?? []).slice(0, 7).map((day) => (
           <span key={day.date} className="forecast-day" role="listitem">
             <small>{new Intl.DateTimeFormat("en-AU", { weekday: "short", timeZone: "Australia/Melbourne" }).format(new Date(`${day.date}T12:00:00+10:00`))}</small>
@@ -81,7 +81,7 @@ export default function DashboardOpsStrip() {
               {days.map((day, index) => (
                 <div key={day.date} className="week-bar-slot" aria-label={`${day.label}: ${counts[index]} confirmed booking${counts[index] === 1 ? "" : "s"}`}>
                   <small className="week-bar-value">{counts[index] || "0"}</small>
-                  <span style={{ height: `${Math.max(8, (counts[index] / max) * 100)}%` }}>
+                  <span style={{ height: counts[index] === 0 ? "0%" : `${Math.max(8, (counts[index] / max) * 100)}%`, minHeight: counts[index] === 0 ? 0 : 8 }}>
                     <i />
                   </span>
                   <small>{day.label}</small>

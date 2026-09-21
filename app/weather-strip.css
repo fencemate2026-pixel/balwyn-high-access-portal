@@ -119,7 +119,7 @@
 }
 .week-hire-chart .week-bars span {
   width: 100%;
-  min-height: 8px;
+  min-height: 0;
   border-radius: 14px 14px 5px 5px;
   position: relative;
   overflow: hidden;
