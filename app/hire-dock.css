@@ -1,0 +1,19 @@
+.hire-overlay {
+  position: fixed;
+  left: 17.5rem;
+  right: 0;
+  top: 10.5rem;
+  bottom: 0;
+  z-index: 40;
+  overflow: auto;
+  padding: 1.25rem 1.75rem 2rem;
+  background: #e8eef3;
+}
+
+@media (max-width: 768px) {
+  .hire-overlay { left: 0; top: 8.5rem; }
+}
+
+#hire-nav-item.is-hire-open .portal-nav-button {
+  background: rgba(255, 255, 255, 0.08);
+}

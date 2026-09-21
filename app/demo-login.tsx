@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
 import DashboardClient from "./dashboard-client";
+import DashboardHireDock from "./dashboard-hire-dock";
 import BrandLogo from "./brand-logo";
 import BrandArtwork from "./brand-artwork";
 import type { PortalSnapshot } from "@/lib/portal-model";
@@ -220,7 +221,12 @@ export default function DemoLogin() {
     if (providers?.google) await refreshGoogleSignIn();
   }
 
-  if (snapshot) return <DashboardClient initialData={snapshot} user={snapshot.user} onSignOut={handleSignOut} />;
+  if (snapshot) return (
+    <>
+      <DashboardHireDock />
+      <DashboardClient initialData={snapshot} user={snapshot.user} onSignOut={handleSignOut} />
+    </>
+  );
 
   return (
     <main className="magic-login">
