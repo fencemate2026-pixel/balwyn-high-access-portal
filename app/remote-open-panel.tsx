@@ -19,6 +19,14 @@ export default function RemoteOpenPanel({ endpoint, gateId, allowed = true, demo
     loadRemoteOpenConfig(endpoint).then((value) => { if (active) setConfig(value); }).catch(() => { if (active) setMessage("Remote open unavailable. Contact the administrator."); });
     return () => { active = false; };
   }, [endpoint]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setMessage("");
+      setConfirm(false);
+      setOperatorToken("");
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [gateId]);
   if (config?.configured === false || (!config && !message)) return null;
   const door = config?.gateMap?.[gateId];
 

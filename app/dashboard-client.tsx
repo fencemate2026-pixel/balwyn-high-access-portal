@@ -259,12 +259,13 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const isAdministrator = user.role === "administrator";
   const roleLabel = isAdministrator ? "System administrator" : canOperate ? "Authorised operator" : "View-only operator";
   const [activeView, setActiveView] = useState<ViewKey>("dashboard");
+  const [currentTime, setCurrentTime] = useState(() => Date.parse(initialData.serverTime));
   const [adminAccessUntil, setAdminAccessUntil] = useState(0);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const displayName = userProfile?.displayName || user.displayName;
   const profileImage = userProfile?.avatarUrl || undefined;
   const [adminUnlockOpen, setAdminUnlockOpen] = useState(false);
-  const adminUnlocked = isAdministrator && adminAccessUntil > 0;
+  const adminUnlocked = isAdministrator && adminAccessUntil > currentTime;
   const configurationView = ["settings", "schedule", "automation"].includes(activeView);
   const [plan, setPlan] = useState(initialData.plan);
   const [serverTime, setServerTime] = useState(initialData.serverTime);
@@ -310,7 +311,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   useEffect(() => {
     if (!adminAccessUntil) return;
-    const timer = window.setTimeout(() => { setAdminAccessUntil(0); setControllerCredential(null); }, Math.max(0, adminAccessUntil - Date.now()));
+    const timer = window.setTimeout(() => { setAdminAccessUntil(0); setControllerCredential(null); setCurrentTime(Date.now()); }, Math.max(0, adminAccessUntil - Date.now()));
     return () => window.clearTimeout(timer);
   }, [adminAccessUntil]);
 
@@ -342,6 +343,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   function applySnapshot(snapshot: PortalSnapshot, preserveSchedule = false) {
     setPlan(snapshot.plan);
     setServerTime(snapshot.serverTime);
+    setCurrentTime(Date.parse(snapshot.serverTime));
     setSystemMode(snapshot.systemMode);
     setGateRuntime(Object.fromEntries(snapshot.gates.map((gate) => [gate.gateId, gate])));
     if (!preserveSchedule) setSchedules(snapshot.schedules);
@@ -351,6 +353,10 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     setFaultAlerts(snapshot.settings.faultAlerts);
     setVoiceAnnouncements(snapshot.settings.voiceAnnouncements);
     setEnabledModules(new Set(snapshot.settings.enabledModules));
+    if (!snapshot.plan.advancedFeatures) {
+      setPtzTrackingActive(false);
+      setGuidancePrepared(false);
+    }
   }
 
   async function postPortal(payload: Record<string, unknown>, label: string) {
