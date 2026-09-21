@@ -1,4 +1,4 @@
-import { requestOrigin, requestProtocol } from "./request-origin";
+import { requestOrigin, requestProtocol } from "./request-origin.ts";
 /** Server-only bridge to the Pi HTTP service. Never import this into a client component. */
 type EnvironmentReader = (key: string) => string | undefined;
 type GateRegistration = { id: string; active: boolean };
