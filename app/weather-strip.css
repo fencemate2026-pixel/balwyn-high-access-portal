@@ -23,8 +23,13 @@
 .forecast-day small { font-size: 0.58rem; letter-spacing: 0.04em; text-transform: uppercase; }
 .forecast-day b { font-size: 0.78rem; }
 .wx {
-  width: 18px; height: 18px; border-radius: 50%; display: block;
+  width: 18px; height: 18px; border-radius: 50%; display: none;
   box-shadow: 0 4px 8px rgba(0,0,0,.18);
+}
+.forecast-day .wx-icon {
+  width: 28px;
+  height: 28px;
+  display: block;
 }
 .wx.sun { background: radial-gradient(circle at 35% 30%, #fff7cc, #f59e0b 55%, #d97706); }
 .wx.sun-cloud { background: radial-gradient(circle at 30% 30%, #fff, #93c5fd 60%, #64748b); }
