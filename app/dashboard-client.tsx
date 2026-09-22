@@ -102,6 +102,7 @@ import AdminSettingsUnlock from "./admin-settings-unlock";
 import UserProfileEditor from "./user-profile-editor";
 import OperationsRoomConcept from "./operations-room-concept";
 import GateTile from "./gate-tile";
+import DashboardOpsStrip from "./dashboard-ops-strip";
 import type { UserProfile } from "@/lib/profile-model";
 import { PROTECTED_SETTINGS_ACTIONS } from "@/lib/protected-settings";
 import {
@@ -737,6 +738,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     const runtime = runtimeFor(gate);
     const requested = runtime?.commandedPosition ?? gate.defaultPosition;
     if (!runtime?.commissioned) return { label: "Controller not commissioned", className: "is-unknown", detail: runtime?.credentialIssued ? "Credential issued · awaiting verified heartbeat" : "No relay credential issued" };
+    if (runtime.reportedPosition === "moving") return { label: "Operating · moving", className: "is-open", detail: "Moving — keep clear" };
     if (runtime.lastCommandState === "queued") return { label: `${requested === "open" ? "Open" : "Close"} requested`, className: "is-pending", detail: "Waiting for controller" };
     if (runtime.lastCommandState === "dispatched") return { label: `${requested === "open" ? "Opening" : "Closing"} requested`, className: "is-pending", detail: "Controller completing command" };
     if (runtime.lastCommandState === "failed" || runtime.lastCommandState === "blocked" || runtime.controllerState === "fault") {
@@ -807,8 +809,21 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
       <SidebarInset className="portal-workspace">
         <header className="workspace-header">
-          <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="location-logo"><img src="/balwyn-watermark.png" alt="" /></span><div><small>Managed site</small><strong>Balwyn High School</strong></div></div>
-          <div className="workspace-header-right"><span className="connection-pill"><i /> Encrypted connection</span><button className="notification-button" aria-label="View system alerts" onClick={() => onlineCount === activeGates.length ? toast.success("All controllers online", { description: "Physical gate feedback is available for every access point." }) : toast.warning(`${activeGates.length - onlineCount} active gate controllers are not online`, { description: `${commissionedCount} have completed a verified heartbeat; ${credentialCount} credentials have been issued.` })}><Bell /></button><div className="header-operator"><Avatar><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><span><strong>{displayName}</strong><small>{roleLabel}</small></span></div></div>
+          <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="header-commercial-mark"><img src="/rjl-commercial-logo.png" alt="RJL Commercial" /></span><div className="workspace-site-lockup"><small>System online</small><strong>Balwyn High School</strong></div></div>
+          <div className="workspace-header-right">
+            <span className="header-system-health" aria-label={`System health: ${systemMode === "normal" ? "normal" : systemMode}`}>
+              <span>System Online</span>
+              <i className={`header-status-light ${systemMode === "normal" ? "is-green" : "is-red"}`} />
+              <i className={`header-status-light ${onlineCount === activeGates.length ? "is-green" : "is-amber"}`} />
+              <i className={`header-status-light ${safetyHealthyCount === activeGates.length ? "is-green" : "is-amber"}`} />
+            </span>
+            <span className="header-context-pill">Portal sync · {portalTimeLabel(serverTime)}</span>
+            <span className="header-context-pill header-context-timezone">Timezone · Australia/Melbourne</span>
+            <span className="header-context-pill header-context-heartbeat">Heartbeat · {onlineCount}/{activeGates.length}</span>
+            <span className="connection-pill"><i /> Encrypted connection</span>
+            <button className="notification-button" aria-label="View system alerts" onClick={() => onlineCount === activeGates.length ? toast.success("All controllers online", { description: "Physical gate feedback is available for every access point." }) : toast.warning(`${activeGates.length - onlineCount} active gate controllers are not online`, { description: `${commissionedCount} have completed a verified heartbeat; ${credentialCount} credentials have been issued.` })}><Bell /></button>
+            <div className="header-operator"><Avatar><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><span><strong>{displayName}</strong><small>{roleLabel}</small></span></div>
+          </div>
         </header>
 
         <section className="safety-bar" aria-label="Emergency gate commands">
@@ -818,6 +833,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
           </div>
           <div className="safety-command-grid"><SafetyCommand mode="lockdown" active={systemMode === "lockdown"} authorised={isAdministrator} onConfirm={() => setPendingEmergency("lockdown")} /><SafetyCommand mode="fire" active={systemMode === "fire"} authorised={isAdministrator} onConfirm={() => setPendingEmergency("fire")} /></div>
           <div className="command-safety-note"><Radio /> Local safety circuits remain authoritative</div>
+          {activeView === "dashboard" && <DashboardOpsStrip variant="weather" />}
         </section>
 
         {systemMode !== "normal" && <EmergencyAlertPanel mode={systemMode} onClear={() => setPendingEmergency("clear")} confirmed={emergencyConfirmed} pending={emergencyPending} failed={emergencyFailed} canClear={isAdministrator} projectorAccess={advancedFeaturesEnabled} />}
@@ -840,6 +856,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
                 <div><Workflow /><span><strong>{automations.filter((rule) => rule.enabled).length} enabled</strong><small>Stored policy records</small></span></div>
                 <div><ClipboardList /><span><strong>Logging</strong><small>Operator audit trail</small></span></div>
               </section>
+              <DashboardOpsStrip variant="weather-panel" />
               <section className="summary-grid">
                 <article className="summary-card primary-summary"><span>Active gates</span><strong>{activeGates.length}</strong><small>Tony Frizza Stadium Entry · Side Entry</small></article>
                 <article className="summary-card"><span>Physically open</span><strong className="open-number">{positionMonitoring ? openCount : "—"}</strong><small>{positionMonitoring ? `${unknownCount} positions not confirmed` : "Position monitoring paused"}</small></article>
@@ -850,6 +867,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
                 <article className="panel area-panel"><div className="panel-heading"><div><h2>Active areas</h2><small>Physical feedback status</small></div><Button variant="ghost" onClick={() => setActiveView("gates")}>View all gates <ChevronRight /></Button></div><div className="area-list">{groupSummary.filter(({ active }) => active > 0).map(({ group, active, open, closed, unknown }) => { const sampleGate = activeGates.find((gate) => gate.group === group) ?? activeGates[0]; return <button key={group} onClick={() => setActiveView("gates")}><span className="area-icon"><GateIcon gate={sampleGate} position={getPosition(sampleGate)} /></span><span><strong>{groupConfig[group].name}</strong><small>{active} active gate{active === 1 ? "" : "s"}</small></span><span className="area-state"><strong>{!active ? "Inactive" : positionMonitoring ? `${open} confirmed open` : "Paused"}</strong><small>{!active ? "Not activated yet" : positionMonitoring ? `${closed} secured · ${unknown} unknown` : "Monitoring"}</small></span><ChevronRight /></button>; })}</div></article>
                 <article className="panel next-schedule-panel"><div className="panel-heading"><div><h2>Schedule</h2><small>Approved operating records</small></div><CalendarDays /></div><div className="schedule-highlight"><Clock3 /><div><strong>{scheduledGateCount ? `${scheduledGateCount} gate${scheduledGateCount === 1 ? "" : "s"} configured` : "No schedules approved"}</strong><small>{scheduledGateCount ? "Review each gate’s enabled days and times" : "No automatic schedule action is enabled"}</small><span>Only saved operator-approved times are displayed</span></div></div><Button className="schedule-button" onClick={() => setActiveView("schedule")}>Manage gate schedules <ChevronRight /></Button></article>
               </section>
+              <DashboardOpsStrip variant="chart" />
               <section className="quick-gates-section active-dashboard-gates"><div className="section-heading"><div><h2>Active gate controls</h2><small>Quick access</small></div><span>Select a gate to view its status and controls.</span></div>{renderGateCards(activeGates)}</section>
               {!advancedFeaturesEnabled && <section className="advanced-discovery"><span className="advanced-eyebrow"><LockKeyhole /> Discover Magic Keys Advanced</span><h2>See what’s possible beyond gate access.</h2><p>Explore camera zones, an emergency-response example and the messages a connected classroom could display.</p><div className="advanced-discovery-actions"><Button variant="outline" onClick={() => setActiveView("guidance")}><MapPin /> Explore emergency guidance</Button><Button variant="outline" onClick={() => setActiveView("cctv")}><Camera /> Explore CCTV & zones</Button><Button onClick={() => setUpgradeOpen(true)}>Discuss your school’s upgrade <ChevronRight /></Button></div></section>}
             </>

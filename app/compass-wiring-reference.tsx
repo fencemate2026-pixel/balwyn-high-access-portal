@@ -57,7 +57,7 @@ export default function CompassWiringReference() {
 
       <details>
         <summary>Magic Keys Pi remote-open interface</summary>
-        <p>The Pi requests access through one isolated relay NO/COM contact across the verified ACB-004 door exit input P1–P4 and its matching GND. Each request pulses only its assigned channel for 300–800 ms. Never connect GPIO directly to the board.</p>
+        <p>The Pi requests access through one isolated relay NO/COM contact across the verified ACB-004 door exit input P1–P4 and its matching GND. Each request pulses only its assigned channel for the commissioned 300–10,000 ms duration. Never connect GPIO directly to the board.</p>
         <p>This pulse does not determine the lock-release period or sequence the lock and motor. The service provides no close, hold-open, fire or lockdown command. Acknowledgement confirms only the pulse; it provides no live gate-position, lock-release or safety feedback.</p>
       </details>
 

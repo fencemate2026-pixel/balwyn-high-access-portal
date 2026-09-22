@@ -44,7 +44,7 @@ any proposed TCP/IP protocol adapter description; no proprietary ACB packet
 protocol, reader database sync or controller network commands are implemented.
 
 - Service: `pi-door-service/door_service.py`, `POST /doors/{1-4}/open` only.
-- Fixed 300–800 ms pulse on exactly one mapped BCM relay pin; default 500 ms.
+- Bounded 300–10,000 ms pulse acknowledgement on exactly one mapped BCM relay pin; default 500 ms. The installed controller determines the commissioned pulse duration.
 - Mock/dry-run by default; explicit verified hardware configuration required.
 - One-way open-only trigger: no closing, toggling, hold-open or emergency actuation.
 - No live door, lock-release or safety feedback. `pulsed` acknowledges the relay

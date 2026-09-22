@@ -89,6 +89,12 @@ test("dry-run acknowledgements stay explicitly dry-run", async () => {
   assert.equal((await response.json()).status, "dry_run");
 });
 
+test("accepts a commissioned open-only cycle pulse up to ten seconds", async () => {
+  const response = await handleDoorRequest(req(), options(async () => Response.json({ status: "pulsed", door: 4, pulse_ms: 6000, position: "unknown", sensor_feedback: false, request_id: requestId })));
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).pulseMs, 6000);
+});
+
 test("client sends an explicit same-origin request, no retries, and keeps result unknown", async () => {
   const calls = [];
   const result = await requestRemoteOpen("/api/doors/open", "SIDE-ENTRY", "REDACTED", async (url, init) => {

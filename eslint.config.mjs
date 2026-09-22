@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "archive/**",
+    "dist/**",
+    "fencemat-rebuild/**",
+    "rjl-live-gate/**",
+    "balwyn-high-access-portal/**",
   ]),
   {
     files: ["components/ui/**/*.{ts,tsx}", "hooks/use-mobile.ts"],

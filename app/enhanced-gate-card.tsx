@@ -66,14 +66,16 @@ export default function EnhancedGateCard({
   const config = statusConfig[status];
   const Icon = config.icon;
 
-  const [timeAgo, setTimeAgo] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!lastUpdated) { setTimeAgo(null); return; }
-    const tick = () => setTimeAgo(Math.round((Date.now() - lastUpdated.getTime()) / 1000));
-    tick();
+    if (!lastUpdated) return;
+    const tick = () => setNow(Date.now());
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [lastUpdated]);
+  const timeAgo = lastUpdated
+    ? Math.max(0, Math.round((now - lastUpdated.getTime()) / 1000))
+    : null;
 
   const formatTimeAgo = (seconds: number): string => {
     if (seconds < 60) return `${seconds}s ago`;

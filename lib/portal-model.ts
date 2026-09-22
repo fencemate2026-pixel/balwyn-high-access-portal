@@ -119,7 +119,8 @@ export function gateVisualState(gate: Gate, runtime?: GateRuntime, monitoring = 
   if (!monitoring || !runtime?.commissioned || runtime.controllerState !== "online") return "unknown";
   if (!runtime.lastSeen || !Number.isFinite(Date.parse(runtime.lastSeen)) || Date.now() - Date.parse(runtime.lastSeen) > 90_000) return "unknown";
   if (["failed", "blocked"].includes(runtime.lastCommandState)) return "unknown";
-  if (runtime.reportedPosition === "moving" || ["queued", "dispatched"].includes(runtime.lastCommandState)) return "unknown";
+  if (runtime.reportedPosition === "moving") return "moving";
+  if (["queued", "dispatched"].includes(runtime.lastCommandState)) return "unknown";
   return runtime.reportedPosition === "open" || runtime.reportedPosition === "closed" ? runtime.reportedPosition : "unknown";
 }
 

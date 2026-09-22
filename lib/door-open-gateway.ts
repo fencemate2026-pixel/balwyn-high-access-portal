@@ -75,7 +75,7 @@ export async function handleDoorRequest(request: Request, options: GatewayOption
       return json({ error: "Remote open was rejected or its outcome is unknown. Inspect locally before another request", requestId }, response.status === 409 ? 409 : 502);
     }
     const result = await response.json();
-    if (!["pulsed", "dry_run"].includes(result.status) || result.door !== door || result.position !== "unknown" || result.sensor_feedback !== false || result.request_id !== requestId || !Number.isInteger(result.pulse_ms) || result.pulse_ms < 300 || result.pulse_ms > 800) throw new Error("Invalid pulse acknowledgement");
+    if (!["pulsed", "dry_run"].includes(result.status) || result.door !== door || result.position !== "unknown" || result.sensor_feedback !== false || result.request_id !== requestId || !Number.isInteger(result.pulse_ms) || result.pulse_ms < 300 || result.pulse_ms > 10000) throw new Error("Invalid pulse acknowledgement");
     log({ event: result.status, gateId, door, requestId });
     return json({ status: result.status, door, pulseMs: result.pulse_ms, position: "unknown", sensorFeedback: false, requestId, replayed: result.replayed === true });
   } catch {

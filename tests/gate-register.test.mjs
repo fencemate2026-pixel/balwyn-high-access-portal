@@ -31,7 +31,7 @@ test("indicators switch between open and closed only from current confirmed posi
   assert.equal(gateVisualState(activeGate, runtime()), "closed");
   assert.equal(gateVisualState(activeGate, runtime({ reportedPosition: "open" })), "open");
   assert.equal(gateVisualState(activeGate, runtime({ commandedPosition: "open" })), "closed");
-  assert.equal(gateVisualState(activeGate, runtime({ reportedPosition: "moving" })), "unknown");
+  assert.equal(gateVisualState(activeGate, runtime({ reportedPosition: "moving" })), "moving");
 });
 
 test("inactive lights stay off even if old runtime data claims open or closed", () => {
