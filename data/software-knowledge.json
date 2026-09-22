@@ -561,6 +561,12 @@
     "id": "doc-94",
     "title": "Tests",
     "source": "pi-door-service/README.md",
-    "text": "## Tests\n\n```bash\npython3 -m unittest discover -s pi-door-service/tests -v\n```\n\nRun from the repository root. Tests exercise the HTTP routes and authentication,\nfour-channel isolation, bounds/polarity, mock operation, concurrent requests,\nGPIO failure cleanup, shutdown, durable duplicate protection and log redaction.\nThey use mock outputs and cannot certify field wiring or real gate movement.\n"
+    "text": "## Tests\n\n```bash\npython3 -m unittest discover -s pi-door-service/tests -v\n```\n\nRun from the repository root. Tests exercise the HTTP routes and authentication,\nfour-channel isolation, bounds/polarity, mock operation, concurrent requests,\nGPIO failure cleanup, shutdown, durable duplicate protection and log redaction.\nThey use mock outputs and cannot certify field wiring or real gate movement.\n\n"
+  },
+  {
+    "id": "doc-95",
+    "title": "Hardened GPIO adapter prototype",
+    "source": "pi-door-service/README.md",
+    "text": "## Hardened GPIO adapter prototype\n\n`gpio_adapter.py` provides a stricter adapter layer for command validation,\nrole checks, webhook hardening and interlock policy before any relay pulse is\nqueued. Safety defaults are:\n\n- simulation/demo runtime unless hardware is explicitly enabled\n- telemetry-only anonymous websocket connections; command channels require\n  authenticated `viewer`, `operator` or `administrator` roles\n- only `NORMAL`, `LOCKDOWN`, `EVACUATION`, `MAINTENANCE`, and `DEMO` modes\n- explicit administrator confirmation for emergency mode changes\n- lockdown and maintenance interlocks blocking unsafe automation paths\n- bounded cooldowns and worker-based pulse execution to prevent overlapping\n  relay activation\n- structured health output and audit entries for accepted and denied events\n\nThe adapter keeps active-low/active-high behavior explicit in configuration and\nalways de-energises outputs on startup/shutdown/fault handling. It is still not\na replacement for certified local safety circuits or onsite commissioning.\n"
   }
 ]
