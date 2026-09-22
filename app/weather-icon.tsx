@@ -1,40 +1,56 @@
 "use client";
 
-export default function WeatherIcon({ kind, size = 22 }: { kind?: string; size?: number }) {
+export default function WeatherIcon({ kind, size = 28 }: { kind?: string; size?: number }) {
   const k = kind || "cloud";
+  const id = `wx-${k}-${Math.round(size)}`;
   return (
-    <svg className={`wx-icon wx-${k}`} width={size} height={size} viewBox="0 0 54 54" aria-hidden="true">
+    <svg className={`wx-icon wx-${k}`} width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
+      <defs>
+        <radialGradient id={`${id}-sun`} cx="38%" cy="32%" r="68%">
+          <stop offset="0" stopColor="#fff8d2" />
+          <stop offset=".35" stopColor="#ffd34a" />
+          <stop offset="1" stopColor="#e09112" />
+        </radialGradient>
+        <radialGradient id={`${id}-cloud`} cx="32%" cy="28%" r="80%">
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset=".55" stopColor="#d7e3ef" />
+          <stop offset="1" stopColor="#9aafc2" />
+        </radialGradient>
+        <radialGradient id={`${id}-storm`} cx="32%" cy="28%" r="80%">
+          <stop offset="0" stopColor="#c5d0dc" />
+          <stop offset="1" stopColor="#4b5b6c" />
+        </radialGradient>
+        <filter id={`${id}-soft`} x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="0.55" />
+        </filter>
+      </defs>
       {(k === "sun" || k === "sun-cloud") && (
-        <>
-          <defs>
-            <radialGradient id={`sg-${k}`} cx="38%" cy="32%" r="70%">
-              <stop offset="0" stopColor="#fff6c2" />
-              <stop offset=".45" stopColor="#ffc62e" />
-              <stop offset="1" stopColor="#f08a00" />
-            </radialGradient>
-          </defs>
-          <circle cx={k === "sun-cloud" ? 21 : 27} cy={k === "sun-cloud" ? 20 : 27} r="13" fill={`url(#sg-${k})`} />
-          <circle cx={k === "sun-cloud" ? 21 : 27} cy={k === "sun-cloud" ? 20 : 27} r="17" fill="#ffc62e" opacity=".25" />
-        </>
+        <g>
+          <g opacity=".55" stroke="#ffcc4d" strokeWidth="2.2" strokeLinecap="round">
+            <path d="M32 6v6M32 52v6M6 32h6M52 32h6M12 12l4 4M48 48l4 4M12 52l4-4M48 16l4-4" />
+          </g>
+          <circle cx={k === "sun-cloud" ? 24 : 32} cy={k === "sun-cloud" ? 24 : 32} r={k === "sun-cloud" ? 12 : 14} fill={`url(#${id}-sun)`} />
+        </g>
       )}
       {(k === "cloud" || k === "sun-cloud" || k === "rain" || k === "storm" || k === "snow") && (
-        <path d="M12 34a8 8 0 0 1 1-16 11 11 0 0 1 21-3 9 9 0 0 1 8 15 6 6 0 0 1-4 4Z" fill={k === "storm" ? "#8b98a8" : "#e8eef4"} stroke="#9aa6b4" strokeWidth="1" transform={k === "sun-cloud" ? "translate(4 6)" : undefined} />
+        <path
+          filter={`url(#${id}-soft)`}
+          fill={k === "storm" ? `url(#${id}-storm)` : `url(#${id}-cloud)`}
+          d="M16 40c-6 0-10-4.4-10-10 0-5.2 3.8-9.5 8.8-10.2C16.6 13.6 23 9 31 9c9.2 0 16.4 6.4 17.6 15.2 5 .6 9.4 5 9.4 10.4 0 5.8-4.6 10.4-10.4 10.4H16z"
+          transform={k === "sun-cloud" ? "translate(2 8)" : undefined}
+        />
       )}
       {k === "rain" && (
-        <g stroke="#3d8bff" strokeWidth="2.4" strokeLinecap="round">
-          <line x1="18" y1="40" x2="16" y2="47" />
-          <line x1="27" y1="40" x2="25" y2="48" />
-          <line x1="36" y1="40" x2="34" y2="47" />
+        <g stroke="#7ec8ff" strokeWidth="2.4" strokeLinecap="round">
+          <path d="M22 46l-3 10M32 46l-3 11M42 46l-3 10" />
         </g>
       )}
-      {k === "storm" && <polygon points="26,36 22,46 28,44 24,52 36,40 29,41 32,36" fill="#ffd54a" />}
+      {k === "storm" && <path d="M30 42l-6 12h7l-4 10 14-16h-8l7-6z" fill="#f3d15a" />}
       {k === "snow" && (
-        <g stroke="#dbeafe" strokeWidth="1.6">
-          <line x1="27" y1="38" x2="27" y2="50" />
-          <line x1="21" y1="44" x2="33" y2="44" />
+        <g stroke="#e8f3ff" strokeWidth="1.8" strokeLinecap="round">
+          <path d="M32 44v12M26 50h12M27 46l10 8M27 54l10-8" />
         </g>
       )}
-      {k === "sun" && <ellipse cx="22" cy="21" rx="4.5" ry="3" fill="#fff" opacity=".7" />}
     </svg>
   );
 }
