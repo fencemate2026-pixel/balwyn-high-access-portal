@@ -40,6 +40,7 @@
   ],
   "exclude": [
     "node_modules",
+    "balwyn-high-access-portal",
     "archive",
     "supabase/functions",
     "worker",
