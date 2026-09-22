@@ -46,14 +46,14 @@ const statusConfig = {
     bgColor: "rgba(244, 166, 0, 0.08)",
     textColor: "#f4a600",
   },
-  issue: {
-    label: "Issue",
+  inactive: {
+    label: "Inactive",
     color: "issue",
     icon: AlertTriangle,
-    bgColor: "rgba(244, 166, 0, 0.08)",
-    textColor: "#f4a600",
+    bgColor: "rgba(107, 114, 128, 0.08)",
+    textColor: "#6b7280",
   },
-};
+} as const satisfies Record<GateVisualState, { label: string; color: "open" | "closed" | "issue"; icon: typeof Unlock; bgColor: string; textColor: string }>;
 
 export default function EnhancedGateCard({
   gate,
@@ -120,18 +120,16 @@ export default function EnhancedGateCard({
         </div>
 
         <div className="gate-info-row">
-          <span className="info-label">Location</span>
-          <span className="info-value">{gate.location || "Main Campus"}</span>
+          <span className="info-label">Area</span>
+          <span className="info-value">{gate.area}</span>
         </div>
 
-        {gate.schedule && (
-          <div className="gate-info-row">
-            <span className="info-label">Schedule</span>
-            <span className="info-value">{gate.schedule}</span>
-          </div>
-        )}
+        <div className="gate-info-row">
+          <span className="info-label">Type</span>
+          <span className="info-value">{gate.type}</span>
+        </div>
 
-        {status === "issue" && (
+        {(status === "unknown" || status === "inactive") && (
           <div className="gate-info-error">
             <AlertTriangle size={16} />
             <span>Controller communication lost. Check ACB-004 board.</span>
@@ -143,7 +141,7 @@ export default function EnhancedGateCard({
       {status !== "open" && (
         <button
           onClick={onRemoteOpen}
-          disabled={isLoading || status === "issue"}
+          disabled={isLoading || status === "unknown" || status === "inactive"}
           className="remote-open-button"
           aria-label={`Open ${gate.name}`}
         >
