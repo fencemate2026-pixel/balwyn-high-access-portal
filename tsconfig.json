@@ -45,6 +45,9 @@
     "worker",
     "build",
     "examples",
+    "fencemat-rebuild",
+    "rjl-live-gate",
+    "balwyn-high-access-portal",
     "vite.config.ts",
     "drizzle.config.ts"
   ]

@@ -23,7 +23,7 @@ export default function QaPreviewPage() {
     schedules: makeSchedules(),
     activity: [],
     automations: [],
-    settings: { positionMonitoring: true, faultAlerts: true, voiceAnnouncements: false, enabledModules: ["mobile"] as const },
+    settings: { positionMonitoring: true, faultAlerts: true, voiceAnnouncements: false, enabledModules: ["mobile" as const] },
     plan: { tier: "core" as const, name: "Gate Operations", advancedFeatures: false },
     user: { displayName: "Jarrod Alebakis", email: "info@jlcommercialgroup.com", role: "administrator" as const },
     serverTime: now,
