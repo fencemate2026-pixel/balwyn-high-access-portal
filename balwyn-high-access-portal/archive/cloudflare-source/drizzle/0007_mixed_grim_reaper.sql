@@ -1,1 +1,0 @@
-ALTER TABLE `portal_settings` ADD `equipment` text;

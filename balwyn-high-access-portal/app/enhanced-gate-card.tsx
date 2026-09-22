@@ -6,6 +6,7 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
 import { ChevronRight, AlertTriangle, Clock, Lock, Unlock } from "lucide-react";
 import type { Gate, GateVisualState } from "@/lib/portal-model";
 
@@ -65,9 +66,14 @@ export default function EnhancedGateCard({
   const config = statusConfig[status];
   const Icon = config.icon;
 
-  const timeAgo = lastUpdated
-    ? Math.round((Date.now() - lastUpdated.getTime()) / 1000)
-    : null;
+  const [timeAgo, setTimeAgo] = useState<number | null>(null);
+  useEffect(() => {
+    if (!lastUpdated) { setTimeAgo(null); return; }
+    const tick = () => setTimeAgo(Math.round((Date.now() - lastUpdated.getTime()) / 1000));
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [lastUpdated]);
 
   const formatTimeAgo = (seconds: number): string => {
     if (seconds < 60) return `${seconds}s ago`;

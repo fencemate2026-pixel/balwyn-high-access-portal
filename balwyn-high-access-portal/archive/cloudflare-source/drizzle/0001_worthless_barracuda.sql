@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX `idx_automation_rules_name` ON `automation_rules` (`name`);

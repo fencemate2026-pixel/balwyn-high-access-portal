@@ -1,1 +1,0 @@
-ALTER TABLE `command_queue` ADD `source` text DEFAULT 'manual' NOT NULL;
