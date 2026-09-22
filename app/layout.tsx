@@ -6,6 +6,7 @@ import "./hardware-look.css";
 import "./weather-strip.css";
 import "./desk-fix.css";
 import "./gate-preview.css";
+import "./login-fix.css";
 import EmergencyVoiceGuard from "./emergency-voice-guard";
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#0b2942" };

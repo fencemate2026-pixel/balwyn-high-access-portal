@@ -1,0 +1,40 @@
+/* Login: logo sits in the rail, no engineering chips */
+.magic-login-assurance {
+  display: none !important;
+}
+
+.magic-login-brand {
+  display: flex !important;
+  justify-content: center !important;
+  margin: 0 0 22px !important;
+}
+.magic-login-brand a {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  max-width: 260px !important;
+  margin: 0 auto !important;
+  padding: 14px 16px 12px !important;
+  border-radius: 16px !important;
+  background: #fff !important;
+  box-shadow: 0 8px 24px rgba(0, 24, 48, .16) !important;
+}
+.magic-login-brand .magic-brand-logo {
+  display: block !important;
+  width: 210px !important;
+  max-width: 100% !important;
+  height: 68px !important;
+  aspect-ratio: auto !important;
+  margin: 0 auto !important;
+}
+.magic-login-brand a > span {
+  display: block !important;
+  width: 100% !important;
+  text-align: center !important;
+  color: #365976 !important;
+  font-size: .78rem !important;
+  letter-spacing: .12em !important;
+}
