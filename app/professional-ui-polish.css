@@ -1,736 +1,261 @@
 /* ============================================================
-   PROFESSIONAL UI POLISH - MAGIC KEYS BALWYN PORTAL
-   Modern 3D Effects | Flashing LED Lights | Real-Life Feel
+   PROFESSIONAL UI POLISH — MAGIC KEYS BALWYN PORTAL
+   Targets the ACTUAL classes rendered by app/dashboard-client.tsx.
+   Loaded last in app/layout.tsx so these rules win the cascade
+   against the earlier !important layers (desk-fix.css,
+   hardware-look.css, site-polish.css, globals.css).
    ============================================================ */
 
-/* ============================================================
-   FOUNDATIONAL ANIMATIONS & EFFECTS
-   ============================================================ */
-
-@keyframes ledFlash {
-  0%, 100% { 
-    opacity: 1;
-    box-shadow: 0 0 20px currentColor, 0 0 40px currentColor, inset 0 0 10px rgba(255,255,255,0.3);
-  }
-  50% { 
-    opacity: 0.6;
-    box-shadow: 0 0 8px currentColor, 0 0 16px currentColor, inset 0 0 5px rgba(255,255,255,0.1);
-  }
+@keyframes mk-pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(35, 188, 125, 0.55); }
+  100% { box-shadow: 0 0 0 10px rgba(35, 188, 125, 0); }
 }
 
-@keyframes ledGlow {
-  0%, 100% { 
-    box-shadow: 0 0 20px currentColor, 0 0 40px currentColor, inset 0 0 10px rgba(255,255,255,0.3);
-  }
-  50% { 
-    box-shadow: 0 0 30px currentColor, 0 0 60px currentColor, inset 0 0 15px rgba(255,255,255,0.4);
-  }
+@keyframes mk-pulse-ring-alert {
+  0% { box-shadow: 0 0 0 0 rgba(255, 74, 60, 0.55); }
+  100% { box-shadow: 0 0 0 10px rgba(255, 74, 60, 0); }
 }
 
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes mk-card-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes slideInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* ------------------------------------------------------------
+   Sidebar — richer depth, glowing active nav item
+   ------------------------------------------------------------ */
+.control-sidebar [data-sidebar="sidebar"] {
+  background: linear-gradient(180deg, #0d2b42 0%, #0a2036 60%, #081a2c 100%) !important;
 }
 
-@keyframes pulse3d {
-  0%, 100% { 
-    transform: scale(1);
-  }
-  50% { 
-    transform: scale(1.05);
-  }
+.portal-nav-button {
+  border-radius: 10px !important;
+  transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease !important;
+}
+.portal-nav-button:hover {
+  transform: translateX(2px);
+}
+.portal-nav-button[data-active="true"] {
+  position: relative;
+  background: linear-gradient(90deg, rgba(59, 168, 214, 0.22), rgba(59, 168, 214, 0.05)) !important;
+  color: #ffffff !important;
+  box-shadow: inset 3px 0 0 0 #3ba8d6, 0 4px 14px rgba(10, 30, 48, 0.35) !important;
+}
+.portal-nav-button[data-active="true"] svg {
+  color: #6fd0ff !important;
+  filter: drop-shadow(0 0 4px rgba(111, 208, 255, 0.65));
 }
 
-/* ============================================================
-   DASHBOARD HEADER - PROFESSIONAL BRANDING
-   ============================================================ */
+.sidebar-system-card strong i {
+  animation: mk-pulse-ring 2s ease-out infinite;
+}
 
-.portal-dashboard-header {
-  background: linear-gradient(135deg, #0c2439 0%, #102c46 50%, #0f3a5a 100%);
-  border-bottom: 2px solid #1475a8;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 
-              inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  padding: 1.5rem 2rem;
-  display: flex;
+/* ------------------------------------------------------------
+   Top header — subtle elevation / glass feel
+   ------------------------------------------------------------ */
+.workspace-header {
+  backdrop-filter: saturate(160%) blur(6px);
+  box-shadow: 0 2px 14px rgba(16, 37, 54, 0.06) !important;
+}
+
+.connection-pill i {
+  animation: mk-pulse-ring 2s ease-out infinite;
+}
+
+.header-operator [data-slot="avatar"],
+.operator-footer [data-slot="avatar"] {
+  transition: transform 180ms ease;
+}
+.header-operator:hover [data-slot="avatar"] {
+  transform: scale(1.05);
+}
+
+/* ------------------------------------------------------------
+   Safety bar — deeper depth + glowing state dot + button lift
+   ------------------------------------------------------------ */
+.safety-bar {
+  background: linear-gradient(135deg, #102536 0%, #0c1e2e 100%) !important;
+  box-shadow: 0 10px 26px rgba(10, 25, 38, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+.safety-bar-status .status-dot {
+  animation: mk-pulse-ring 1.8s ease-out infinite;
+}
+.safety-bar-status.is-alert .status-dot {
+  animation: mk-pulse-ring-alert 1s ease-out infinite;
+}
+.safety-command {
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease !important;
+}
+.safety-command:hover:not(:disabled) {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.28) !important;
+}
+
+/* ------------------------------------------------------------
+   Health strip — glowing availability pulse, gentle depth
+   ------------------------------------------------------------ */
+.health-strip {
+  border-radius: 14px !important;
+  box-shadow: 0 6px 18px rgba(16, 36, 54, 0.08) !important;
+}
+.health-pulse {
+  position: relative;
+  display: inline-flex;
+}
+.health-pulse i {
+  width: 9px;
+  height: 9px;
+  display: block;
+  background: #23bc7d;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #23bc7d;
+  animation: mk-pulse-ring 2s ease-out infinite;
+}
+
+/* ------------------------------------------------------------
+   Summary cards — elevation, hover lift, coloured accent
+   ------------------------------------------------------------ */
+.summary-card {
+  position: relative;
+  border-radius: 14px !important;
+  overflow: hidden;
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 220ms ease !important;
+  animation: mk-card-rise 320ms ease both;
+}
+.summary-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, #3ba8d6, #23bc7d);
+  opacity: 0.9;
+}
+.summary-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 28px rgba(16, 36, 54, 0.14) !important;
+}
+.summary-card.primary-summary::before { background: linear-gradient(90deg, #3ba8d6, #1f7ec2); }
+.summary-card .open-number { text-shadow: 0 0 14px rgba(35, 188, 125, 0.35); }
+
+.mode-word {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  backdrop-filter: blur(10px);
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.85em;
+}
+.mode-word.normal,
+.mode-word:not(.lockdown):not(.fire) {
+  background: rgba(35, 188, 125, 0.12);
+  color: #0f8f5b;
+  box-shadow: 0 0 0 1px rgba(35, 188, 125, 0.25) inset;
+}
+.mode-word.lockdown,
+.mode-word.fire {
+  background: rgba(255, 74, 60, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 74, 60, 0.3) inset;
 }
 
-.portal-dashboard-header-brand {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
+/* ------------------------------------------------------------
+   Panels (Active areas / Schedule) — depth + hover feedback
+   ------------------------------------------------------------ */
+.panel {
+  border-radius: 14px !important;
+  transition: box-shadow 220ms ease !important;
+  animation: mk-card-rise 320ms ease both;
+}
+.panel:hover {
+  box-shadow: 0 10px 24px rgba(16, 36, 54, 0.1) !important;
+}
+.area-list button {
+  transition: background-color 160ms ease, transform 160ms ease !important;
+}
+.area-list button:hover {
+  background: rgba(59, 168, 214, 0.06) !important;
+  transform: translateX(2px);
+}
+.schedule-button {
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease !important;
+}
+.schedule-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(197, 40, 54, 0.25) !important;
 }
 
-.portal-dashboard-logo {
-  width: 48px;
-  height: 48px;
-  background: linear-gradient(135deg, #1475a8 0%, #0099ff 100%);
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  color: white;
-  font-size: 24px;
-  box-shadow: 0 4px 16px rgba(20, 117, 168, 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* ------------------------------------------------------------
+   Gate cards (access-grid / access-card) — 3D lift + status glow
+   ------------------------------------------------------------ */
+.access-grid .access-card {
+  position: relative;
+  border-radius: 16px !important;
+  overflow: hidden;
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 260ms ease !important;
+  animation: mk-card-rise 320ms ease both;
+}
+.access-grid .access-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  z-index: 2;
+  background: #8b939b;
+  opacity: 0.55;
+}
+.access-grid .access-card.is-active::before { background: #3ba8d6; opacity: 0.9; }
+.access-grid .access-card:hover {
+  transform: translateY(-5px) scale(1.01);
+  box-shadow: 0 20px 34px rgba(16, 36, 54, 0.18) !important;
+}
+.access-grid .access-card:focus-visible {
+  outline: 2px solid #3ba8d6;
+  outline-offset: 2px;
 }
 
-.portal-dashboard-title {
-  font-family: "Outfit", sans-serif;
-  font-size: 24px;
+.gate-activation-badge {
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.72rem;
   font-weight: 600;
-  color: #ffffff;
-  margin: 0;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+.gate-activation-badge.is-active {
+  background: rgba(35, 188, 125, 0.14);
+  color: #0f8f5b;
+  box-shadow: 0 0 0 1px rgba(35, 188, 125, 0.28) inset;
+}
+.gate-activation-badge.is-inactive {
+  background: rgba(107, 114, 128, 0.12);
+  color: #4b5563;
 }
 
-.portal-dashboard-subtitle {
-  font-size: 12px;
-  color: #99b8cc;
-  margin: 0.25rem 0 0 0;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-weight: 500;
-}
-
-.portal-dashboard-status {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.75rem 1.25rem;
-  background: rgba(20, 117, 168, 0.1);
-  border: 1px solid rgba(20, 117, 168, 0.2);
-  border-radius: 8px;
-  color: #63c8ff;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.status-dot {
+.position-label i {
+  display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #087a55;
-  box-shadow: 0 0 12px rgba(8, 122, 85, 0.6);
-  animation: ledGlow 2s ease-in-out infinite;
+  margin-right: 6px;
+  box-shadow: 0 0 6px currentColor;
 }
-
-/* ============================================================
-   SIDEBAR ENHANCEMENT - DARK PROFESSIONAL
-   ============================================================ */
-
-.portal-sidebar {
-  background: linear-gradient(180deg, #0c2439 0%, #091f42 100%);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.3);
-  position: relative;
-  overflow: hidden;
-}
-
-.portal-sidebar::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-}
-
-.portal-sidebar-header {
-  background: linear-gradient(135deg, rgba(197, 40, 54, 0.08) 0%, rgba(20, 117, 168, 0.04) 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  border-top: 1px solid rgba(255, 255, 255, 0.02);
-  padding: 1.5rem;
-  margin-bottom: 1rem;
-}
-
-.portal-sidebar-header strong {
-  color: #ffffff;
-  font-family: "Outfit", sans-serif;
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.portal-sidebar-item {
-  padding: 0.875rem 1.25rem;
-  margin: 0.5rem 0.75rem;
-  border-left: 3px solid transparent;
-  border-radius: 0 8px 8px 0;
-  color: #c5d9e8;
-  cursor: pointer;
-  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
-  font-weight: 500;
-  position: relative;
-  overflow: hidden;
-}
-
-.portal-sidebar-item::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 3px;
-  height: 100%;
-  background: linear-gradient(180deg, #1475a8, #63c8ff);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 200ms;
-}
-
-.portal-sidebar-item:hover {
-  background: rgba(20, 117, 168, 0.15);
-  color: #ffffff;
-  padding-left: 1.5rem;
-}
-
-.portal-sidebar-item:hover::before {
-  transform: scaleX(1);
-}
-
-.portal-sidebar-item.active {
-  background: rgba(20, 117, 168, 0.25);
-  color: #63c8ff;
-  border-left-color: #63c8ff;
-  font-weight: 600;
-  box-shadow: inset 0 0 20px rgba(20, 117, 168, 0.1);
-}
-
-/* ============================================================
-   MAIN CONTENT AREA
-   ============================================================ */
-
-.portal-main-content {
-  background: linear-gradient(180deg, #dbe5ec 0%, #e8eef5 60%, #dbe5ec 100%);
-  min-height: 100vh;
-  padding: 2rem;
-  position: relative;
-}
-
-.portal-main-content::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: 
-    radial-gradient(circle at 20% 50%, rgba(20, 117, 168, 0.03) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(197, 40, 54, 0.02) 0%, transparent 50%);
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* ============================================================
-   CARD COMPONENTS - MODERN 3D DEPTH
-   ============================================================ */
-
-.portal-card,
-.summary-card,
-.gate-card {
-  background: #ffffff;
-  border: 1px solid #c8d2d9;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 
-              0 4px 16px rgba(0, 0, 0, 0.06);
-  transition: all 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  position: relative;
-  overflow: hidden;
-  animation: slideInUp 0.6s ease-out;
-}
-
-.portal-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
-}
-
-.portal-card:hover,
-.summary-card:hover,
-.gate-card:hover {
-  border-color: #1475a8;
-  box-shadow: 0 8px 24px rgba(20, 117, 168, 0.12),
-              0 16px 48px rgba(20, 117, 168, 0.08),
-              inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  transform: translateY(-4px);
-}
-
-/* ============================================================
-   GATE STATUS CARDS - 3D REAL-LIFE EFFECTS
-   ============================================================ */
-
-.gate-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fbfd 100%);
-  border: 2px solid #dbe5ec;
-  padding: 1.75rem;
-  position: relative;
-}
-
-.gate-card::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, transparent, rgba(20, 117, 168, 0.3), transparent);
-  filter: blur(2px);
-}
-
-.gate-card-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-  font-family: "Outfit", sans-serif;
-  font-weight: 600;
-  font-size: 18px;
-  color: #102c46;
-}
-
-.gate-led-indicator {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 2px solid rgba(0, 0, 0, 0.1);
-  transition: all 200ms;
-  flex-shrink: 0;
-  position: relative;
-}
-
-/* LED STATES - FLASHING EFFECTS */
-
-.gate-led-indicator.open {
-  background: #087a55;
-  color: #087a55;
-  border-color: #056b48;
-  animation: ledGlow 2s ease-in-out infinite;
-  box-shadow: 0 0 24px rgba(8, 122, 85, 0.5),
-              0 0 48px rgba(8, 122, 85, 0.25),
-              inset 0 2px 6px rgba(255, 255, 255, 0.3),
-              inset 0 -2px 6px rgba(0, 0, 0, 0.2);
-}
-
-.gate-led-indicator.closed {
-  background: #c52836;
-  color: #c52836;
-  border-color: #a81f2a;
-  animation: ledFlash 1.2s ease-in-out infinite;
-  box-shadow: 0 0 24px rgba(197, 40, 54, 0.6),
-              0 0 48px rgba(197, 40, 54, 0.3),
-              inset 0 2px 6px rgba(255, 255, 255, 0.2),
-              inset 0 -2px 6px rgba(0, 0, 0, 0.3);
-}
-
-.gate-led-indicator.issue {
-  background: #f4a600;
-  color: #f4a600;
-  border-color: #d68a00;
-  animation: ledFlash 0.8s ease-in-out infinite;
-  box-shadow: 0 0 28px rgba(244, 166, 0, 0.6),
-              0 0 56px rgba(244, 166, 0, 0.3),
-              inset 0 2px 6px rgba(255, 255, 255, 0.3),
-              inset 0 -2px 6px rgba(0, 0, 0, 0.2);
-}
-
-.gate-card-status {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 14px;
-  font-weight: 500;
-  color: #586d7a;
-  margin-bottom: 1rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #e8eef5;
-}
-
-.gate-card-info {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.gate-card-stat {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  color: #2d3748;
-}
-
-.gate-card-stat-value {
-  font-weight: 600;
-  font-family: "Outfit", sans-serif;
-  color: #102c46;
-}
-
-/* ============================================================
-   STATUS PANELS - DARK THEME
-   ============================================================ */
-
-.status-panel {
-  background: linear-gradient(135deg, #102c46 0%, #0c2439 100%);
-  color: #e9f6ff;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15),
-              inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.status-panel-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.875rem;
-  border-radius: 8px;
-  transition: all 200ms;
-  font-weight: 500;
-  font-size: 14px;
-}
-
-.status-panel-item:hover {
-  background: rgba(20, 117, 168, 0.15);
-  transform: translateX(4px);
-}
-
-.status-indicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.status-indicator.active {
-  background: #087a55;
-  animation: ledGlow 2s ease-in-out infinite;
-  border-color: rgba(8, 122, 85, 0.4);
-}
-
-.status-indicator.inactive {
-  background: #c52836;
-  animation: ledFlash 1.2s ease-in-out infinite;
-  border-color: rgba(197, 40, 54, 0.4);
-}
-
-.status-indicator.warning {
-  background: #f4a600;
-  animation: ledFlash 0.8s ease-in-out infinite;
-  border-color: rgba(244, 166, 0, 0.4);
-}
-
-/* ============================================================
-   BUTTONS - MODERN INTERACTIVE
-   ============================================================ */
-
-.portal-button,
-button:not(.sidebar-toggle):not(.icon-only) {
-  font-family: "Inter", system-ui, sans-serif;
-  font-weight: 600;
-  font-size: 14px;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  position: relative;
-  overflow: hidden;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.portal-button::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), transparent);
-  opacity: 0;
-  transition: opacity 200ms;
-}
-
-.portal-button:hover::before {
-  opacity: 1;
-}
-
-.portal-button-primary {
-  background: linear-gradient(135deg, #c52836 0%, #a81f2a 100%);
-  color: #ffffff;
-  box-shadow: 0 4px 12px rgba(197, 40, 54, 0.25),
-              0 8px 24px rgba(197, 40, 54, 0.1);
-}
-
-.portal-button-primary:hover {
-  box-shadow: 0 8px 24px rgba(197, 40, 54, 0.35),
-              0 16px 48px rgba(197, 40, 54, 0.15);
-  transform: translateY(-2px);
-}
-
-.portal-button-primary:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(197, 40, 54, 0.15);
-}
-
-.portal-button-secondary {
-  background: linear-gradient(135deg, #e8eef5 0%, #dbe5ec 100%);
-  color: #102c46;
-  border: 1px solid #c8d2d9;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.portal-button-secondary:hover {
-  background: linear-gradient(135deg, #dbe5ec 0%, #c8d2d9 100%);
-  border-color: #1475a8;
-  box-shadow: 0 4px 16px rgba(20, 117, 168, 0.15);
-}
-
-.portal-button-text {
-  background: transparent;
-  color: #1475a8;
-  font-weight: 500;
-  box-shadow: none;
-}
-
-.portal-button-text:hover {
-  background: rgba(20, 117, 168, 0.08);
-}
-
-/* ============================================================
-   FORMS & INPUTS - MODERN STYLING
-   ============================================================ */
-
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="number"],
-input[type="search"],
-select,
-textarea {
-  background: #ffffff;
-  border: 1.5px solid #c8d2d9;
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  font-family: "Inter", system-ui, sans-serif;
-  font-size: 14px;
-  color: #2d3748;
-  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-  border-color: #1475a8;
-  background: #ffffff;
-  box-shadow: 0 0 0 4px rgba(20, 117, 168, 0.1),
-              inset 0 0 0 1px #1475a8;
-}
-
-input::placeholder {
-  color: #99b8cc;
-}
-
-input:disabled,
-select:disabled {
-  background: #eaf0f3;
-  color: #586d7a;
-  cursor: not-allowed;
-  border-color: #dbe5ec;
-}
-
-/* ============================================================
-   TYPOGRAPHY HIERARCHY
-   ============================================================ */
-
-h1 {
-  font-family: "Outfit", sans-serif;
-  font-size: 36px;
-  font-weight: 600;
-  color: #102c46;
-  margin: 0 0 0.5rem 0;
-  letter-spacing: -0.5px;
-}
-
-h2 {
-  font-family: "Outfit", sans-serif;
-  font-size: 28px;
-  font-weight: 600;
-  color: #102c46;
-  margin: 1.5rem 0 1rem 0;
-  letter-spacing: -0.3px;
-}
-
-h3 {
-  font-family: "Outfit", sans-serif;
-  font-size: 22px;
-  font-weight: 600;
-  color: #2d3748;
-  margin: 1rem 0 0.75rem 0;
-}
-
-h4 {
-  font-family: "Outfit", sans-serif;
-  font-size: 18px;
-  font-weight: 600;
-  color: #2d3748;
-  margin: 0.75rem 0 0.5rem 0;
-}
-
-p {
-  color: #586d7a;
-  line-height: 1.6;
-  margin: 0 0 1rem 0;
-}
-
-/* ============================================================
-   ALERTS & NOTIFICATIONS - COLOR CODED
-   ============================================================ */
-
-.alert {
-  padding: 1rem 1.25rem;
-  border-radius: 10px;
-  border-left: 4px solid;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  font-size: 14px;
-  font-weight: 500;
-  animation: slideInDown 0.4s ease-out;
-}
-
-.alert-success {
-  background: linear-gradient(135deg, #e8f5e9 0%, #d4edda 100%);
-  border-left-color: #087a55;
-  color: #08563b;
-  box-shadow: 0 4px 12px rgba(8, 122, 85, 0.1);
-}
-
-.alert-error {
-  background: linear-gradient(135deg, #fde8e8 0%, #f8d7da 100%);
-  border-left-color: #c52836;
-  color: #8a1a22;
-  box-shadow: 0 4px 12px rgba(197, 40, 54, 0.1);
-}
-
-.alert-warning {
-  background: linear-gradient(135deg, #fff8e1 0%, #fff3cd 100%);
-  border-left-color: #f4a600;
-  color: #7f6400;
-  box-shadow: 0 4px 12px rgba(244, 166, 0, 0.1);
-}
-
-.alert-info {
-  background: linear-gradient(135deg, #e1f5fe 0%, #d1ecf1 100%);
-  border-left-color: #1475a8;
-  color: #0d4fa3;
-  box-shadow: 0 4px 12px rgba(20, 117, 168, 0.1);
-}
-
-/* ============================================================
-   ACCESSIBILITY & RESPONSIVE
-   ============================================================ */
-
+.position-label.is-open { color: #0f8f5b; }
+.position-label.is-open i { background: currentColor; animation: mk-pulse-ring 2s ease-out infinite; }
+.position-label.is-closed { color: #c52836; }
+.position-label.is-closed i { background: currentColor; }
+.position-label.is-unknown { color: #b8860b; }
+.position-label.is-unknown i { background: currentColor; animation: mk-pulse-ring-alert 1.4s ease-out infinite; }
+
+/* ------------------------------------------------------------
+   Reduced motion — respect user preference
+   ------------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+  .sidebar-system-card strong i,
+  .connection-pill i,
+  .safety-bar-status .status-dot,
+  .health-pulse i,
+  .position-label.is-open i,
+  .position-label.is-unknown i,
+  .summary-card,
+  .panel,
+  .access-grid .access-card {
+    animation: none !important;
   }
-}
-
-@media (prefers-contrast: more) {
-  button, input, select {
-    border-width: 2px;
-  }
-  
-  .gate-led-indicator {
-    border-width: 3px;
-  }
-}
-
-@media (max-width: 768px) {
-  h1 { font-size: 28px; }
-  h2 { font-size: 22px; }
-  h3 { font-size: 18px; }
-  
-  .portal-dashboard-header {
-    padding: 1rem;
-    flex-direction: column;
-    gap: 1rem;
-  }
-  
-  .portal-dashboard-title {
-    font-size: 20px;
-  }
-  
-  .portal-button {
-    padding: 0.625rem 1rem;
-  }
-}
-
-/* ============================================================
-   3D DEPTH & PERSPECTIVE
-   ============================================================ */
-
-.portal-scene-container {
-  perspective: 1000px;
-  transform-style: preserve-3d;
-}
-
-.portal-card-3d {
-  transform: rotateX(0deg) rotateY(0deg);
-  transition: transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.portal-card-3d:hover {
-  transform: rotateX(2deg) rotateY(-3deg);
-}
-
-/* ============================================================
-   GRADIENT OVERLAYS & ATMOSPHERIC EFFECTS
-   ============================================================ */
-
-.atmospheric-glow {
-  position: relative;
-}
-
-.atmospheric-glow::before {
-  content: '';
-  position: absolute;
-  inset: -50%;
-  background: radial-gradient(circle at center, rgba(20, 117, 168, 0.1), transparent 70%);
-  opacity: 0;
-  transition: opacity 300ms;
-  pointer-events: none;
-}
-
-.atmospheric-glow:hover::before {
-  opacity: 1;
 }
