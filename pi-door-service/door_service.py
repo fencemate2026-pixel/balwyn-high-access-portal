@@ -149,6 +149,9 @@ class Config:
         valid_gates = set(range(1, len(pins) + 1))
         commissioned = parse_gate_list(os.environ.get("DOOR_COMMISSIONED_GATES", ""), valid_gates)
         origins = tuple(filter(None, (origin.strip() for origin in os.environ.get("DOOR_ALLOWED_ORIGINS", "").split(","))))
+        for origin in origins:
+            if origin.endswith("/") or "/" in origin.split("://", 1)[-1]:
+                raise ValueError("DOOR_ALLOWED_ORIGINS entries must be origins without trailing slash or path")
         return cls(
             pins=pins,
             pulse_ms=int(os.environ.get("DOOR_PULSE_MS", "500")),
@@ -418,6 +421,7 @@ class DoorController:
             Path(config.journal).parent.mkdir(parents=True, exist_ok=True)
             with self.database() as db:
                 db.execute("CREATE TABLE IF NOT EXISTS requests (id TEXT PRIMARY KEY, gate INTEGER NOT NULL, result TEXT)")
+                db.execute("CREATE TABLE IF NOT EXISTS mode_requests (id TEXT PRIMARY KEY, result TEXT)")
                 db.execute("CREATE TABLE IF NOT EXISTS audit (at REAL NOT NULL, event TEXT NOT NULL, details TEXT NOT NULL)")
             os.chmod(config.journal, 0o600)
         except BaseException:
@@ -482,13 +486,19 @@ class DoorController:
             with self.database() as db:
                 db.execute("UPDATE requests SET result = ? WHERE id = ?", (json.dumps([code, payload]), request_id))
 
-    def _pulse_job(self, gate: int, actor: Actor, source: str, correlation_id: str) -> tuple[int, dict[str, Any]]:
+    def _pulse_job(self, gate: int, actor: Actor, source: str, correlation_id: str, cancel_event: threading.Event) -> tuple[int, dict[str, Any]]:
         pin = self.config.pins[gate - 1]
         self.audit("pulse_requested", actor=actor.identity, role=actor.role.value, source=source, gateId=gate, correlationId=correlation_id)
         try:
+            if cancel_event.is_set():
+                raise RuntimeError("Cancelled before pulse")
             try:
                 self.outputs.write(pin, True)
-                time.sleep(self.config.pulse_ms / 1000)
+                deadline = time.monotonic() + (self.config.pulse_ms / 1000)
+                while time.monotonic() < deadline:
+                    if cancel_event.is_set():
+                        raise RuntimeError("Cancelled during pulse")
+                    time.sleep(min(0.05, max(0, deadline - time.monotonic())))
             finally:
                 self.outputs.write(pin, False)
             payload = {
@@ -516,7 +526,8 @@ class DoorController:
         try:
             gate = self.policy.normalize_gate(gate_raw)
         except ValueError as exc:
-            return 400, {"code": str(exc), "error": "Invalid gate ID"}
+            code = str(exc)
+            return (404 if code == "ERR_UNKNOWN_GATE" else 400), {"code": code, "error": "Invalid gate ID"}
         replay_status, replay_payload = self._reserve_request(gate, request_id)
         if replay_status is not None:
             self.audit("command_denied", actor=actor.identity, source=source, gateId=gate, correlationId=request_id, reasonCode=replay_payload.get("code", "ERR_REQUEST_CONFLICT"))
@@ -529,25 +540,63 @@ class DoorController:
             self.audit("command_denied", actor=actor.identity, source=source, gateId=gate, correlationId=request_id, reasonCode=reason)
             return (409 if reason in {"ERR_PULSE_IN_FLIGHT", "ERR_COOLDOWN"} else 503), payload
 
-        future = self.executor.submit(self._pulse_job, gate, actor, source, request_id)
+        cancel_event = threading.Event()
+        future = self.executor.submit(self._pulse_job, gate, actor, source, request_id, cancel_event)
         if future is None:
             self.policy.finish_pulse(gate)
             payload = {"code": "ERR_WORKER_SATURATED", "error": "Worker queue is saturated; command rejected"}
             self._store_result(request_id, 503, payload)
             self.audit("command_denied", actor=actor.identity, source=source, gateId=gate, correlationId=request_id, reasonCode="ERR_WORKER_SATURATED")
             return 503, payload
-        code, payload = future.result(timeout=max(2, self.config.pulse_ms / 1000 + 1))
+        try:
+            code, payload = future.result(timeout=max(2, self.config.pulse_ms / 1000 + 1))
+        except TimeoutError:
+            cancel_event.set()
+            future.cancel()
+            self.policy.mark_fault()
+            payload = {"code": "ERR_EXECUTION_TIMEOUT", "error": "Pulse execution timeout; outcome unknown"}
+            self._store_result(request_id, 503, payload)
+            self.audit("pulse_failed", actor=actor.identity, source=source, gateId=gate, correlationId=request_id, reasonCode="ERR_EXECUTION_TIMEOUT")
+            return 503, payload
+        except Exception:  # noqa: BLE001
+            cancel_event.set()
+            self.policy.mark_fault()
+            payload = {"code": "ERR_EXECUTION_FAILED", "error": "Pulse execution failed before completion"}
+            self._store_result(request_id, 503, payload)
+            self.audit("pulse_failed", actor=actor.identity, source=source, gateId=gate, correlationId=request_id, reasonCode="ERR_EXECUTION_FAILED")
+            return 503, payload
         self._store_result(request_id, code, payload)
         return code, payload
 
     def set_mode(self, actor: Actor, mode: str, confirm: bool, reason: str, correlation_id: str) -> tuple[int, dict[str, Any]]:
+        if canonical_uuid(correlation_id):
+            with self.db_lock:
+                with self.database() as db:
+                    existing = db.execute("SELECT result FROM mode_requests WHERE id = ?", (correlation_id,)).fetchone()
+                    if existing:
+                        if existing[0] is None:
+                            return 409, {"code": "ERR_REQUEST_CONFLICT", "error": "Request already reserved"}
+                        code, payload = json.loads(existing[0])
+                        return code, payload
+                    db.execute("INSERT INTO mode_requests (id, result) VALUES (?, ?)", (correlation_id, None))
         allowed, result = self.policy.set_mode(mode, actor, confirm, reason)
         if not allowed:
             self.audit("mode_change_denied", actor=actor.identity, source="ws", requestedMode=mode, reasonCode=result, correlationId=correlation_id)
-            return 403 if result == "ERR_FORBIDDEN" else 400, {"code": result, "error": "Mode change denied"}
+            code = 403 if result == "ERR_FORBIDDEN" else 400
+            payload = {"code": result, "error": "Mode change denied"}
+            if canonical_uuid(correlation_id):
+                with self.db_lock:
+                    with self.database() as db:
+                        db.execute("UPDATE mode_requests SET result = ? WHERE id = ?", (json.dumps([code, payload]), correlation_id))
+            return code, payload
         self.audit("mode_change_completed", actor=actor.identity, source="ws", requestedMode=mode, correlationId=correlation_id)
         self.telemetry.broadcast({"type": "mode", "mode": mode, "simulation": self.simulation})
-        return 200, {"code": "OK", "mode": mode}
+        payload = {"code": "OK", "mode": mode}
+        if canonical_uuid(correlation_id):
+            with self.db_lock:
+                with self.database() as db:
+                    db.execute("UPDATE mode_requests SET result = ? WHERE id = ?", (json.dumps([200, payload]), correlation_id))
+        return 200, payload
 
     def process_webhook(self, headers: Any, body: bytes, request_id: str) -> tuple[int, dict[str, Any]]:
         if not self.config.webhook_secret:
@@ -570,16 +619,6 @@ class DoorController:
         if not hmac.compare_digest(digest.encode(), signature.lower().encode()):
             return 401, {"code": "ERR_WEBHOOK_AUTH", "error": "Invalid webhook signature"}
 
-        replay_key = f"{timestamp}:{signature.lower()}"
-        with self.close_lock:
-            if replay_key in self.webhook_seen:
-                return 409, {"code": "ERR_WEBHOOK_REPLAY", "error": "Replay denied"}
-            self.webhook_seen[replay_key] = time.time()
-            cutoff = time.time() - self.config.webhook_max_skew_seconds
-            for key, seen_at in list(self.webhook_seen.items()):
-                if seen_at < cutoff:
-                    del self.webhook_seen[key]
-
         try:
             payload = json.loads(body)
         except json.JSONDecodeError:
@@ -597,17 +636,28 @@ class DoorController:
             gate = self.policy.normalize_gate(payload["gateId"])
         except ValueError as exc:
             return 400, {"code": str(exc), "error": "Invalid gate"}
+
+        replay_key = f"{timestamp}:{signature.lower()}"
+        with self.close_lock:
+            if replay_key in self.webhook_seen:
+                return 409, {"code": "ERR_WEBHOOK_REPLAY", "error": "Replay denied"}
+            self.webhook_seen[replay_key] = time.time()
+            cutoff = time.time() - self.config.webhook_max_skew_seconds
+            for key, seen_at in list(self.webhook_seen.items()):
+                if seen_at < cutoff:
+                    del self.webhook_seen[key]
+
         now = time.time()
         recent = self.webhook_last_gate_fire.get(gate, 0)
         if now - recent < self.config.webhook_debounce_seconds:
             return 429, {"code": "ERR_WEBHOOK_DEBOUNCE", "error": "Repeated trigger blocked"}
-        self.webhook_last_gate_fire[gate] = now
 
         actor = Actor(Role.OPERATOR, "service:compass-webhook", "webhook")
         pulse_code, pulse_payload = self.request_pulse(gate, actor, source="webhook", request_id=request_id)
         if pulse_code >= 400:
             self.audit("webhook_denied", actor=actor.identity, source="webhook", gateId=gate, correlationId=request_id, reasonCode=pulse_payload.get("code"))
-            return pulse_code, {"code": pulse_payload.get("code", "ERR_DENIED"), "result": "denied"}
+            return pulse_code, {"code": pulse_payload.get("code", "ERR_DENIED"), "error": pulse_payload.get("error", "Webhook denied"), "result": "denied"}
+        self.webhook_last_gate_fire[gate] = time.time()
         self.audit("webhook_processed", actor=actor.identity, source="webhook", gateId=gate, correlationId=request_id, result="accepted")
         return 202, {"code": "OK", "result": "accepted", "requestId": request_id}
 
@@ -691,7 +741,7 @@ def make_handler(controller: DoorController):
         def _origin_allowed(self) -> bool:
             if not controller.config.allowed_origins:
                 return True
-            origin = self.headers.get("Origin", "")
+            origin = self.headers.get("Origin", "").rstrip("/")
             return origin in controller.config.allowed_origins
 
         def do_GET(self):
@@ -714,6 +764,12 @@ def make_handler(controller: DoorController):
             key = self.headers.get("Sec-WebSocket-Key", "")
             if not key:
                 return self.json_response(400, {"code": "ERR_WS_KEY_REQUIRED", "error": "Missing websocket key"})
+            try:
+                decoded_key = base64.b64decode(key, validate=True)
+            except Exception:  # noqa: BLE001
+                return self.json_response(400, {"code": "ERR_WS_KEY_INVALID", "error": "Malformed websocket key"})
+            if len(decoded_key) != 16:
+                return self.json_response(400, {"code": "ERR_WS_KEY_INVALID", "error": "Malformed websocket key"})
 
             accept = base64.b64encode(hashlib.sha1((key + WEBSOCKET_GUID).encode()).digest()).decode()
             self.send_response(101, "Switching Protocols")
@@ -783,7 +839,10 @@ def make_handler(controller: DoorController):
                 return self.json_response(status, payload)
 
             if self.path == "/api/v1/compass-webhook":
-                content_length = int(self.headers.get("Content-Length", "0") or "0")
+                try:
+                    content_length = int(self.headers.get("Content-Length", "0") or "0")
+                except ValueError:
+                    return self.json_response(400, {"code": "ERR_INVALID_LENGTH", "error": "Invalid content length"})
                 if content_length > controller.config.max_body_bytes:
                     return self.json_response(413, {"code": "ERR_BODY_TOO_LARGE", "error": "Payload too large"})
                 body = self.rfile.read(content_length)
@@ -802,8 +861,12 @@ def make_handler(controller: DoorController):
                 body = self.rfile.read(body_size)
                 try:
                     payload = json.loads(body)
-                    controller.policy.update_heartbeat(payload.get("gateId"), payload.get("healthy") is True)
-                except Exception:
+                    gate_id = payload.get("gateId")
+                    healthy = payload.get("healthy")
+                    if healthy not in {True, False}:
+                        raise ValueError("healthy must be boolean")
+                    controller.policy.update_heartbeat(gate_id, healthy is True)
+                except (json.JSONDecodeError, TypeError, ValueError, KeyError):
                     return self.json_response(400, {"code": "ERR_INVALID_SCHEMA", "error": "Invalid heartbeat payload"})
                 return self.json_response(202, {"code": "OK"})
 

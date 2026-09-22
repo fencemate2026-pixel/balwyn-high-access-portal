@@ -34,6 +34,16 @@ Roles come from verified bearer tokens configured in environment variables. Role
 - `POST /api/v1/compass-webhook`: signed webhook path (HMAC SHA-256, timestamp and replay/debounce checks).
 - `GET /ws/telemetry`: websocket telemetry channel with authenticated command enforcement.
 
+### WebSocket command contract
+
+Authenticate using an HTTP bearer token header (`Authorization` with a configured viewer/operator/administrator token). If `DOOR_ALLOW_ANON_TELEMETRY=true`, anonymous clients may connect but are telemetry-only and cannot issue commands.
+When `DOOR_ALLOWED_ORIGINS` is configured, websocket `Origin` must exactly match one configured origin (scheme + host + optional port, no path).
+
+Accepted websocket command payloads:
+
+- `{"command":"PULSE_GATE","requestId":"<uuid>","gateId":<int|string>,"maintenancePath":true|false}` (operator+)
+- `{"command":"SET_MODE","requestId":"<uuid>","mode":"NORMAL|LOCKDOWN|EVACUATION|MAINTENANCE|DEMO","confirm":true,"reason":"..."}` (administrator; confirmation + reason required for emergency/maintenance modes)
+
 ## Webhook authentication
 
 Headers:

@@ -80,7 +80,7 @@ class DoorServiceTests(unittest.TestCase):
         else:
             merged["Idempotency-Key"] = str(uuid.uuid4())
         if token:
-            merged["Authorization"] = f"******"
+            merged["Authorization"] = "Bearer " + token
         conn.request(method, path, body=body, headers=merged)
         response = conn.getresponse()
         raw = response.read()
@@ -225,6 +225,12 @@ class DoorServiceTests(unittest.TestCase):
         denied = self.request(path="/api/v1/compass-webhook", token=None, body=body, headers=third_headers)
         self.assertEqual(denied[0], 503)
 
+        invalid_len_headers = dict(self.webhook_headers(body))
+        invalid_len_headers["Content-Length"] = "oops"
+        invalid_len = self.request(path="/api/v1/compass-webhook", token=None, body=body, headers=invalid_len_headers)
+        self.assertEqual(invalid_len[0], 400)
+        self.assertEqual(invalid_len[1]["code"], "ERR_INVALID_LENGTH")
+
     def test_audit_records_without_secrets(self):
         actor = service.Actor(service.Role.OPERATOR, "operator", "test")
         with self.assertLogs(service.LOG, level="INFO") as logs:
@@ -232,6 +238,23 @@ class DoorServiceTests(unittest.TestCase):
         text = " ".join(logs.output)
         self.assertNotIn(TOKEN_OPERATOR, text)
         self.assertNotIn(WEBHOOK_SECRET, text)
+        admin = service.Actor(service.Role.ADMIN, "admin", "ws")
+        with self.assertLogs(service.LOG, level="INFO") as logs:
+            self.controller.set_mode(admin, "LOCKDOWN", True, "incident", str(uuid.uuid4()))
+        mode_text = " ".join(logs.output)
+        self.assertNotIn(TOKEN_ADMIN, mode_text)
+        self.assertNotIn(WEBHOOK_SECRET, mode_text)
+
+    def test_mode_change_requests_are_idempotent_by_request_id(self):
+        admin = service.Actor(service.Role.ADMIN, "admin", "ws")
+        request_id = str(uuid.uuid4())
+        first = self.controller.set_mode(admin, "LOCKDOWN", True, "incident", request_id)
+        second = self.controller.set_mode(admin, "LOCKDOWN", True, "incident", request_id)
+        self.assertEqual(first, second)
+        restarted = service.DoorController(self.config, RecordingOutputs(self.config))
+        replayed = restarted.set_mode(admin, "LOCKDOWN", True, "incident", request_id)
+        self.assertEqual(first, replayed)
+        restarted.close()
 
     def test_health_output_distinguishes_simulation_from_hardware_mode(self):
         status = self.request(path="/health", method="GET")[1]
