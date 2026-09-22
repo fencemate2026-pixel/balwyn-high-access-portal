@@ -1,0 +1,4 @@
+# Legacy host -> current portal. The trailing ! forces the rule, so it also
+# takes precedence over /.netlify/functions/* and the old remote-open endpoint
+# stops answering. Drop the ! if that endpoint must keep working.
+/*    https://magickeys-balwyn-portal.com/:splat    301!
