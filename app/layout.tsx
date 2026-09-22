@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./fonts.css";
 import "./gate-led.css";
 import "./site-polish.css";
 import "./hardware-look.css";
