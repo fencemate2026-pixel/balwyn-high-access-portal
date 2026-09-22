@@ -97,6 +97,7 @@ test("renders the public landing page with operational overview content", async 
 test("renders dashboard gate cards with portal sync and heartbeat context", async () => {
   const { default: DashboardClient } = await vite.ssrLoadModule("/app/dashboard-client.tsx");
   const { ACTIVE_GATES, makeSchedules } = await vite.ssrLoadModule("/lib/portal-model.ts");
+  const now = new Date(Date.now() + 60_000).toISOString();
   const snapshot = {
     systemMode: "normal",
     gates: ACTIVE_GATES.map((gate, index) => ({
@@ -105,7 +106,7 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
       reportedPosition: index === 0 ? "open" : "closed",
       controllerState: "online",
       safetyOk: true,
-      lastSeen: "2026-09-21T13:58:00.000Z",
+      lastSeen: now,
       lastCommandState: "acknowledged",
       lastCommandId: index + 1,
       lastError: null,
@@ -118,14 +119,18 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
     settings: { positionMonitoring: true, faultAlerts: true, voiceAnnouncements: false, enabledModules: ["mobile"] },
     plan: { tier: "core", name: "Gate Operations", advancedFeatures: false },
     user: { displayName: "Test Operator", email: "operator@example.test", role: "administrator" },
-    serverTime: "2026-09-21T14:00:00.000Z",
+    serverTime: now,
   };
   const html = renderToStaticMarkup(React.createElement(DashboardClient, { user: snapshot.user, initialData: snapshot }));
 
   assert.match(html, /Portal sync/);
   assert.match(html, /Timezone · Australia\/Melbourne/);
-  assert.match(html, /Heartbeat 2 minutes ago/);
+  assert.match(html, /Heartbeat just now/);
   assert.match(html, /Safety healthy/);
+  assert.match(html, /Heartbeat coverage · 2\/2 active controllers/);
+  assert.match(html, /class=\"tile gate-tile access-icon gate-state-run is-open single-swing\"/);
+  assert.match(html, /class=\"tile gate-tile access-icon gate-state-stop is-closed single-swing\"/);
+  assert.doesNotMatch(html, /single-gate-image|double-gate-image/);
 });
 
 test("renders gate tile states with accessible labels", async () => {
@@ -143,6 +148,7 @@ test("renders gate tile states with accessible labels", async () => {
 
   const open = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "open" }));
   assert.match(open, /gate-state-run/);
+  assert.match(open, /<span class="stage"><svg/);
   assert.match(open, /aria-label="Office Entry 1 Boom Gate: Operating, Confirmed open"/);
 
   const closed = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "closed" }));
