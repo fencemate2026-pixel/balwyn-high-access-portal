@@ -132,3 +132,23 @@ Run from the repository root. Tests exercise the HTTP routes and authentication,
 four-channel isolation, bounds/polarity, mock operation, concurrent requests,
 GPIO failure cleanup, shutdown, durable duplicate protection and log redaction.
 They use mock outputs and cannot certify field wiring or real gate movement.
+
+## Hardened GPIO adapter prototype
+
+`gpio_adapter.py` provides a stricter adapter layer for command validation,
+role checks, webhook hardening and interlock policy before any relay pulse is
+queued. Safety defaults are:
+
+- simulation/demo runtime unless hardware is explicitly enabled
+- telemetry-only anonymous websocket connections; command channels require
+  authenticated `viewer`, `operator` or `administrator` roles
+- only `NORMAL`, `LOCKDOWN`, `EVACUATION`, `MAINTENANCE`, and `DEMO` modes
+- explicit administrator confirmation for emergency mode changes
+- lockdown and maintenance interlocks blocking unsafe automation paths
+- bounded cooldowns and worker-based pulse execution to prevent overlapping
+  relay activation
+- structured health output and audit entries for accepted and denied events
+
+The adapter keeps active-low/active-high behavior explicit in configuration and
+always de-energises outputs on startup/shutdown/fault handling. It is still not
+a replacement for certified local safety circuits or onsite commissioning.
