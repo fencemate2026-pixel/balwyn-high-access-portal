@@ -1,77 +1,57 @@
+:root{
+  --tile:#3d444e; --tile-hi:#4a525d; --line:#d4dbe4;
+}
 .access-grid{
   display:grid !important;
-  grid-template-columns:repeat(auto-fill,minmax(240px,1fr)) !important;
+  grid-template-columns:repeat(auto-fill,minmax(250px,1fr)) !important;
   gap:16px !important;
-  align-items:stretch !important;
 }
-.access-grid .access-card{
-  display:grid !important;
-  grid-template-rows:64px 36px 200px auto !important;
-  height:100% !important;
-}
-.access-card .access-card-heading{
-  min-height:64px !important;
-  max-height:64px !important;
-  overflow:hidden !important;
-  padding:12px 14px 0 !important;
-}
-.access-card-heading strong,
-.access-card-heading small{
+.gate-tile, .access-card .gate-tile{
   display:block !important;
+  background:#fff !important;
   overflow:hidden !important;
-  text-overflow:ellipsis !important;
-  white-space:nowrap !important;
-}
-.access-card-meta{
-  display:flex !important;
-  flex-wrap:nowrap !important;
-  gap:6px !important;
-  min-height:36px !important;
-  max-height:36px !important;
-  overflow:hidden !important;
-  padding:0 14px !important;
 }
 .gate-tile .stage{
   display:block !important;
   position:relative !important;
+  aspect-ratio:1/1 !important;
+  width:100% !important;
+  background:radial-gradient(120% 90% at 30% 15%,var(--tile-hi) 0%,var(--tile) 55%,#333941 100%) !important;
+}
+.gate-tile .stage svg{
+  position:absolute !important;
+  inset:0 !important;
   width:100% !important;
   height:100% !important;
-  overflow:hidden !important;
-  background:#3a414a !important;
 }
-.gate-tile.swing .stage,
-.gate-tile.double-swing .stage{
-  background:#eef1f4 !important;
-}
-.gate-tile .stage img{
-  width:100% !important;
-  height:100% !important;
-  object-fit:cover !important;
-  object-position:center !important;
-  display:block !important;
-}
-.access-card .gate-tile,
-.access-card .access-icon{
+.access-card .gate-tile{
   width:calc(100% - 24px) !important;
   height:200px !important;
   margin:0 12px !important;
   border-radius:14px !important;
-  overflow:hidden !important;
 }
-.area-icon .gate-tile,
-.area-icon.gate-tile{
+.access-card .gate-tile .stage{
+  height:200px !important;
+  aspect-ratio:auto !important;
+  border-radius:14px !important;
+}
+.area-icon .gate-tile .stage{
   width:68px !important;
   height:68px !important;
-}
-.area-icon .stage{
-  width:68px !important;
-  height:68px !important;
+  aspect-ratio:auto !important;
   border-radius:12px !important;
 }
-.access-card .double-gate-visual,
-.access-card .single-gate-visual,
-.access-card .boom-gate-visual,
-.access-card .double-gate-image,
-.access-card .single-gate-image{
-  display:none !important;
+.gate-tile.gate-state-issue .blink{animation:blink 1s steps(1,end) infinite}
+.gate-tile.gate-state-run.is-moving .blink{animation:blink 1.2s steps(1,end) infinite}
+@keyframes blink{0%,55%{opacity:1}56%,100%{opacity:.08}}
+.arm{transform-box:view-box;transform-origin:150px 104px;transition:transform 1.6s cubic-bezier(.45,.05,.25,1)}
+.gate-tile.gate-state-run .arm,.run .arm{transform:rotate(80deg)}
+.gate-tile.gate-state-run.is-moving .arm{animation:boom 5s ease-in-out infinite}
+@keyframes boom{0%,15%{transform:rotate(0)}45%,65%{transform:rotate(80deg)}95%,100%{transform:rotate(0)}}
+.leaf{transform-box:view-box;transform-origin:63px 106px;transition:transform 1.6s cubic-bezier(.45,.05,.25,1)}
+.gate-tile.gate-state-run .leaf,.run .leaf{transform:skewY(-10deg) scaleX(.32)}
+.gate-tile.gate-state-run.is-moving .leaf{animation:swing 5s ease-in-out infinite}
+@keyframes swing{0%,15%{transform:none}45%,65%{transform:skewY(-10deg) scaleX(.32)}95%,100%{transform:none}}
+@media (prefers-reduced-motion:reduce){
+  .blink,.arm,.leaf{animation:none!important;transition:none!important}
 }
