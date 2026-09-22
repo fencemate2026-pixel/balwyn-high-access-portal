@@ -10,54 +10,58 @@
   gap:16px !important;
 }
 
-.access-card.tile,
-.tile{
+.access-card .gate-tile,
+.gate-tile{
+  display:block !important;
   background:#fff !important;
   border:1px solid var(--line) !important;
   border-radius:18px !important;
   overflow:hidden !important;
   box-shadow:0 1px 0 rgba(255,255,255,.8) inset,0 10px 24px -14px rgba(15,27,45,.35) !important;
+  line-height:0 !important;
   padding:0 !important;
 }
 .access-grid .access-card{
   display:flex !important;
   flex-direction:column !important;
 }
-.stage{
+.gate-tile .stage{
+  display:block !important;
   position:relative !important;
   aspect-ratio:1/1 !important;
   width:100% !important;
   background:radial-gradient(120% 90% at 30% 15%,var(--tile-hi) 0%,var(--tile) 55%,#333941 100%) !important;
 }
-.stage svg{
+.gate-tile .stage svg{
   position:absolute !important;
   inset:0 !important;
   width:100% !important;
   height:100% !important;
 }
 
-.stop  {--led:#ff3b2f;--led-hi:#ffd0c8;--led-lo:#8c0d05;--glow:rgba(255,59,47,.85)}
-.run   {--led:#2ee05a;--led-hi:#d4ffe0;--led-lo:#077a27;--glow:rgba(46,224,90,.85)}
-.issue {--led:#ffab1a;--led-hi:#fff0cc;--led-lo:#9a5800;--glow:rgba(255,171,26,.9)}
-.stop  .pill{background:#fde8e6;color:#b3190f}
-.run   .pill{background:#e3f8ea;color:#0b7a2f}
-.issue .pill{background:#fff2d9;color:#8a5200}
+.gate-tile.gate-state-stop  {--led:#ff3b2f;--led-hi:#ffd0c8;--led-lo:#8c0d05;--glow:rgba(255,59,47,.85)}
+.gate-tile.gate-state-run   {--led:#2ee05a;--led-hi:#d4ffe0;--led-lo:#077a27;--glow:rgba(46,224,90,.85)}
+.gate-tile.gate-state-issue {--led:#ffab1a;--led-hi:#fff0cc;--led-lo:#9a5800;--glow:rgba(255,171,26,.9)}
+.gate-tile.gate-state-stop  .pill{background:#fde8e6;color:#b3190f}
+.gate-tile.gate-state-run   .pill{background:#e3f8ea;color:#0b7a2f}
+.gate-tile.gate-state-issue .pill{background:#fff2d9;color:#8a5200}
 
-.issue .blink{animation:blink 1s steps(1,end) infinite}
-.run.moving .blink{animation:blink 1.2s steps(1,end) infinite}
+.gate-tile.gate-state-issue .blink{animation:blink 1s steps(1,end) infinite}
+.gate-tile.gate-state-run.is-moving .blink{animation:blink 1.2s steps(1,end) infinite}
 @keyframes blink{0%,55%{opacity:1}56%,100%{opacity:.08}}
 
 .arm{transform-box:view-box;transform-origin:150px 104px;transition:transform 1.6s cubic-bezier(.45,.05,.25,1)}
-.run .arm{transform:rotate(80deg)}
-.run.moving .arm{animation:boom 5s ease-in-out infinite}
+.gate-tile.gate-state-run .arm{transform:rotate(80deg)}
+.gate-tile.gate-state-run.is-moving .arm{animation:boom 5s ease-in-out infinite}
 @keyframes boom{0%,15%{transform:rotate(0)}45%,65%{transform:rotate(80deg)}95%,100%{transform:rotate(0)}}
 
 .leaf{transform-box:view-box;transform-origin:63px 106px;transition:transform 1.6s cubic-bezier(.45,.05,.25,1)}
-.run .leaf{transform:skewY(-10deg) scaleX(.32)}
-.run.moving .leaf{animation:swing 5s ease-in-out infinite}
+.gate-tile.gate-state-run .leaf{transform:skewY(-10deg) scaleX(.32)}
+.gate-tile.gate-state-run.is-moving .leaf{animation:swing 5s ease-in-out infinite}
 @keyframes swing{0%,15%{transform:none}45%,65%{transform:skewY(-10deg) scaleX(.32)}95%,100%{transform:none}}
 
-.area-icon .stage{
+.area-icon .gate-tile .stage,
+.area-icon.gate-tile .stage{
   width:68px !important;
   height:68px !important;
   aspect-ratio:auto !important;

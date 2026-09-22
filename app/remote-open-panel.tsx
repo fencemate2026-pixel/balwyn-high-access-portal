@@ -8,6 +8,10 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { loadRemoteOpenConfig, requestRemoteOpen, type RemoteOpenConfig } from "@/lib/remote-open-client";
 
 export default function RemoteOpenPanel({ endpoint, gateId, allowed = true, demo = false }: { endpoint: string; gateId: string; allowed?: boolean; demo?: boolean }) {
+  return <RemoteOpenPanelContent key={gateId} endpoint={endpoint} gateId={gateId} allowed={allowed} demo={demo} />;
+}
+
+function RemoteOpenPanelContent({ endpoint, gateId, allowed = true, demo = false }: { endpoint: string; gateId: string; allowed?: boolean; demo?: boolean }) {
   const [config, setConfig] = useState<RemoteOpenConfig | null>(null);
   const [operatorToken, setOperatorToken] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -19,7 +23,6 @@ export default function RemoteOpenPanel({ endpoint, gateId, allowed = true, demo
     loadRemoteOpenConfig(endpoint).then((value) => { if (active) setConfig(value); }).catch(() => { if (active) setMessage("Remote open unavailable. Contact the administrator."); });
     return () => { active = false; };
   }, [endpoint]);
-  useEffect(() => { setMessage(""); setConfirm(false); setOperatorToken(""); }, [gateId]);
   if (config?.configured === false || (!config && !message)) return null;
   const door = config?.gateMap?.[gateId];
 
