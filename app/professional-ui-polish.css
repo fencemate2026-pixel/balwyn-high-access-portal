@@ -260,6 +260,252 @@
   }
 }
 
+/* Reference dashboard composition: compact operations console. */
+.portal-workspace::after {
+  display: none !important;
+}
+
+.workspace-header {
+  min-height: 38px !important;
+  padding: 4px 12px !important;
+}
+
+.header-commercial-mark {
+  width: 76px !important;
+  height: 20px !important;
+}
+
+.workspace-site-lockup strong {
+  font-size: .68rem !important;
+}
+
+.workspace-site-lockup small {
+  font-size: .5rem !important;
+}
+
+.header-context-pill,
+.header-system-health,
+.connection-pill {
+  min-height: 22px !important;
+  padding: 0 7px !important;
+  font-size: .5rem !important;
+}
+
+.header-operator [data-slot="avatar"] {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.safety-bar {
+  top: 38px !important;
+  min-height: 106px !important;
+  grid-template-columns: 145px minmax(360px, 1fr) 180px minmax(360px, 1.1fr) !important;
+  padding: 9px 12px !important;
+}
+
+.safety-command,
+button.safety-command {
+  min-height: 56px !important;
+}
+
+.workspace-content {
+  max-width: 100% !important;
+  padding: 10px 14px 28px !important;
+}
+
+.dashboard-title-row,
+.desk-service-row {
+  display: none !important;
+}
+
+.health-strip {
+  margin-bottom: 10px !important;
+  min-height: 68px !important;
+}
+
+.dashboard-panels {
+  margin-top: 0 !important;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, .82fr) !important;
+  gap: 12px !important;
+}
+
+.dashboard-panels .panel {
+  min-height: 284px !important;
+  padding: 16px !important;
+}
+
+.area-list {
+  margin-top: 10px !important;
+}
+
+.area-list button {
+  min-height: 105px !important;
+  grid-template-columns: 58px minmax(165px, .65fr) minmax(390px, 1.6fr) 16px !important;
+  gap: 10px !important;
+  padding: 8px 3px !important;
+}
+
+.area-icon,
+.area-icon .gate-tile,
+.area-icon .access-icon,
+.area-icon .gate-tile .stage {
+  width: 54px !important;
+  height: 54px !important;
+}
+
+.area-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.area-copy .area-state {
+  min-width: 0;
+  text-align: left;
+}
+
+.area-telemetry {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(76px, 1fr));
+  gap: 6px;
+  align-items: end;
+}
+
+.telemetry-gauge {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+.telemetry-gauge-label {
+  color: #687a86;
+  font-size: .43rem;
+  letter-spacing: .08em;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.telemetry-gauge-dial {
+  width: 76px;
+  height: 40px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 76px 76px 0 0;
+  background: conic-gradient(from 270deg at 50% 100%, #92989b 0 24%, #86be00 24% 44%, #92989b 44% 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .9);
+}
+
+.telemetry-gauge-dial::after {
+  content: "";
+  position: absolute;
+  inset: 11px 11px 0;
+  border-radius: 62px 62px 0 0;
+  background: #fff;
+}
+
+.telemetry-gauge-dial i {
+  width: 2px;
+  height: 30px;
+  position: absolute;
+  left: calc(50% - 1px);
+  bottom: 0;
+  z-index: 2;
+  transform-origin: 50% 100%;
+  background: #505960;
+}
+
+.telemetry-gauge-dial b {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2px;
+  z-index: 3;
+  color: #1b303f;
+  font-size: .56rem;
+  text-align: center;
+}
+
+.telemetry-gauge small {
+  color: #087a55;
+  font-size: .42rem;
+  text-transform: uppercase;
+}
+
+.schedule-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin: 16px 0 12px;
+}
+
+.schedule-week-grid span {
+  min-height: 100px;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 9px;
+  padding: 8px 2px;
+  border-right: 1px solid #edf0f2;
+}
+
+.schedule-week-grid b {
+  color: #1c3447;
+  font-size: .58rem;
+}
+
+.schedule-week-grid i {
+  width: 100%;
+  height: 38px;
+  border-top: 3px solid #c9d5db;
+  background: linear-gradient(180deg, #f6f8f9, #fff);
+}
+
+.schedule-week-grid small {
+  color: #7b8b95;
+  font-size: .46rem;
+  text-align: center;
+}
+
+.next-schedule-panel .schedule-highlight {
+  margin: 4px 0 12px !important;
+  padding: 11px !important;
+}
+
+.next-schedule-panel .schedule-highlight strong {
+  font-size: .92rem !important;
+}
+
+.next-schedule-panel .schedule-highlight small {
+  font-size: .52rem !important;
+}
+
+.quick-gates-section {
+  margin-top: 18px !important;
+}
+
+@media (max-width: 1120px) {
+  .area-list button {
+    grid-template-columns: 58px minmax(140px, .7fr) minmax(300px, 1.3fr) 16px !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .dashboard-panels {
+    grid-template-columns: 1fr !important;
+  }
+
+  .area-list button {
+    grid-template-columns: 58px minmax(0, 1fr) 16px !important;
+  }
+
+  .area-telemetry {
+    grid-column: 2 / 4;
+  }
+}
+
 /* ------------------------------------------------------------
    2026 operations-console composition
    ------------------------------------------------------------ */

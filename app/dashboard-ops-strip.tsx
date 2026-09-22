@@ -124,13 +124,16 @@ export default function DashboardOpsStrip({ variant = "dashboard" }: { variant?:
   }, [days, variant]);
 
   const max = Math.max(1, ...counts);
+  const forecastDays: WeatherDay[] = weather?.length
+    ? weather
+    : days.map((day) => ({ date: day.date, label: day.label, icon: "cloud", max: null, min: null }));
 
   return (
     <>
       {variant === "weather-panel" && weather && <WeatherPanel days={weather} />}
       {(variant === "dashboard" || variant === "weather") && (
         <div id="balwyn-forecast" className="balwyn-forecast" aria-label="Balwyn 7 day forecast">
-          {(weather ?? []).slice(0, 7).map((day) => (
+          {forecastDays.slice(0, 7).map((day) => (
             <span key={day.date} className="forecast-day">
               <small>{new Intl.DateTimeFormat("en-AU", { weekday: "short", timeZone: "Australia/Melbourne" }).format(new Date(`${day.date}T12:00:00+10:00`))}</small>
               <WeatherIcon kind={day.icon || "cloud"} />
