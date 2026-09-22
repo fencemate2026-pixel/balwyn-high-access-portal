@@ -1,4 +1,0 @@
-project_id = "balwyn-high-access-portal"
-
-[functions.balwyn-portal-db]
-verify_jwt = true

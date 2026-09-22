@@ -53,3 +53,9 @@ __pycache__/
 /supabase/.temp/
 *.env
 *.env
+
+# Nested/unrelated local project folders that must never be tracked by this
+# repository (they caused duplicate-path TypeScript build failures on Render
+# and in CI when accidentally committed here in the past).
+/fencemat-rebuild/
+/balwyn-high-access-portal/
