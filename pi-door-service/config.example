@@ -1,35 +1,13 @@
 # Copy outside the repository to /etc/compass-door-open.env (root:root, mode 600).
-# Generate private tokens/secrets: python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
-HARDWARE_ENABLED=0
-DOOR_MODE=DEMO
+# Generate a private token: python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
+DOOR_API_TOKEN=REDACTED
+DOOR_MODE=mock
 DOOR_BIND=127.0.0.1
 DOOR_PORT=8080
-
-# Role tokens (viewer: telemetry, operator: gate pulse, administrator: emergency mode changes)
-DOOR_VIEWER_TOKEN=
-DOOR_OPERATOR_TOKEN=REDACTED
-DOOR_ADMIN_TOKEN=REDACTED
-
-# Relay pulse/cooldown (bounded, fixed server-side)
 DOOR_PULSE_MS=500
-DOOR_COOLDOWN_MS=1000
-DOOR_WORKER_COUNT=2
-DOOR_WORKER_QUEUE_SIZE=16
-
-# EXAMPLE BCM pin order for simulation docs only: gate 1,2,3,4.
+# EXAMPLE BCM pin order for dry-run only: door 1, door 2, door 3, door 4.
+# Replace with the verified relay wiring before selecting hardware mode.
 DOOR_GPIO_PINS=17,27,22,23
 DOOR_ACTIVE_LOW=true
 DOOR_GPIO_CHIP=0
-DOOR_COMMISSIONED_GATES=1,2,3,4
-DOOR_HEARTBEAT_TTL_SECONDS=45
-
-# Optional CORS/Origin checks for websocket command channel
-DOOR_ALLOWED_ORIGINS=
-DOOR_ALLOW_ANON_TELEMETRY=true
-
-# Webhook security
-COMPASS_WEBHOOK_SECRET=REDACTED
-COMPASS_WEBHOOK_MAX_SKEW_SECONDS=120
-COMPASS_WEBHOOK_DEBOUNCE_SECONDS=5
-
 DOOR_JOURNAL=/var/lib/compass-door-open/requests.sqlite3
