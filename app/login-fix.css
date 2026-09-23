@@ -26,7 +26,7 @@
   display: block !important;
   width: 210px !important;
   max-width: 100% !important;
-  height: 68px !important;
+  height: auto !important;
   aspect-ratio: auto !important;
   margin: 0 auto !important;
 }

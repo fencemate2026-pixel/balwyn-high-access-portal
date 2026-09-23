@@ -52,6 +52,9 @@ export default function DemoLogin() {
   const [googlePortalLink, setGooglePortalLink] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [providers, setProviders] = useState<Providers | null>(null);
+  // Email/password is shown only when the server reports it configured, so staff
+  // never face a form that cannot work (live: google true, microsoft false, email false).
+  const emailAvailable = providers?.email === true;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -253,7 +256,7 @@ export default function DemoLogin() {
               <div className="magic-login-input"><ShieldCheck aria-hidden="true" /><input id="login-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required autoFocus placeholder="000000" /></div>
               <button className="magic-login-submit" type="submit" disabled={submitting || code.length !== 6}>{submitting ? "Verifying…" : "Verify and sign in"}<ArrowRight aria-hidden="true" /></button>
               <button className="magic-login-text-button" type="button" disabled={submitting} onClick={() => { setAuthenticator(false); setEnrollment(null); setCode(""); setError(""); }}>Back to sign in</button>
-            </> : <>
+            </> : emailAvailable ? <>
               <label htmlFor="login-email">Email or username</label>
               <div className="magic-login-input"><Mail aria-hidden="true" /><input id="login-email" name="username" type="text" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@school.edu.au" maxLength={254} required /></div>
               <label htmlFor="login-password">Password</label>
@@ -261,18 +264,17 @@ export default function DemoLogin() {
               <button className="magic-login-forgot" type="button" aria-expanded={help} aria-controls="login-help" onClick={() => setHelp(!help)}>Forgot password?</button>
               {help && <p id="login-help" className="magic-login-help">Use your connected Google or Microsoft account, or ask your portal administrator to reset your operator password. Your email provider’s password is separate from your portal password.</p>}
               <button className="magic-login-submit" type="submit" disabled={submitting || !hydrated || !providers?.email}>{submitting ? "Signing in…" : !hydrated ? "Preparing sign-in…" : "Sign in"}<ArrowRight aria-hidden="true" /></button>
-              {providers && !providers.email && <p className="magic-login-provider-note">Email sign-in is currently unavailable.</p>}
-            </>}
+            </> : <p className="magic-login-provider-note" role="status">{!providers ? "Loading sign-in options…" : providers.microsoft ? "Sign in with your approved Google or Microsoft account." : "Sign in with your approved Google account."}</p>}
           </form>
           {error && <p className="magic-login-error" role="alert">{error}</p>}
           {!authenticator && <>
-            <div className="magic-login-divider"><span>or continue with</span></div>
+            {emailAvailable && <div className="magic-login-divider"><span>or continue with</span></div>}
             <div className="magic-login-providers" aria-busy={preparing || submitting}>
               {googlePortalLink ? <a className="magic-login-provider" href={GOOGLE_SIGN_IN_URL} target="_top"><span className="magic-google-letter" aria-hidden="true">G</span>Continue with Google <ArrowRight aria-hidden="true" /></a> : googleConfig ? <div ref={googleButtonRef} className="magic-login-google" aria-label="Sign in with Google" /> : <button className="magic-login-provider" type="button" disabled={preparing || submitting || !providers?.google} onClick={() => void refreshGoogleSignIn()}><span className="magic-google-letter" aria-hidden="true">G</span>{preparing ? "Loading Google…" : "Sign in with Google"}</button>}
               {googlePortalLink && <p className="magic-login-provider-note">Continue on the school’s Magic Keys portal to sign in.</p>}
               {googleError && <p className="magic-login-provider-note" role="status">{googleError}</p>}
-              <button className="magic-login-provider" type="button" onClick={() => void handleMicrosoftSignIn()} disabled={submitting || !providers?.microsoft} aria-describedby={providers && !providers.microsoft ? "microsoft-status" : undefined}><span className="magic-microsoft-icon" aria-hidden="true"><i /><i /><i /><i /></span>Microsoft / Hotmail</button>
-              {providers && !providers.microsoft && <p id="microsoft-status" className="magic-login-provider-note">Microsoft sign-in is being connected.</p>}
+              {providers?.microsoft && <button className="magic-login-provider" type="button" onClick={() => void handleMicrosoftSignIn()} disabled={submitting || !providers?.microsoft} aria-describedby={providers && !providers.microsoft ? "microsoft-status" : undefined}><span className="magic-microsoft-icon" aria-hidden="true"><i /><i /><i /><i /></span>Microsoft / Hotmail</button>}
+              {/* Microsoft button appears automatically when MICROSOFT_OAUTH_* is configured on the server. */}
             </div>
           </>}
           <p className="magic-login-approval"><ShieldCheck aria-hidden="true" /> Access for approved accounts</p>
