@@ -813,7 +813,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             <i className="status-dot" />
             <span><small>System state</small><strong>{systemMode === "normal" ? "No emergency active" : systemMode === "lockdown" ? "Lockdown active" : "Fire / evacuation active"}</strong></span>
           </div>
-          <div className="safety-command-grid"><SafetyCommand mode="lockdown" active={systemMode === "lockdown"} authorised={isAdministrator} onConfirm={() => setPendingEmergency("lockdown")} /><SafetyCommand mode="fire" active={systemMode === "fire"} authorised={isAdministrator} onConfirm={() => setPendingEmergency("fire")} /></div>
+          <div className="safety-command-grid"><SafetyCommand mode="fire" active={systemMode === "fire"} authorised={isAdministrator} onConfirm={() => setPendingEmergency("fire")} /></div>
           <div className="command-safety-note"><Radio /> Local safety circuits remain authoritative</div>
         </section>
 

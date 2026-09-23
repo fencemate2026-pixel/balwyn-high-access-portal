@@ -128,6 +128,9 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
   assert.match(html, /Heartbeat just now/);
   assert.match(html, /Safety healthy/);
   assert.match(html, /Heartbeat coverage · 2\/2 active controllers/);
+  // Site decision: fire evacuation is offered, lockdown is not.
+  assert.match(html, /START FIRE \/ EVACUATION/);
+  assert.doesNotMatch(html, /START LOCKDOWN/);
   assert.match(html, /class=\"tile gate-tile access-icon gate-state-run is-open single-swing\"/);
   assert.match(html, /class=\"tile gate-tile access-icon gate-state-stop is-closed single-swing\"/);
   assert.doesNotMatch(html, /single-gate-image|double-gate-image/);

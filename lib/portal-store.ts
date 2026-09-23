@@ -372,7 +372,7 @@ export async function getNextControllerCommand(gateId: string) {
     d1.prepare("UPDATE gate_states SET last_command_state = 'dispatched', updated_at = CURRENT_TIMESTAMP WHERE gate_id = ? AND EXISTS (SELECT 1 FROM command_queue WHERE id = ? AND state = 'dispatched' AND dispatched_at = ?)").bind(gateId, command.id, currentTime),
   ]);
   if (Number(claimed[0]?.meta?.changes ?? 0) === 0) return null;
-  return { id: command.id, command: command.command as GatePosition, expiresAt: command.expiresAt, correlationId: command.correlationId };
+  return { id: command.id, command: command.command as GatePosition, source: command.source, expiresAt: command.expiresAt, correlationId: command.correlationId };
 }
 
 async function getControllerScheduleDirective(gateId: string): Promise<{ target: GatePosition; key: string } | null> {

@@ -1,4 +1,5 @@
 import { assertSameOrigin, getAdminSettingsAccess, requireOperator } from "@/lib/portal-auth";
+import { resolveEmergencyCommand } from "@/lib/emergency-policy";
 import { PROTECTED_SETTINGS_ACTIONS } from "@/lib/protected-settings";
 import {
   addAutomationRule,
@@ -61,12 +62,11 @@ export async function POST(request: Request) {
       });
     } else if (action === "emergency") {
       if (auth.user.role !== "administrator") throw new Error("Administrator approval is required for an emergency command.");
-      const mode = String(body.mode ?? "");
-      if (!new Set(["lockdown", "fire"]).has(mode)) throw new Error("Invalid emergency command.");
-      const position: GatePosition = mode === "fire" ? "open" : "closed";
+      // Server-side policy: fire only, lockdown refused (see lib/emergency-policy.ts).
+      const { mode, position } = resolveEmergencyCommand(body.mode);
       await queueGateCommands(ACTIVE_GATES.map((gate) => gate.id), position, auth.user, {
-        mode: mode as "lockdown" | "fire",
-        activityAction: mode === "fire" ? "Fire / evacuation gate response issued" : "Lockdown gate response issued",
+        mode,
+        activityAction: "Fire / evacuation gate response issued",
         activityDetail: `${auth.user.displayName} issued ${position} commands to ${ACTIVE_GATES.length} active gate controllers. Completion requires controller acknowledgement and physical position feedback.`,
       });
     } else if (action === "clear_emergency") {
