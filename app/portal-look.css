@@ -1,0 +1,113 @@
+/* =============================================================================
+   Portal look — site-wide rules requested 23 Sep 2026. Loaded LAST in
+   app/layout.tsx so it wins over the older layered stylesheets.
+   1. Every h2 heading sits on a solid navy bar across its panel.
+   2. Sidebar tabs are 3D: raised when resting, lift on hover, pressed when active.
+   3. Gate tiles show the approved gate/boom artwork with live-state lamps.
+   Font: Zing Sans Rust is applied site-wide by app/fonts.css (files in /public/fonts).
+   ============================================================================= */
+
+/* ---- 1. Navy heading bars ---------------------------------------------------- */
+:root { --heading-bar: #0b2a55; --heading-bar-edge: #061a38; }
+
+.control-portal h2,
+.hire-workspace h2,
+.fh h2 {
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 0 12px !important;
+  padding: 9px 16px !important;
+  border-radius: 8px !important;
+  background: var(--heading-bar) !important;
+  border-bottom: 3px solid var(--heading-bar-edge) !important;
+  color: #ffffff !important;
+  font-family: "Zing Sans Rust", "Zing Sans Rust Base", system-ui, sans-serif !important;
+  font-size: 1.05rem !important;
+  font-weight: 700 !important;
+  letter-spacing: .04em !important;
+  text-transform: uppercase !important;
+  line-height: 1.3 !important;
+}
+.control-portal h2 svg, .fh h2 svg { color: #ffffff !important; }
+/* The heading's wrapper must stretch so the bar runs the full panel width. */
+.control-portal .panel-heading,
+.control-portal .view-panel-heading,
+.control-portal .section-heading,
+.control-portal .module-heading { align-items: flex-start !important; }
+.control-portal .panel-heading > div:first-child,
+.control-portal .view-panel-heading > div:first-child,
+.control-portal .section-heading > div:first-child,
+.control-portal .module-heading > div:first-child { flex: 1 1 auto !important; min-width: 0 !important; }
+.control-portal h2 + small, .control-portal h2 + p { display: block; margin-top: -4px; }
+
+/* ---- 2. 3D sidebar tabs -------------------------------------------------------- */
+.portal-nav-button {
+  border: 1px solid rgba(255,255,255,.08) !important;
+  border-radius: 10px !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,.02) 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 2px 0 rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.25) !important;
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease !important;
+  margin-bottom: 4px !important;
+}
+.portal-nav-button:hover {
+  transform: translateY(-2px) !important;
+  background: linear-gradient(180deg, #3a5a8e 0%, #2a4674 55%, #203a63 100%) !important;
+  border-color: rgba(140,180,255,.35) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 4px 0 #08111f, 0 10px 16px rgba(0,0,0,.45) !important;
+}
+.portal-nav-button[data-active="true"] {
+  transform: translateY(1px) !important;
+  background: linear-gradient(180deg, #2f69c9 0%, #2556a8 100%) !important;
+  border-color: #5b9bff !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.35), 0 0 0 1px rgba(91,155,255,.25), 0 0 16px rgba(77,141,255,.35) !important;
+}
+.portal-nav-button[data-active="true"] svg { color: #ffffff !important; }
+@media (prefers-reduced-motion: reduce) {
+  .portal-nav-button, .portal-nav-button:hover { transition: none !important; transform: none !important; }
+}
+
+/* ---- 3. Gate artwork tiles ------------------------------------------------------ */
+.gate-tile.gate-photo .stage {
+  background: linear-gradient(180deg, #f4f6f9 0%, #e6ebf1 100%) !important;
+}
+.gate-photo-frame {
+  position: absolute; inset: 0; margin: auto;
+  height: 100%; max-width: 100%;
+  display: block;
+}
+.gate-photo-art {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: fill; display: block; border-radius: 6px;
+}
+.gate-tile.is-inactive .gate-photo-art { filter: grayscale(1) opacity(.55); }
+.gate-photo-lamp {
+  position: absolute; transform: translate(-50%, -50%);
+  aspect-ratio: 1 / 1; min-width: 7px; border-radius: 50%;
+  box-shadow: 0 0 0 2px #2a2f35;
+}
+.gate-photo-lamp.lamp-stop  { background: radial-gradient(circle at 35% 30%, #ffd0c8 0 12%, #ff3b2f 45%, #8c0d05 100%); box-shadow: 0 0 0 2px #2a2f35, 0 0 10px 3px rgba(255,59,47,.85); }
+.gate-photo-lamp.lamp-run   { background: radial-gradient(circle at 35% 30%, #d4ffe0 0 12%, #2ee05a 45%, #077a27 100%); box-shadow: 0 0 0 2px #2a2f35, 0 0 10px 3px rgba(46,224,90,.85); }
+.gate-photo-lamp.lamp-issue { background: radial-gradient(circle at 35% 30%, #fff0cc 0 12%, #ffab1a 45%, #9a5800 100%); box-shadow: 0 0 0 2px #2a2f35, 0 0 10px 3px rgba(255,171,26,.9); animation: gate-photo-flash 1s steps(1, end) infinite; }
+.gate-photo-lamp.lamp-off   { background: radial-gradient(circle at 35% 30%, #9aa3b2 0 12%, #5b6472 45%, #2a303a 100%); }
+.gate-tile.is-moving .gate-photo-lamp.lamp-run { animation: gate-photo-flash .6s steps(1, end) infinite; }
+@keyframes gate-photo-flash { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .gate-photo-lamp { animation: none !important; } }
+
+/* Facility hire opens over the workspace: its tab takes the active look,
+   the tab underneath stops looking active. */
+body.hire-open .portal-nav-button[data-active="true"] {
+  transform: none !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,.02) 100%) !important;
+  border-color: rgba(255,255,255,.08) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.10), 0 2px 0 rgba(0,0,0,.45), 0 3px 6px rgba(0,0,0,.25) !important;
+}
+body.hire-open #hire-nav-item .portal-nav-button {
+  transform: translateY(1px) !important;
+  background: linear-gradient(180deg, #2f69c9 0%, #2556a8 100%) !important;
+  border-color: #5b9bff !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.35), 0 0 0 1px rgba(91,155,255,.25), 0 0 16px rgba(77,141,255,.35) !important;
+}
+.hire-overlay { background: #e9edf3 !important; }

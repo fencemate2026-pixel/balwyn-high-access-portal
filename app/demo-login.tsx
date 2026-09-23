@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
 import DashboardClient from "./dashboard-client";
+import SessionExitGuard from "./session-exit-guard";
 import DashboardHireDock from "./dashboard-hire-dock";
 import BrandLogo from "./brand-logo";
 import BrandArtwork from "./brand-artwork";
@@ -235,6 +236,7 @@ export default function DemoLogin() {
 
   if (snapshot) return (
     <>
+      <SessionExitGuard />
       <DashboardHireDock />
       <DashboardClient initialData={snapshot} user={snapshot.user} onSignOut={handleSignOut} />
     </>

@@ -21,17 +21,38 @@ function validEmail(value: string) {
   return at > 0 && dot > at + 1 && dot < value.length - 1 && !value.includes(" ");
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Calendar reads: occurrences inside the requested date window (Melbourne
+// dates, inclusive). Without a window the next 9 weeks are returned, starting
+// one week back. Previously the first 40 rows ever were returned, so once
+// history built up, current bookings would have stopped appearing.
+// Hirer email and phone are personal information: they are only returned to
+// operators and administrators, never to viewers.
 export async function GET(request: Request) {
   const auth = await requireOperator(request, "viewer");
   if (!auth.user) return auth.response;
+  const url = new URL(request.url);
+  const from = url.searchParams.get("from") ?? "";
+  const to = url.searchParams.get("to") ?? "";
+  if ((from && !ISO_DATE.test(from)) || (to && !ISO_DATE.test(to))) return json({ error: "Dates must be YYYY-MM-DD." }, 400);
+  if (from && to && to < from) return json({ error: "The end date must not be before the start date." }, 400);
+  const showContact = auth.user.role !== "viewer";
   try {
     const d1 = getSql();
     const areas = await d1.prepare(
       "SELECT key, label, active, sort_order FROM hire_areas ORDER BY sort_order",
     ).all<{ key: string; label: string; active: boolean; sort_order: number }>();
+    const contact = showContact ? "email, phone," : "";
     const visits = await d1.prepare(
-      "SELECT occurrence_id, schedule_name, full_name, organisation, starts_at, ends_at, duration_hours, areas, status, deposit_status, deposit_amount FROM hire_schedule_view ORDER BY starts_at LIMIT 40",
-    ).all<Record<string, unknown>>();
+      `SELECT occurrence_id, booking_id, schedule_name, full_name, organisation, ${contact} occurs_on, starts_at, ends_at,
+              duration_hours, areas, status, deposit_status, deposit_amount
+         FROM hire_schedule_view
+        WHERE occurs_on BETWEEN COALESCE(?::date, (now() AT TIME ZONE 'Australia/Melbourne')::date - 7)
+                            AND COALESCE(?::date, (now() AT TIME ZONE 'Australia/Melbourne')::date + 56)
+        ORDER BY starts_at
+        LIMIT 500`,
+    ).bind(from || null, to || null).all<Record<string, unknown>>();
     if (!areas.results.length) {
       return json({
         areas: [],

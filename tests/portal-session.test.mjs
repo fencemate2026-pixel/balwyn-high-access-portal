@@ -30,7 +30,9 @@ async function sessionCookie() { return (await createSessionCookie(user)).split(
 
 test("Google operator sessions work without legacy password configuration", async () => {
   const cookie = await createSessionCookie(user);
-  assert.match(cookie, /Path=\/; HttpOnly; Secure; SameSite=Strict; Max-Age=28800$/);
+  // Browser-session cookie: no Max-Age/Expires, so closing the browser ends the session.
+  assert.match(cookie, /Path=\/; HttpOnly; Secure; SameSite=Strict$/);
+  assert.doesNotMatch(cookie, /Max-Age|Expires/i);
   assert.deepEqual(await getSessionUser(request(cookie.split(";")[0])), user);
 });
 

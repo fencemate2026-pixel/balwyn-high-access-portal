@@ -131,8 +131,10 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
   // Site decision: fire evacuation is offered, lockdown is not.
   assert.match(html, /START FIRE \/ EVACUATION/);
   assert.doesNotMatch(html, /START LOCKDOWN/);
-  assert.match(html, /class=\"tile gate-tile access-icon gate-state-run is-open single-swing\"/);
-  assert.match(html, /class=\"tile gate-tile access-icon gate-state-stop is-closed single-swing\"/);
+  // Gate tiles use the approved gate artwork; the lamp colour follows the confirmed position.
+  assert.match(html, /class=\"tile gate-tile gate-photo access-icon gate-state-run is-open single-swing\"/);
+  assert.match(html, /class=\"tile gate-tile gate-photo access-icon gate-state-stop is-closed single-swing\"/);
+  assert.match(html, /src=\"\/gates\/pedestrian-gate.jpg\"/);
   assert.doesNotMatch(html, /single-gate-image|double-gate-image/);
 });
 
@@ -151,11 +153,15 @@ test("renders gate tile states with accessible labels", async () => {
 
   const open = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "open" }));
   assert.match(open, /gate-state-run/);
-  assert.match(open, /<span class="stage"><svg/);
+  assert.match(open, /<span class="stage"><span class="gate-photo-frame"/);
+  assert.match(open, /src="\/gates\/boom-gate.jpg"/);
+  assert.match(open, /gate-photo-lamp lamp-run/);
+  assert.doesNotMatch(open, /lamp-stop|lamp-issue/);
   assert.match(open, /aria-label="Office Entry 1 Boom Gate: Operating, Confirmed open"/);
 
   const closed = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "closed" }));
   assert.match(closed, /gate-state-stop/);
+  assert.match(closed, /gate-photo-lamp lamp-stop/);
   assert.match(closed, /aria-label="Office Entry 1 Boom Gate: Stop, Confirmed closed"/);
 
   const moving = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "moving" }));
@@ -165,6 +171,8 @@ test("renders gate tile states with accessible labels", async () => {
 
   const issue = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "unknown" }));
   assert.match(issue, /gate-state-issue/);
+  assert.match(issue, /gate-photo-lamp lamp-issue/);
+  assert.doesNotMatch(issue, /lamp-run|lamp-stop/);
   assert.match(issue, /aria-label="Office Entry 1 Boom Gate: Issue, Status unknown"/);
 
   const custom = renderToStaticMarkup(React.createElement(GateTile, {

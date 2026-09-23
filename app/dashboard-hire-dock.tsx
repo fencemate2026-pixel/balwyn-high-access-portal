@@ -98,6 +98,12 @@ export default function DashboardHireDock() {
     if (why) why.textContent = statusCopy(mode, attention);
   }, [mode, attention]);
 
+  // Tab state: while Facility hire is open, its tab shows as the active one.
+  useEffect(() => {
+    document.body.classList.toggle("hire-open", open);
+    return () => document.body.classList.remove("hire-open");
+  }, [open]);
+
   useEffect(() => {
     function onClick(event: MouseEvent) {
       const target = event.target as HTMLElement | null;

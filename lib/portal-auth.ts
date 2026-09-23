@@ -169,7 +169,7 @@ export async function createSessionCookie(user: PortalUser, identity: SessionIde
     nonce: crypto.randomUUID(),
   })));
   const signature = await hmac(payload, secret);
-  return `${COOKIE_NAME}=${payload}.${signature}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=28800`;
+  return `${COOKIE_NAME}=${payload}.${signature}; Path=/; HttpOnly; Secure; SameSite=Strict`;
 }
 
 export function clearSessionCookie(): string {
