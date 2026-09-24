@@ -25,7 +25,7 @@ The product combines gate-specific controls, weekly schedules, authenticated ope
 - Credentials are verified server-side using a slow password derivation function; the browser receives only a signed, HTTP-only session cookie. Failed attempts are rate-limited and recorded without storing raw network addresses.
 - The main workspace covers nine registered access points across Tony Frizza Stadium, Side Entry, Staff Car Park and the Office. Only Tony Frizza Stadium Entry and Side Entry are active; the other seven remain visible and inactive.
 - Daily work includes checking reported positions, requesting individual gate movements, managing approved weekly schedules and reviewing the permanent activity record.
-- Emergency lockdown queues close commands for all configured access points. Fire and evacuation mode queues open commands. Completion is never claimed without controller acknowledgement and independent position feedback.
+- Fire evacuation is the only supported emergency command. It queues OPEN on `ACTIVE_GATES` only; `resolveEmergencyCommand("lockdown")` throws. Completion is never claimed without controller acknowledgement and independent position feedback.
 
 ## Capabilities and Constraints
 
@@ -45,7 +45,7 @@ The product combines gate-specific controls, weekly schedules, authenticated ope
 - Every normal gate movement also requires a second confirmation that identifies the exact gate and direction. The portal records success only after independent physical position feedback.
 - Issuing a controller credential does not commission a gate. Commissioning is recorded only after the assigned controller authenticates and supplies real safety and position inputs.
 - Audible action confirmations use an available Australian English browser voice. If no suitable browser voice is present, the portal does not claim that an announcement was delivered.
-- Lockdown and fire requests set emergency priority, queue gate commands and repeat the matching warning until an authorised all-clear clears portal priority. Physical gate states remain separately reported.
+- Fire requests set emergency priority, queue OPEN commands for active gates and repeat the fire warning until an authorised all-clear clears portal priority. No lockdown control or lockdown-close voice is supported. Physical gate states remain separately reported.
 - Gate visuals distinguish single sliding, double-swing and boom-gate hardware. Confirmed closed and open states use red and green; unknown, moving, pending and uncommissioned states remain neutral and explicitly labelled.
 - First-run schedules and automations are blank. Only a real operator-approved configuration is stored or displayed as configured.
 
