@@ -300,6 +300,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const [automationTrigger, setAutomationTrigger] = useState("At a scheduled time");
   const [automationAction, setAutomationAction] = useState("Notify authorised operators");
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [clearingEmergency, setClearingEmergency] = useState(false);
   const [pendingEmergency, setPendingEmergency] = useState<"lockdown" | "fire" | "clear" | null>(null);
   const [pendingGateCommand, setPendingGateCommand] = useState<{ gate: Gate; position: GatePosition } | null>(null);
   const [controllerCredential, setControllerCredential] = useState<{ gateId: string; token: string } | null>(null);
@@ -422,12 +423,12 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       } catch {
         // Retain the last confirmed state and let the connection status communicate staleness.
       } finally {
-        if (active) timer = window.setTimeout(refresh, 4000);
+        if (active) timer = window.setTimeout(refresh, systemMode !== "normal" || busyAction?.startsWith("emergency-") || busyAction === "clear-emergency" ? 1000 : 4000);
       }
     };
-    timer = window.setTimeout(refresh, 4000);
+    timer = window.setTimeout(refresh, systemMode !== "normal" || busyAction?.startsWith("emergency-") || busyAction === "clear-emergency" ? 1000 : 4000);
     return () => { active = false; if (timer) window.clearTimeout(timer); };
-  }, [scheduleDirty, onSignOut]);
+  }, [scheduleDirty, onSignOut, systemMode, busyAction]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -445,7 +446,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   }, []);
 
   useEffect(() => {
-    if (!voiceAnnouncements || systemMode === "normal" || typeof window === "undefined") return;
+    if (!voiceAnnouncements || clearingEmergency || systemMode === "normal" || typeof window === "undefined") return;
 
     const speakWarning = () => {
       if (!("speechSynthesis" in window)) return;
@@ -472,7 +473,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       window.clearInterval(warningTimer);
       window.speechSynthesis?.cancel();
     };
-  }, [systemMode, voiceAnnouncements]);
+  }, [systemMode, voiceAnnouncements, clearingEmergency]);
 
   const voiceStatusText = typeof window !== "undefined" && !("speechSynthesis" in window)
     ? "Voice announcements are unavailable in this browser."
@@ -585,12 +586,13 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   }
 
   async function clearEmergency() {
+    setClearingEmergency(true);
     // Stop the repeating spoken warning straight away; the confirmed state follows.
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     try {
       await postPortal({ action: "clear_emergency" }, "clear-emergency");
       toast.success("Emergency priority cleared", { description: "Uncollected emergency packets were cancelled. Already-collected packets cannot be recalled; confirm every gate before resuming normal operation." });
-      if (typeof window !== "undefined") window.setTimeout(announceAllClear, 120);
+      announceAllClear();
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "";
       if (/not active/i.test(message)) {
@@ -604,6 +606,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         } catch { /* fall through to the error below */ }
       }
       toast.error("Emergency priority was not cleared", { description: message || "Use the approved local procedure." });
+    } finally {
+      setClearingEmergency(false);
     }
   }
 
@@ -823,9 +827,11 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       <SidebarInset className="portal-workspace">
         <header className="workspace-header">
           <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="location-logo"><img src="/balwyn-crest-clear.png" alt="Balwyn High School crest" /></span><div><small>Managed site</small><strong>Balwyn High School</strong></div></div>
-          <div className="workspace-brand-partner"><span>Technology by</span><img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial Fencing and Gates" width={900} height={210} /></div>
+          <div className="workspace-brand-partner"><img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial Fencing and Gates" width={900} height={210} /></div>
           <div className="workspace-header-right"><div className={`system-status-cluster ${operationalReady ? "is-ready" : "is-attention"}`}><i className="signal-dot" /><span><small>Controller status</small><strong>{operationalReady ? "All systems ready" : "Commissioning"}</strong></span><b>{onlineCount}/{activeGates.length}</b></div><span className="connection-pill"><i /> Encrypted connection</span><button className="notification-button" aria-label="View system alerts" onClick={() => onlineCount === activeGates.length ? toast.success("All controllers online", { description: "Physical gate feedback is available for every access point." }) : toast.warning(`${activeGates.length - onlineCount} active gate controllers are not online`, { description: `${commissionedCount} have completed a verified heartbeat; ${credentialCount} credentials have been issued.` })}><Bell /></button><div className="header-operator"><Avatar><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><span><strong>{displayName}</strong><small>{roleLabel}</small></span></div></div>
         </header>
+
+        <div className="campus-context"><CampusCalendar onManage={() => setActiveView("hire")} canBook={canOperate} /><CampusWeather /></div>
 
         <section className="safety-bar" aria-label="Emergency gate commands">
           <div className={`safety-bar-status${systemMode === "normal" ? "" : " is-alert"}`}>
@@ -838,7 +844,6 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
         {systemMode !== "normal" && <EmergencyAlertPanel mode={systemMode} onClear={() => setPendingEmergency("clear")} confirmed={emergencyConfirmed} pending={emergencyPending} failed={emergencyFailed} canClear={isAdministrator} projectorAccess={advancedFeaturesEnabled} />}
 
-        <div className="campus-context"><CampusCalendar onManage={() => setActiveView("hire")} canBook={canOperate} /><CampusWeather /></div>
 
         <div className="workspace-content" data-view={activeView}>
           <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span><div className="workspace-context" aria-label="Portal context"><span>Portal sync · {portalTimeLabel(serverTime)}</span><span>Timezone · Australia/Melbourne</span><span>Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</span></div></div><div className="workspace-title-meta"><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>
