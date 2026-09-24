@@ -134,7 +134,7 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
   // SSR retains approved fallback artwork; the 3D model is client-only and state driven.
   assert.match(html, /class=\"gate-tile gate-model access-icon gate-state-run is-open single-swing\"/);
   assert.match(html, /class=\"gate-tile gate-model access-icon gate-state-stop is-closed single-swing\"/);
-  assert.match(html, /src=\"\/gates\/pedestrian-gate.jpg\"/);
+  assert.match(html, /src=\"\/gates\/single-swing-blue.webp\"/);
   assert.doesNotMatch(html, /single-gate-image|double-gate-image/);
 });
 
@@ -154,7 +154,7 @@ test("renders gate tile states with accessible labels", async () => {
   const open = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "open" }));
   assert.match(open, /gate-state-run/);
   assert.match(open, /<span class="gate-model-fallback"/);
-  assert.match(open, /src="\/gates\/boom-gate.jpg"/);
+  assert.match(open, /src="\/gates\/boom-blue.webp"/);
   assert.match(open, /gate-state-run/);
   assert.doesNotMatch(open, /lamp-stop|lamp-issue/);
   assert.match(open, /aria-label="Office Entry 1 Boom Gate: Operating, Confirmed open"/);
