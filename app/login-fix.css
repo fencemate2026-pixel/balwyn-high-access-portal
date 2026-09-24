@@ -39,15 +39,39 @@
   letter-spacing: .12em !important;
 }
 
-/* RJL Commercial credit on the login page (installer and support). The logo is
-   red and black, so it sits on a white plate to stay legible on the navy panel. */
-.magic-login-rjl {
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  margin: 18px auto 0; padding: 10px 16px 8px; width: fit-content; text-decoration: none;
-  background: #ffffff; border: 1px solid #d5dce7; border-bottom: 3px solid #ff6a22;
-  box-shadow: 0 6px 16px rgba(0,0,0,.35);
-  transition: transform 140ms ease, box-shadow 140ms ease;
+/* =============================================================================
+   Login, 24 Sep 2026: light panel so the three transparent logos (Magic Keys,
+   Balwyn High School, RJL Commercial) all read in their true colours; the
+   navy panel made the navy crest and black lettering disappear.
+   ============================================================================= */
+.magic-login-panel {
+  background: linear-gradient(180deg, #ffffff 0%, #f3f6fa 100%) !important;
+  color: #14223a !important;
+  border-right: 4px solid #ff6a22 !important;
+  box-shadow: 6px 0 24px rgba(11,42,85,.12) !important;
 }
-.magic-login-rjl:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(0,0,0,.4); }
-.magic-login-rjl span { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #52607a; }
-.magic-login-rjl img { display: block; width: 170px; height: auto; }
+.magic-login-panel h1 { color: #0b2a55 !important; }
+.magic-login-panel p, .magic-login-heading p, .magic-login-provider-note { color: #3a4760 !important; }
+.magic-login-approval { color: #1d6b35 !important; }
+.magic-login-legal a, .magic-login-legal span { color: #52607a !important; }
+/* Magic Keys logo sits directly on the panel: no white card. */
+.magic-login-brand a { background: transparent !important; box-shadow: none !important; border: 0 !important; padding: 0 !important; }
+.magic-login-brand .magic-brand-logo { width: 250px !important; max-width: 100% !important; margin: 0 auto !important; }
+.magic-login-brand a > span { color: #0b2a55 !important; text-align: center; font-weight: 700; }
+/* Inputs for the light panel (shown when email accounts exist). */
+.magic-login-input { background: #ffffff !important; border: 1px solid #b9c3d3 !important; color: #14223a !important; }
+.magic-login-input input { color: #14223a !important; }
+.magic-login-input svg { color: #52607a !important; }
+.magic-login-panel label { color: #14223a !important; }
+.magic-login-divider span { color: #52607a !important; background: #f7f9fc !important; }
+
+/* Evenly spaced partner logos. */
+.magic-login-partners {
+  display: flex; align-items: center; justify-content: space-evenly; gap: 0;
+  margin: 26px 0 0; padding: 18px 0 0; border-top: 1px solid #d5dce7;
+}
+.magic-login-partners a { display: block; line-height: 0; transition: transform 140ms ease; }
+.magic-login-partners a:hover { transform: translateY(-2px); }
+.magic-login-partners .partner-crest { width: 78px; height: auto; display: block; }
+.magic-login-partners .partner-rjl { width: 190px; height: auto; display: block; }
+.magic-login-forgot { color: #d9500f !important; font-weight: 700 !important; }

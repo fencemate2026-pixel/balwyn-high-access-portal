@@ -281,15 +281,19 @@ export default function DemoLogin() {
           </>}
           <p className="magic-login-approval"><ShieldCheck aria-hidden="true" /> Access for approved accounts</p>
           <nav className="magic-login-legal" aria-label="Legal information"><a href="/privacy">Privacy</a><span aria-hidden="true">·</span><a href="/terms">Terms</a></nav>
-          {/* Installer / support credit: RJL Commercial built and maintains this system. */}
-          <a className="magic-login-rjl" href="https://rjlcommercialgroup.com" target="_blank" rel="noopener noreferrer" aria-label="RJL Commercial Fencing and Gates — installer and support">
-            <span>Installed &amp; supported by</span>
+          {/* Partner row: the school and the installer, both logos on transparent
+              backgrounds, spaced evenly (space-evenly) across the panel. */}
+          <div className="magic-login-partners" aria-label="Balwyn High School and RJL Commercial">
             {/* eslint-disable-next-line @next/next/no-img-element -- fixed brand artwork */}
-            <img src="/rjl-commercial-logo-sm.png" alt="RJL Commercial" width={600} height={200} />
-          </a>
+            <img className="partner-crest" src="/balwyn-crest-clear.png" alt="Balwyn High School" width={530} height={752} />
+            <a href="https://rjlcommercialgroup.com" target="_blank" rel="noopener noreferrer" aria-label="RJL Commercial Fencing and Gates — installer and support">
+              {/* eslint-disable-next-line @next/next/no-img-element -- fixed brand artwork */}
+              <img className="partner-rjl" src="/rjl-commercial-logo-clear.png" alt="RJL Commercial" width={900} height={210} />
+            </a>
+          </div>
         </div>
       </section>
-      <div className="magic-login-visual"><BrandArtwork className="magic-login-artwork" /><div className="magic-login-school"><img src="/balwyn-watermark.png" alt="Balwyn High School" /><span>Balwyn High School</span></div></div>
+      <div className="magic-login-visual"><BrandArtwork className="magic-login-artwork" /></div>
     </main>
   );
 }
