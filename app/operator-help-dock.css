@@ -108,3 +108,22 @@
   border-radius: 0.55rem;
   padding: 0.4rem 0.7rem;
 }
+
+/* Spacious, bright help workspace. */
+.operator-help-dock { font-family: "Univers Extended", "Univers", Arial, sans-serif; }
+.operator-help-toggle { background: linear-gradient(120deg, #0869db, #2a9af4); padding: 16px 24px; font-size: 16px; box-shadow: 0 8px 26px #0869db45; cursor: pointer; }
+.operator-help-panel { width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); display: flex; flex-direction: column; border: 1px solid #c8ddf6; border-radius: 20px; box-shadow: 0 16px 60px #153e6933; font-size: 15px; line-height: 1.6; color-scheme: light; }
+.operator-help-panel header { padding: 20px; background: linear-gradient(120deg, #096bd9, #278fee); color: #fff; }
+.operator-help-panel header button { background: #ffffff25; min-height: 40px; }
+.operator-help-tabs { padding: 16px 20px 0; gap: 8px; }
+.operator-help-tabs button { padding: 8px 16px; background: #edf4ff; color: #175aa4; }
+.operator-help-tabs button.is-active { background: #096bd9; }
+.operator-help-list { min-height: min(320px, 35dvh); max-height: 52dvh; padding: 20px; gap: 16px; flex: 1; }
+.operator-help-item { padding: 14px 16px; border-radius: 14px; overflow-wrap: anywhere; }
+.operator-help-item.is-user { background: #096bd9; }
+.operator-help-item.is-assistant { background: #eff5fd; color: #203957; }
+.operator-help-panel form { padding: 16px 20px; border-top: 1px solid #e2ebf6; background: #f7faff; }
+.operator-help-panel input { min-width: 0; background: #fff; color: #182840; padding: 12px; border-color: #bdd1eb; }
+.operator-help-panel form button { padding: 12px 18px; background: #096bd9; }
+.operator-help-panel button:disabled { opacity: .55; }
+.operator-help-panel :is(button,input):focus-visible { outline: 3px solid #ffab00; outline-offset: 2px; }
