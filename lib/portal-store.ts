@@ -251,7 +251,7 @@ export async function saveGateSchedule(gateId: string, week: WeekPlan, user: Por
     if (!plan || typeof plan.enabled !== "boolean") throw new Error(`Invalid schedule for ${day}.`);
     const open = typeof plan.open === "string" ? plan.open : "";
     const close = typeof plan.close === "string" ? plan.close : "";
-    if (plan.enabled && (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(open) || !/^([01]\\d|2[0-3]):[0-5]\\d$/.test(close))) {
+    if (plan.enabled && (!/^([01]\d|2[0-3]):[0-5]\d$/.test(open) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(close))) {
       throw new Error(`Invalid schedule for ${day}.`);
     }
     if (plan.enabled && open >= close) throw new Error(`${day}'s opening time must be before its closing time.`);
