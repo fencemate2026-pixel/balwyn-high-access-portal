@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, Eye, EyeOff, HelpCircle, LoaderCircle, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
 import DashboardClient from "./dashboard-client";
 import SessionExitGuard from "./session-exit-guard";
 import OperatorHelpDock from "./operator-help-dock";
 import BrandLogo from "./brand-logo";
-import BrandArtwork from "./brand-artwork";
 import type { PortalSnapshot } from "@/lib/portal-model";
 import { GOOGLE_SIGN_IN_ORIGIN, GOOGLE_SIGN_IN_URL } from "@/lib/google-signin-origin";
 
@@ -41,12 +40,6 @@ declare global {
 }
 
 export default function DemoLogin() {
-  const portalAssurance = [
-    "Approved accounts only · school and RJL review",
-    "Operator actions are session logged and time stamped",
-    "Controller heartbeat context is separated from emergency authority",
-  ] as const;
-
   const [hydrated, setHydrated] = useState(false);
   const [snapshot, setSnapshot] = useState<PortalSnapshot | null>(null);
   const [googleConfig, setGoogleConfig] = useState<GoogleSignInConfig | null>(null);
@@ -93,7 +86,7 @@ export default function DemoLogin() {
     setError("");
     try {
       if (!response.credential || response.state !== config.state) throw new Error("Your sign-in request has expired. Please try again.");
-      const result = await fetch("/api/auth/google", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential: response.credential, state: response.state }) });
+      const result = await fetch("/api/auth/google", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential: response.credential, state: response.state }), signal: AbortSignal.timeout(20000) });
       const body = await result.json() as { snapshot?: PortalSnapshot; error?: string };
       if (!result.ok || !body.snapshot) throw new Error(body.error || "Google sign-in was not accepted.");
       setSnapshot(body.snapshot);
@@ -242,58 +235,107 @@ export default function DemoLogin() {
     </>
   );
 
+  const socialAvailable = providers?.google || providers?.microsoft;
+
   return (
-    <main className="magic-login">
-      <section className="magic-login-panel" aria-labelledby="magic-login-title">
-        <header className="magic-login-brand"><Link href="/" aria-label="Magic Keys home"><BrandLogo /><span>Balwyn High School</span></Link></header>
-        <div className="magic-login-content">
-          <div className="magic-login-heading"><h1 id="magic-login-title">{authenticator ? "Verify your sign-in" : "Welcome back"}</h1><p>{authenticator ? "Enter the code from your authenticator app." : "Sign in to the Balwyn High School Magic Keys operations portal."}</p></div>
-          {!authenticator && <ul className="magic-login-assurance" aria-label="Portal assurance">
-            {portalAssurance.map((item) => <li key={item}><ShieldCheck aria-hidden="true" />{item}</li>)}
-          </ul>}
-          <form className="magic-login-form" onSubmit={handleEmailSignIn} aria-busy={submitting}>
-            {authenticator ? <>
-              {enrollment && <div className="magic-login-enrollment"><strong>Set up your authenticator</strong><p>Add a new account in Google Authenticator, Microsoft Authenticator or another authenticator app. Choose a time-based key and enter:</p><code>{enrollment.secret}</code><span>Account: {enrollment.account}</span></div>}
-              <label htmlFor="login-code">Authenticator code</label>
-              <div className="magic-login-input"><ShieldCheck aria-hidden="true" /><input id="login-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required autoFocus placeholder="000000" /></div>
-              <button className="magic-login-submit" type="submit" disabled={submitting || code.length !== 6}>{submitting ? "Verifying…" : "Verify and sign in"}<ArrowRight aria-hidden="true" /></button>
-              <button className="magic-login-text-button" type="button" disabled={submitting} onClick={() => { setAuthenticator(false); setEnrollment(null); setCode(""); setError(""); }}>Back to sign in</button>
-            </> : emailAvailable ? <>
-              <label htmlFor="login-email">Email or username</label>
-              <div className="magic-login-input"><Mail aria-hidden="true" /><input id="login-email" name="username" type="text" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@school.edu.au" maxLength={254} required /></div>
-              <label htmlFor="login-password">Password</label>
-              <div className="magic-login-input"><LockKeyhole aria-hidden="true" /><input id="login-password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} maxLength={1024} required placeholder="Enter your password" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff /> : <Eye />}</button></div>
-              <button className="magic-login-forgot" type="button" aria-expanded={help} aria-controls="login-help" onClick={() => setHelp(!help)}>Forgot password?</button>
-              {help && <p id="login-help" className="magic-login-help">Use your connected Google or Microsoft account, or ask your portal administrator to reset your operator password. Your email provider’s password is separate from your portal password.</p>}
-              <button className="magic-login-submit" type="submit" disabled={submitting || !hydrated || !providers?.email}>{submitting ? "Signing in…" : !hydrated ? "Preparing sign-in…" : "Sign in"}<ArrowRight aria-hidden="true" /></button>
-            </> : <p className="magic-login-provider-note" role="status">{!providers ? "Loading sign-in options…" : providers.microsoft ? "Sign in with your approved Google or Microsoft account." : "Sign in with your approved Google account."}</p>}
-          </form>
-          {error && <p className="magic-login-error" role="alert">{error}</p>}
-          {!authenticator && <>
-            {emailAvailable && <div className="magic-login-divider"><span>or continue with</span></div>}
-            <div className="magic-login-providers" aria-busy={preparing || submitting}>
-              {googlePortalLink ? <a className="magic-login-provider" href={GOOGLE_SIGN_IN_URL} target="_top"><span className="magic-google-letter" aria-hidden="true">G</span>Continue with Google <ArrowRight aria-hidden="true" /></a> : googleConfig ? <div ref={googleButtonRef} className="magic-login-google" aria-label="Sign in with Google" /> : <button className="magic-login-provider" type="button" disabled={preparing || submitting || !providers?.google} onClick={() => void refreshGoogleSignIn()}><span className="magic-google-letter" aria-hidden="true">G</span>{preparing ? "Loading Google…" : "Sign in with Google"}</button>}
-              {googlePortalLink && <p className="magic-login-provider-note">Continue on the school’s Magic Keys portal to sign in.</p>}
-              {googleError && <p className="magic-login-provider-note" role="status">{googleError}</p>}
-              {providers?.microsoft && <button className="magic-login-provider" type="button" onClick={() => void handleMicrosoftSignIn()} disabled={submitting || !providers?.microsoft} aria-describedby={providers && !providers.microsoft ? "microsoft-status" : undefined}><span className="magic-microsoft-icon" aria-hidden="true"><i /><i /><i /><i /></span>Microsoft / Hotmail</button>}
-              {/* Microsoft button appears automatically when MICROSOFT_OAUTH_* is configured on the server. */}
-            </div>
-          </>}
-          <p className="magic-login-approval"><ShieldCheck aria-hidden="true" /> Access for approved accounts</p>
-          <nav className="magic-login-legal" aria-label="Legal information"><a href="/privacy">Privacy</a><span aria-hidden="true">·</span><a href="/terms">Terms</a></nav>
-          {/* Partner row: the school and the installer, both logos on transparent
-              backgrounds, spaced evenly (space-evenly) across the panel. */}
-          <div className="magic-login-partners" aria-label="Balwyn High School and RJL Commercial">
-            {/* eslint-disable-next-line @next/next/no-img-element -- fixed brand artwork */}
-            <img className="partner-crest" src="/balwyn-crest-clear.png" alt="Balwyn High School" width={530} height={752} />
-            <a href="https://rjlcommercialgroup.com" target="_blank" rel="noopener noreferrer" aria-label="RJL Commercial Fencing and Gates — installer and support">
-              {/* eslint-disable-next-line @next/next/no-img-element -- fixed brand artwork */}
-              <img className="partner-rjl" src="/rjl-commercial-logo-clear.png" alt="RJL Commercial" width={900} height={210} />
-            </a>
+    <main className="access-login min-h-svh antialiased">
+      <div className="access-login-shell">
+        <header className="access-login-header flex items-center justify-between gap-6">
+          <Link href="/" className="access-login-brand" aria-label="Magic Keys home"><BrandLogo /></Link>
+          <div className="access-login-school flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element -- local transparent school crest */}
+            <img src="/balwyn-crest-clear.png" alt="" width={530} height={752} />
+            <span><small>CAMPUS ACCESS PORTAL</small><strong>Balwyn High School</strong></span>
           </div>
+        </header>
+
+        <div className="access-login-layout grid items-center">
+          <section className="access-login-story" aria-labelledby="access-login-story-title">
+            <div className="access-login-intro">
+              <p className="access-login-eyebrow"><span aria-hidden="true" /> A smarter welcome.</p>
+              <h2 id="access-login-story-title">Secure access.<br /><span>Safer schools.</span></h2>
+              <p className="access-login-description">Gates, schedules and campus access.<br />One clear view. Wherever you are.</p>
+            </div>
+            <figure className="access-login-hardware">
+              <div className="access-login-orbit" aria-hidden="true" />
+              <div className="access-login-gates">
+                {[
+                  ["single-swing", "Single swing gate"],
+                  ["double-swing", "Double swing gate"],
+                  ["boom", "Boom gate"],
+                ].map(([type, label]) => (
+                  <div className="access-login-gate" key={type}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- local gate artwork */}
+                    <img src={`/gates/${type}-blue.webp`} alt={label} fetchPriority="high" />
+                    <span>{label}</span>
+                  </div>
+                ))}
+              </div>
+              <figcaption><span aria-hidden="true" /> Gate types · illustrative hardware</figcaption>
+            </figure>
+            <div className="access-login-story-footer flex items-center gap-3"><ShieldCheck aria-hidden="true" /><p>Designed around your school.<span>Built for the people who keep it moving.</span></p></div>
+          </section>
+
+          <section className="access-login-panel" aria-labelledby="magic-login-title">
+            <div className={`access-login-card${emailAvailable || authenticator ? " has-form" : ""}`}>
+              <div className="access-login-lock flex items-center justify-center" aria-hidden="true"><LockKeyhole /></div>
+              <p className="access-login-kicker">YOUR SCHOOL. YOUR ACCESS.</p>
+              <div className="access-login-heading">
+                <h1 id="magic-login-title">{authenticator ? "Verify your sign-in" : "Welcome back."}</h1>
+                <p>{authenticator ? "Enter the six-digit code from your authenticator app." : "Sign in to your Balwyn High School workspace."}</p>
+              </div>
+
+              {(authenticator || emailAvailable) && <form className="access-login-form" onSubmit={handleEmailSignIn} aria-busy={submitting}>
+                {authenticator ? <>
+                  {enrollment && <div className="access-login-enrollment"><strong>Set up your authenticator</strong><p>Add a new account in your authenticator app. Choose a time-based key and enter:</p><code>{enrollment.secret}</code><span>Account: {enrollment.account}</span></div>}
+                  <label htmlFor="login-code">Authenticator code</label>
+                  <div className="access-login-input"><ShieldCheck aria-hidden="true" /><input id="login-code" name="code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required autoFocus placeholder="000000" /></div>
+                  <button className="access-login-submit" type="submit" disabled={submitting || code.length !== 6}>{submitting ? <><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Verifying…</> : <>Verify and sign in<ArrowRight aria-hidden="true" /></>}</button>
+                  <button className="access-login-text-button" type="button" disabled={submitting} onClick={() => { setAuthenticator(false); setEnrollment(null); setCode(""); setError(""); }}>Back to sign in</button>
+                </> : <>
+                  <label htmlFor="login-email">Email or username</label>
+                  <div className="access-login-input"><Mail aria-hidden="true" /><input id="login-email" name="username" type="text" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Your approved email or username" maxLength={254} required /></div>
+                  <div className="access-login-label-row flex items-center justify-between gap-3"><label htmlFor="login-password">Password</label><button className="access-login-text-button" type="button" aria-expanded={help} aria-controls={help ? "login-help" : undefined} onClick={() => setHelp(!help)}>Forgot password?</button></div>
+                  <div className="access-login-input"><LockKeyhole aria-hidden="true" /><input id="login-password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} maxLength={1024} required placeholder="Enter your password" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}</button></div>
+                  <button className="access-login-submit" type="submit" disabled={submitting || !hydrated || !providers?.email}>{submitting ? <><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Signing in…</> : <>Sign in<ArrowRight aria-hidden="true" /></>}</button>
+                </>}
+              </form>}
+
+              {error && <p className="access-login-error" role="alert">{error}</p>}
+              {!authenticator && <>
+                {!providers && !error && <p className="access-login-loading flex items-center justify-center gap-3" role="status"><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Loading sign-in options…</p>}
+                {!providers && error && <button type="button" className="access-login-provider" onClick={() => window.location.reload()}>Reload sign-in options<ArrowRight aria-hidden="true" /></button>}
+                {providers && !emailAvailable && !socialAvailable && <p className="access-login-notice" role="status">Sign-in is not available right now. Please contact your portal administrator.</p>}
+                {emailAvailable && socialAvailable && <div className="access-login-divider"><span>or continue with</span></div>}
+                {socialAvailable && <div className="access-login-providers" aria-busy={preparing || submitting}>
+                  {providers?.google && (googlePortalLink ? <a className="access-login-provider access-login-google-link" href={GOOGLE_SIGN_IN_URL} target="_top"><GoogleMark />Continue with Google<ArrowRight aria-hidden="true" /></a> : googleConfig ? <div ref={googleButtonRef} className="access-login-google" aria-label="Sign in with Google" /> : <button className="access-login-provider" type="button" disabled={preparing || submitting} onClick={() => void refreshGoogleSignIn()}><GoogleMark />{preparing ? "Loading Google…" : "Sign in with Google"}{preparing ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}</button>)}
+                  {googlePortalLink && <p className="access-login-provider-note">You’ll continue on the school’s Magic Keys portal.</p>}
+                  {googleError && <p className="access-login-error" role="alert">{googleError}</p>}
+                  {providers?.microsoft && <button className="access-login-provider" type="button" onClick={() => void handleMicrosoftSignIn()} disabled={submitting}><span className="access-login-microsoft-icon" aria-hidden="true"><i /><i /><i /><i /></span>Continue with Microsoft<ArrowRight aria-hidden="true" /></button>}
+                  {submitting && <p className="access-login-loading flex items-center justify-center gap-3" role="status"><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Completing sign-in…</p>}
+                </div>}
+              </>}
+
+              <div className="access-login-assurance"><ShieldCheck aria-hidden="true" /><span>Access for approved accounts only.<small>Your school. Protected.</small></span><Check aria-hidden="true" /></div>
+              <button className="access-login-help-toggle flex items-center justify-center gap-2" type="button" aria-expanded={help} aria-controls={help ? "login-help" : undefined} onClick={() => setHelp(!help)}><HelpCircle aria-hidden="true" />Need help signing in?</button>
+              {help && <div id="login-help" className="access-login-help" role="region" aria-label="Sign-in help"><strong>Your portal administrator can help.</strong><p>Use an account approved for this school. For a password reset or access request, contact your school’s portal administrator or RJL support. Your Google or Microsoft password is managed by that provider.</p></div>}
+            </div>
+            <nav className="access-login-legal flex items-center justify-center gap-5" aria-label="Legal information"><Link href="/privacy">Privacy policy</Link><span aria-hidden="true">·</span><Link href="/terms">Terms of use</Link></nav>
+          </section>
         </div>
-      </section>
-      <div className="magic-login-visual"><BrandArtwork className="magic-login-artwork" /></div>
+
+        <footer className="access-login-footer flex items-center justify-between gap-6">
+          <p>Magic Keys<span aria-hidden="true"> / </span><span>Protecting futures.</span></p>
+          <a className="access-login-partner flex items-center gap-3" href="https://rjlcommercialgroup.com" target="_blank" rel="noopener noreferrer" aria-label="RJL Commercial Fencing and Gates — installer and support"><span>TECHNOLOGY BY</span>
+            {/* eslint-disable-next-line @next/next/no-img-element -- local transparent installer logo */}
+            <img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial" width={900} height={210} />
+          </a>
+        </footer>
+      </div>
     </main>
   );
+}
+
+function GoogleMark() {
+  return <svg className="access-login-google-mark" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M43.61 20.46H42V20H24v8h11.3A12 12 0 1 1 32.9 14.9l5.66-5.66A19.97 19.97 0 0 0 24 4C12.95 4 4 12.95 4 24s8.95 20 20 20 20-8.95 20-20c0-1.34-.14-2.65-.39-3.54Z"/><path fill="#34A853" d="m6.31 33.24 6.57-5.06A12 12 0 0 0 35.3 28H24v-8h18v.46h1.61C45.6 31.6 37.23 44 24 44a19.97 19.97 0 0 1-17.69-10.76Z"/><path fill="#FBBC05" d="m6.31 14.76 6.57 5.06a12 12 0 0 0 0 8.36l-6.57 5.06a20 20 0 0 1 0-18.48Z"/><path fill="#EA4335" d="M24 4a19.97 19.97 0 0 1 14.56 5.24l-5.66 5.66a12 12 0 0 0-20.02 4.92l-6.57-5.06A19.97 19.97 0 0 1 24 4Z"/><path fill="#4285F4" d="M43.61 20.46H42V20H24v8h11.3a11.99 11.99 0 0 1-4.12 5.73l6.18 4.79A19.93 19.93 0 0 0 44 24c0-1.34-.14-2.65-.39-3.54Z"/></svg>;
 }
