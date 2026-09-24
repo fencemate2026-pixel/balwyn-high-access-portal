@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { emergencyVoiceScript } from "@/lib/emergency-voice";
 
 function isEmergencyWarning(text: string) {
-  return /warning\.|fire evacuation|lockdown gate commands|evacuate by the nearest safe exit/i.test(text);
+  return /warning\.|fire evacuation/i.test(text);
 }
 
 function isAllClear(text: string) {
@@ -25,8 +25,8 @@ export default function EmergencyVoiceGuard() {
     const originalCancel = synth.cancel.bind(synth);
     let protect = false;
 
-    function speakNow(mode: "fire" | "lockdown") {
-      const utterance = new SpeechSynthesisUtterance(emergencyVoiceScript(mode));
+    function speakNow() {
+      const utterance = new SpeechSynthesisUtterance(emergencyVoiceScript("fire"));
       utterance.lang = "en-AU";
       utterance.rate = 0.92;
       utterance.pitch = 1;
@@ -50,8 +50,7 @@ export default function EmergencyVoiceGuard() {
       }
       if (isEmergencyWarning(incoming)) {
         if (protect && (synth.speaking || synth.pending)) return;
-        const mode = /lockdown/i.test(incoming) ? "lockdown" : "fire";
-        speakNow(mode);
+        speakNow();
         return;
       }
       originalSpeak(utterance);
@@ -66,9 +65,7 @@ export default function EmergencyVoiceGuard() {
       const target = event.target as HTMLElement | null;
       if (!target) return;
       const fire = target.closest(".confirm-fire");
-      const lockdown = target.closest(".confirm-lockdown");
-      if (fire) speakNow("fire");
-      else if (lockdown) speakNow("lockdown");
+      if (fire) speakNow();
     }
 
     document.addEventListener("click", onClick, true);
