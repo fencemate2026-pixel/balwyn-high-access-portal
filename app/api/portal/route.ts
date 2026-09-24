@@ -71,8 +71,8 @@ export async function POST(request: Request) {
       });
     } else if (action === "clear_emergency") {
       if (auth.user.role !== "administrator") throw new Error("Administrator approval is required to clear emergency priority.");
-      const current = await getPortalSnapshot(auth.user);
-      if (current.systemMode === "normal") throw new Error("Emergency priority is not active.");
+      // Clearing is idempotent: cancel queued packets immediately rather than
+      // loading the full dashboard before the write. Return confirmed state below.
       await clearEmergencyPriority(auth.user);
     } else if (action === "save_schedule") {
       if (!body.week || typeof body.week !== "object") throw new Error("Invalid schedule.");
