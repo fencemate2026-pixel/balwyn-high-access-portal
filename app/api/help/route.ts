@@ -4,6 +4,7 @@ import { getSql } from '@/db';
 import { assertSameOrigin, requireOperator } from '@/lib/portal-auth';
 import { helpTopics, helpPassage } from '@/lib/software-help';
 import { answerHelp, parseHelpInput, type HelpInput } from '@/lib/help-agent';
+import { recordHelpEvent } from '@/lib/help-events';
 import { getPortalPlan } from '@/lib/portal-plan';
 import { readEquipment } from '@/lib/equipment-store';
 import { readDoorConfiguration } from '@/lib/door-open-gateway';
@@ -50,5 +51,15 @@ export async function POST(request: Request) {
     }, GATES);
     remoteOpen = !equipment.remoteOpenEnabled ? 'Disabled in equipment settings.' : configuration ? 'Configuration is present and valid in format. Reachability and physical operation have not been tested by this helper.' : 'Not configured; no hardware call can be made through this integration.';
   } catch { /* Do not expose configuration values or parsing errors. */ }
-  return json(await answerHelp(input, { role: auth.user.role, plan: getPortalPlan(auth.user).name, remoteOpen }, provider));
+  const result = await answerHelp(input, { role: auth.user.role, plan: getPortalPlan(auth.user).name, remoteOpen }, provider);
+  await recordHelpEvent({
+    role: auth.user.role,
+    page: input.page,
+    question: input.question,
+    status: result.status,
+    mode: result.mode,
+    articleId: result.sources?.[0]?.id ?? null,
+    issue: 'issue' in result ? result.issue ?? null : null,
+  });
+  return json(result);
 }
