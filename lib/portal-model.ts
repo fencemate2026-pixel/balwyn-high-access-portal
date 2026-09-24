@@ -64,6 +64,8 @@ export type PortalUser = {
   displayName: string;
   email: string;
   role: "administrator" | "operator" | "viewer";
+  /** Set for per-person email accounts (balwyn_portal.portal_accounts). */
+  accountId?: string;
 };
 
 export type PortalPlan = {

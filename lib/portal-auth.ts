@@ -123,7 +123,9 @@ function constantTimeEqual(left: string, right: string): boolean {
 }
 
 export async function verifyOperatorCredentials(username: string, password: string): Promise<PortalUser | null> {
-  const configured = runtimeSecrets();
+  // No site accounts configured: fall through to per-person accounts.
+  let configured: RuntimeSecrets;
+  try { configured = runtimeSecrets(); } catch { return null; }
   const suppliedName = username.trim().toLocaleLowerCase("en-AU");
   const accounts = [
     { username: configured.username, passwordSalt: configured.passwordSalt, passwordHash: configured.passwordHash, operatorEmail: configured.operatorEmail, role: configured.role },
@@ -142,6 +144,137 @@ export async function verifyOperatorCredentials(username: string, password: stri
     }
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Per-person email accounts (balwyn_portal.portal_accounts, 24 Sep 2026).
+// ---------------------------------------------------------------------------
+type AccountRow = { id: string; email: string; display_name: string; role: PortalUser["role"]; password_salt: string | null; password_hash: string | null; password_version: number; active: boolean };
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Email + password check against per-person accounts. Returns null on any mismatch. */
+export async function verifyAccountCredentials(email: string, password: string): Promise<PortalUser | null> {
+  const supplied = email.trim().toLowerCase();
+  if (!supplied.includes("@")) return null;
+  let row: AccountRow | null = null;
+  try {
+    row = await getSql().prepare(`SELECT id, email, display_name, role, password_salt, password_hash, password_version, active
+      FROM portal_accounts WHERE lower(email) = ? LIMIT 1`).bind(supplied).first<AccountRow>();
+  } catch {
+    return null; // Accounts table not yet created: no per-person accounts exist.
+  }
+  // Always spend the hashing time, so response timing does not reveal whether an email exists.
+  const digest = await passwordDigest(password, row?.password_salt ?? "no-such-account");
+  if (!row || !row.active || !row.password_hash || !constantTimeEqual(digest, row.password_hash)) return null;
+  return { displayName: row.display_name, email: row.email, role: row.role, accountId: row.id };
+}
+
+/** Session identity for a per-person account: changes when the password or role changes or the account is disabled. */
+export async function accountSessionIdentity(user: PortalUser): Promise<SessionIdentity | null> {
+  if (!user.accountId) return null;
+  let row: AccountRow | null = null;
+  try {
+    row = await getSql().prepare(`SELECT id, email, display_name, role, password_salt, password_hash, password_version, active
+      FROM portal_accounts WHERE id = ? LIMIT 1`).bind(user.accountId).first<AccountRow>();
+  } catch { return null; }
+  if (!row || !row.active || !row.password_hash || row.role !== user.role || row.email.toLowerCase() !== user.email.toLowerCase()) return null;
+  return { provider: "password", subject: await hmac(`account\n${row.id}\n${row.password_hash}\n${row.password_version}\n${row.role}`, sessionSecret()) };
+}
+
+/** Password identity for either kind of email account. */
+export async function credentialIdentity(user: PortalUser): Promise<SessionIdentity | null> {
+  if (user.accountId) return accountSessionIdentity(user);
+  try { return await passwordSessionIdentity(user); } catch { return null; }
+}
+
+/** True when email sign-in can be offered: configured site accounts or at least one active per-person account. */
+export async function emailSignInAvailable(): Promise<boolean> {
+  if (passwordSignInAvailable()) return true;
+  try {
+    const row = await getSql().prepare("SELECT count(*) AS n FROM portal_accounts WHERE active = true").first<{ n: number | string }>();
+    return Number(row?.n ?? 0) > 0;
+  } catch { return false; }
+}
+
+const SETUP_LINK_HOURS = 72;
+const MIN_PASSWORD_LENGTH = 12;
+
+function randomToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return base64Url(bytes);
+}
+
+export class AccountError extends Error {}
+
+/** Administrator creates an account. Returns a one-time setup token (shown once, never stored). */
+export async function createPortalAccount(input: { email: string; displayName: string; role: PortalUser["role"] }, createdBy: string) {
+  const email = input.email.trim().toLowerCase();
+  const displayName = input.displayName.trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254) throw new AccountError("Enter a valid email address.");
+  if (!displayName || displayName.length > 120) throw new AccountError("Enter the person's name (up to 120 characters).");
+  if (!["viewer", "operator", "administrator"].includes(input.role)) throw new AccountError("Choose a role.");
+  const token = randomToken();
+  const tokenHash = await sha256Hex(token);
+  const expires = new Date(Date.now() + SETUP_LINK_HOURS * 3600_000).toISOString();
+  const existing = await getSql().prepare("SELECT id FROM portal_accounts WHERE lower(email) = ?").bind(email).first<{ id: string }>();
+  if (existing) throw new AccountError("An account with that email already exists. Use 'New setup link' to reset it.");
+  const row = await getSql().prepare(`INSERT INTO portal_accounts (email, display_name, role, setup_token_hash, setup_expires_at, created_by)
+    VALUES (?, ?, ?, ?, ?, ?) RETURNING id`).bind(email, displayName, input.role, tokenHash, expires, createdBy).first<{ id: string }>();
+  return { id: row?.id ?? "", token, expiresAt: expires };
+}
+
+/** New setup link: the old password stops working immediately and every session for the account ends. */
+export async function resetPortalAccount(id: string) {
+  const token = randomToken();
+  const expires = new Date(Date.now() + SETUP_LINK_HOURS * 3600_000).toISOString();
+  const row = await getSql().prepare(`UPDATE portal_accounts SET password_salt = NULL, password_hash = NULL,
+    password_version = password_version + 1, setup_token_hash = ?, setup_expires_at = ?, updated_at = now()
+    WHERE id = ? RETURNING id`).bind(await sha256Hex(token), expires, id).first<{ id: string }>();
+  if (!row) throw new AccountError("Account not found.");
+  return { id, token, expiresAt: expires };
+}
+
+/** Enable/disable an account or change its role. Any change ends that account's sessions. */
+export async function updatePortalAccount(id: string, change: { active?: boolean; role?: PortalUser["role"] }) {
+  if (change.role && !["viewer", "operator", "administrator"].includes(change.role)) throw new AccountError("Choose a role.");
+  const row = await getSql().prepare(`UPDATE portal_accounts SET active = COALESCE(?, active), role = COALESCE(?, role),
+    password_version = password_version + 1, updated_at = now() WHERE id = ? RETURNING id`)
+    .bind(change.active ?? null, change.role ?? null, id).first<{ id: string }>();
+  if (!row) throw new AccountError("Account not found.");
+}
+
+export async function listPortalAccounts() {
+  const result = await getSql().prepare(`SELECT id, email, display_name, role, active, last_sign_in_at, created_at,
+      (password_hash IS NOT NULL) AS password_set, setup_expires_at
+    FROM portal_accounts ORDER BY lower(display_name)`).all<Record<string, unknown>>();
+  return result.results;
+}
+
+/** The person sets their own password from the one-time link. The link then stops working. */
+export async function setPasswordWithToken(token: string, password: string) {
+  if (typeof token !== "string" || token.length < 20 || token.length > 200) throw new AccountError("This setup link is not valid.");
+  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH || password.length > 1024) {
+    throw new AccountError(`Use a password of at least ${MIN_PASSWORD_LENGTH} characters.`);
+  }
+  const tokenHash = await sha256Hex(token);
+  const salt = randomToken();
+  const hash = await passwordDigest(password, salt);
+  const row = await getSql().prepare(`UPDATE portal_accounts SET password_salt = ?, password_hash = ?,
+      password_version = password_version + 1, setup_token_hash = NULL, setup_expires_at = NULL, updated_at = now()
+    WHERE setup_token_hash = ? AND setup_expires_at > now() AND active = true RETURNING email`)
+    .bind(salt, hash, tokenHash).first<{ email: string }>();
+  if (!row) throw new AccountError("This setup link has expired or was already used. Ask your administrator for a new one.");
+  return { email: row.email };
+}
+
+export async function recordAccountSignIn(user: PortalUser) {
+  if (!user.accountId) return;
+  try { await getSql().prepare("UPDATE portal_accounts SET last_sign_in_at = now() WHERE id = ?").bind(user.accountId).run(); } catch { /* audit field only */ }
 }
 
 export type SessionIdentity = { provider: "google" | "password" | "microsoft"; subject?: string };
@@ -177,8 +310,7 @@ export function clearSessionCookie(): string {
 }
 
 export async function createMfaChallengeCookie(user: PortalUser, fingerprint: string): Promise<string> {
-  const configured = runtimeSecrets();
-  const identity = await passwordSessionIdentity(user);
+  const identity = await credentialIdentity(user);
   if (!identity?.subject) throw new Error("Operator account unavailable.");
   const payload = base64Url(encoder.encode(JSON.stringify({
     user,
@@ -186,7 +318,7 @@ export async function createMfaChallengeCookie(user: PortalUser, fingerprint: st
     credentialVersion: identity.subject,
     expiresAt: Date.now() + 10 * 60 * 1000,
   })));
-  const signature = await hmac(payload, configured.sessionSecret);
+  const signature = await hmac(payload, sessionSecret());
   return `${MFA_COOKIE_NAME}=${payload}.${signature}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=600`;
 }
 
@@ -203,12 +335,11 @@ export async function getMfaChallenge(request: Request): Promise<MfaChallenge | 
   const [payload, signature] = parts;
   if (!payload || !signature) return null;
   try {
-    const configured = runtimeSecrets();
-    if (!constantTimeEqual(signature, await hmac(payload, configured.sessionSecret))) return null;
+    if (!constantTimeEqual(signature, await hmac(payload, sessionSecret()))) return null;
     const challenge = JSON.parse(new TextDecoder().decode(decodeBase64Url(payload))) as MfaChallenge;
     if (!challenge.user?.displayName || !["administrator", "operator", "viewer"].includes(challenge.user.role) || !challenge.fingerprint
       || !Number.isSafeInteger(challenge.expiresAt) || challenge.expiresAt <= Date.now()) return null;
-    if (challenge.credentialVersion !== (await passwordSessionIdentity(challenge.user))?.subject) return null;
+    if (challenge.credentialVersion !== (await credentialIdentity(challenge.user))?.subject) return null;
     challenge.user = withOwnerAccess(challenge.user, "password");
     return challenge;
   } catch {
@@ -242,8 +373,7 @@ function decodeBase32(value: string): Uint8Array<ArrayBuffer> {
 }
 
 async function totpEncryptionKey(): Promise<CryptoKey> {
-  const configured = runtimeSecrets();
-  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(`balwyn-totp:${configured.sessionSecret}`));
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(`balwyn-totp:${sessionSecret()}`));
   return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
@@ -264,9 +394,13 @@ function totpAccount(user: PortalUser): string {
   return user.email && !user.email.startsWith("Contact ") ? user.email : user.displayName;
 }
 
+function totpKey(user: PortalUser): string {
+  return user.accountId ? `account:${user.accountId}` : user.displayName.toLocaleLowerCase("en-AU");
+}
+
 export async function getOrCreateTotpEnrollment(user: PortalUser) {
   const db = getDb();
-  const username = user.displayName.toLocaleLowerCase("en-AU");
+  const username = totpKey(user);
   let [record] = await db.select().from(operatorTotp).where(eq(operatorTotp.username, username)).limit(1);
   if (!record) {
     const secret = randomTotpSecret();
@@ -298,7 +432,7 @@ async function hotp(secret: string, counter: number): Promise<string> {
 export async function verifyAuthenticatorCode(user: PortalUser, code: string): Promise<boolean> {
   if (!/^\d{6}$/.test(code)) return false;
   const db = getDb();
-  const username = user.displayName.toLocaleLowerCase("en-AU");
+  const username = totpKey(user);
   const [record] = await db.select().from(operatorTotp).where(eq(operatorTotp.username, username)).limit(1);
   if (!record) return false;
   const secret = await decryptTotpSecret(record.encryptedSecret);
@@ -344,10 +478,12 @@ export async function getSessionUser(request: Request): Promise<PortalUser | nul
     if (!parsed.user || typeof parsed.expiresAt !== "number" || !Number.isSafeInteger(parsed.expiresAt) || parsed.expiresAt <= Date.now()) return null;
     if (typeof parsed.user.displayName !== "string" || !parsed.user.displayName.trim() || !["administrator", "operator", "viewer"].includes(parsed.user.role)) return null;
     // Recheck the configured provider's approval on every authenticated request.
-    if (typeof parsed.user.email !== "string" || !portalEmailAllowed(parsed.user.email)) return null;
+    // Per-person accounts are approved individually by an administrator, so the
+    // site-wide email list does not apply to them; every other identity must pass it.
+    if (typeof parsed.user.email !== "string" || (!parsed.user.accountId && !portalEmailAllowed(parsed.user.email))) return null;
     const identity = parsed.identity ?? { provider: "google" };
     if (identity.provider === "password") {
-      const current = await passwordSessionIdentity(parsed.user);
+      const current = await credentialIdentity(parsed.user);
       if (!current?.subject || current.subject !== identity.subject) return null;
     } else if (identity.provider === "microsoft") {
       if (!identity.subject || microsoftAccountRoles().get(identity.subject) !== parsed.user.role) return null;

@@ -142,7 +142,7 @@ const groupConfig = {
 
 const viewMeta: Record<ViewKey, { label: string; description: string }> = {
   dashboard: { label: "Dashboard", description: "Live school-wide access overview" },
-  gates: { label: "Gates & booms", description: `${activeGates.length} active · ${gates.length - activeGates.length} inactive access points` },
+  gates: { label: "Gates & booms", description: `${activeGates.length} installed gate${activeGates.length === 1 ? "" : "s"} · live status` },
   cctv: { label: "CCTV & zones", description: "Authorised camera verification and site-zone awareness" },
   guidance: { label: "Emergency guidance", description: "Prepare verified, school-approved directions for staff and projector screens" },
   schedule: { label: "Gate schedules", description: "Set daily opening and closing times for every gate" },
@@ -841,7 +841,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
         {systemMode !== "normal" && <EmergencyAlertPanel mode={systemMode} onClear={() => setPendingEmergency("clear")} confirmed={emergencyConfirmed} pending={emergencyPending} failed={emergencyFailed} canClear={isAdministrator} projectorAccess={advancedFeaturesEnabled} />}
 
-        <div className="workspace-content">
+        <div className="workspace-content" data-view={activeView}>
           <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span><div className="workspace-context" aria-label="Portal context"><span>Portal sync · {portalTimeLabel(serverTime)}</span><span>Timezone · Australia/Melbourne</span><span>Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</span></div></div><div className="workspace-title-meta"><div className="workspace-powered-by"><span>Powered by RJL Commercial</span><img src="/rjl-commercial-logo.png" alt="RJL Commercial" /></div><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>
           {activeView === "dashboard" && (
             <div className="desk-service-row">
@@ -877,12 +877,12 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
           {activeView === "gates" && (
             <section className="view-panel">
-              <div className="view-panel-heading"><div><h2>Gates & booms</h2><small>{filteredGates.length} of {gates.length} access points · {activeGates.length} active · {gates.length - activeGates.length} inactive</small></div><div className="status-legend"><span className="is-open"><i /> Open confirmed</span><span className="is-closed"><i /> Closed confirmed</span><span className="is-pending"><i /> Awaiting feedback</span><span className="is-inactive"><i /> Inactive · lights off</span></div></div>
+              <div className="view-panel-heading"><div><h2>Gates & booms</h2><small>{activeGates.length} installed gate{activeGates.length === 1 ? "" : "s"} · live status</small></div><div className="status-legend"><span className="is-open"><i /> Open confirmed</span><span className="is-closed"><i /> Closed confirmed</span><span className="is-pending"><i /> Awaiting feedback</span><span className="is-inactive"><i /> Inactive · lights off</span></div></div>
               <div className="gate-toolbar">
                 <label className="gate-search"><Search aria-hidden="true" /><span className="sr-only">Search gates</span><Input value={gateQuery} onChange={(event) => setGateQuery(event.target.value)} placeholder="Search by gate, area or asset ID" /></label>
                 <label><span className="sr-only">Filter gates by area</span><NativeSelect value={gateGroup} onChange={(event) => setGateGroup(event.target.value as "all" | GroupKey)}><NativeSelectOption value="all">All controlled areas</NativeSelectOption>{(Object.keys(groupConfig) as GroupKey[]).map((group) => <NativeSelectOption key={group} value={group}>{groupConfig[group].name}</NativeSelectOption>)}</NativeSelect></label>
               </div>
-              {filteredGates.length ? renderGateCards(filteredGates) : <div className="gate-empty"><Search /><h3>No gates match this search</h3><p>Clear the search or choose another controlled area.</p><Button variant="outline" onClick={() => { setGateQuery(""); setGateGroup("all"); }}>Clear filters</Button></div>}
+              {filteredGates.some((gate) => gate.active) ? renderGateCards(filteredGates.filter((gate) => gate.active)) : <div className="gate-empty"><Search /><h3>No gates match this search</h3><p>Clear the search or choose another controlled area.</p><Button variant="outline" onClick={() => { setGateQuery(""); setGateGroup("all"); }}>Clear filters</Button></div>}
             </section>
           )}
 

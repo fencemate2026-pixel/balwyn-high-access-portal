@@ -36,36 +36,94 @@ function systemLed(mode: SystemMode, leds: Led[]): { led: Led; title: string; de
   return { led: "green", title: "All gates healthy", detail: "Controllers online, positions confirmed" };
 }
 
-/** Semicircular dial. `fraction` 0..1, or null for "no reading" (needle parked, dial greyed). */
-function Gauge({ label, value, unit, fraction, tone }: { label: string; value: string; unit?: string; fraction: number | null; tone: Led | "none" }) {
-  const clamped = fraction === null ? 0 : Math.max(0, Math.min(1, fraction));
-  const angle = -90 + clamped * 180; // -90 = left end, +90 = right end
+/**
+ * Speedometer dial in the style of the supplied Freepik gauge set: four coloured
+ * segments (red, orange, lime, green) with white gaps, white outer rim, tick
+ * marks, a two-tone needle and a white hub carrying the value.
+ * `fraction` 0..1 positions the needle; null = no reading (segments greyed,
+ * no needle), so an empty dial can never be mistaken for a real value.
+ * `reverse` puts green on the left (for values where low is good).
+ */
+const SEGMENTS = ["#d9190c", "#f39200", "#84c600", "#00b32c"];
+function arc(cx: number, cy: number, r: number, a0: number, a1: number) {
+  const p = (a: number) => [cx + r * Math.cos(a), cy - r * Math.sin(a)];
+  const [x0, y0] = p(a0); const [x1, y1] = p(a1);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+function Gauge({ label, value, unit, fraction, reverse = false }: { label: string; value: string; unit?: string; fraction: number | null; reverse?: boolean }) {
+  const empty = fraction === null;
+  const f = empty ? 0 : Math.max(0, Math.min(1, fraction));
+  const colours = reverse ? [...SEGMENTS].reverse() : SEGMENTS;
+  const cx = 100, cy = 100;
+  // 180° dial split into four segments with small white gaps.
+  const gap = 0.035;
+  const segs = [0, 1, 2, 3].map((i) => {
+    const start = Math.PI - (i * Math.PI) / 4 - (i === 0 ? 0 : gap / 2);
+    const end = Math.PI - ((i + 1) * Math.PI) / 4 + (i === 3 ? 0 : gap / 2);
+    return { d: arc(cx, cy, 70, start, end), colour: empty ? "#9aa1ab" : colours[i] };
+  });
+  const angle = Math.PI - f * Math.PI;
+  const tip = [cx + 80 * Math.cos(angle), cy - 80 * Math.sin(angle)];
+  const baseA = [cx + 7 * Math.cos(angle + Math.PI / 2), cy - 7 * Math.sin(angle + Math.PI / 2)];
+  const baseB = [cx + 7 * Math.cos(angle - Math.PI / 2), cy - 7 * Math.sin(angle - Math.PI / 2)];
+  const ticks = Array.from({ length: 21 }, (_, i) => {
+    const t = Math.PI - (i * Math.PI) / 20; const long = i % 5 === 0;
+    const r0 = long ? 44 : 48, r1 = 54;
+    return <line key={i} x1={cx + r0 * Math.cos(t)} y1={cy - r0 * Math.sin(t)} x2={cx + r1 * Math.cos(t)} y2={cy - r1 * Math.sin(t)} stroke="#ffffff" strokeWidth={long ? 2.4 : 1.3} strokeLinecap="round" opacity={empty ? 0.6 : 0.95} />;
+  });
   return (
-    <figure className={`gc-gauge tone-${tone}${fraction === null ? " is-empty" : ""}`}>
-      <svg viewBox="0 0 120 72" aria-hidden="true">
+    <figure className={`gc-gauge${empty ? " is-empty" : ""}`}>
+      <svg viewBox="0 0 200 132" role="img" aria-label={`${label}: ${value}${unit ? ` ${unit}` : ""}`}>
         <defs>
-          <linearGradient id="gc-bezel" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#f4f6f9" /><stop offset="1" stopColor="#aeb8c6" />
-          </linearGradient>
-          <linearGradient id="gc-scale" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#2ee05a" /><stop offset=".6" stopColor="#ffab1a" /><stop offset="1" stopColor="#ff3b2f" />
-          </linearGradient>
+          <filter id="gc-shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="2" floodOpacity=".35" /></filter>
+          <linearGradient id="gc-needle-l" x1="0" x2="1"><stop offset="0" stopColor="#6d7178" /><stop offset="1" stopColor="#8e939b" /></linearGradient>
+          <radialGradient id="gc-hub" cx=".4" cy=".35" r=".7"><stop offset="0" stopColor="#ffffff" /><stop offset="1" stopColor="#d7dbe0" /></radialGradient>
         </defs>
-        <path d="M8 64 A52 52 0 0 1 112 64" fill="none" stroke="url(#gc-bezel)" strokeWidth="14" />
-        <path d="M14 64 A46 46 0 0 1 106 64" fill="none" stroke={fraction === null ? "#c3cad5" : "url(#gc-scale)"} strokeWidth="7" />
-        {fraction !== null && (
-          <g transform={`rotate(${angle} 60 64)`}>
-            <path d="M60 22 L63 64 L57 64 Z" fill="#14223a" />
+        {/* white outer rim */}
+        <path d={arc(cx, cy, 90, Math.PI, 0)} fill="none" stroke="#ffffff" strokeWidth="4" filter="url(#gc-shadow)" />
+        {segs.map((seg, i) => <path key={i} d={seg.d} fill="none" stroke={seg.colour} strokeWidth="26" filter="url(#gc-shadow)" />)}
+        {/* sheen across the top half of the segments */}
+        <path d={arc(cx, cy, 78, Math.PI, 0)} fill="none" stroke="#ffffff" strokeWidth="6" opacity=".18" />
+        {ticks}
+        {!empty && (
+          <g filter="url(#gc-shadow)">
+            <path d={`M${baseA[0]} ${baseA[1]} L${tip[0]} ${tip[1]} L${cx} ${cy} Z`} fill="#6d7178" />
+            <path d={`M${baseB[0]} ${baseB[1]} L${tip[0]} ${tip[1]} L${cx} ${cy} Z`} fill="url(#gc-needle-l)" />
           </g>
         )}
-        <circle cx="60" cy="64" r="6" fill="#14223a" stroke="#ffffff" strokeWidth="1.5" />
+        <circle cx={cx} cy={cy} r="11" fill="url(#gc-hub)" stroke="#9aa1ab" strokeWidth="1" filter="url(#gc-shadow)" />
+        <rect x={cx - 38} y={cy + 8} width="76" height="22" fill="#ffffff" stroke="#c9d0d8" filter="url(#gc-shadow)" />
+        <text x={cx} y={cy + 24} textAnchor="middle" className="gc-gauge-value">{value}{unit ? ` ${unit}` : ""}</text>
       </svg>
-      <figcaption>
-        <strong>{value}{unit && <small> {unit}</small>}</strong>
-        <span>{label}</span>
-      </figcaption>
+      <figcaption>{label}</figcaption>
     </figure>
   );
+}
+
+/**
+ * Position shown on the real OPEN / CLOSED signs (public/signs/, cut from the
+ * supplied sign set). Only a confirmed position lights a sign; with no
+ * confirmed position both signs stay dimmed.
+ */
+function PositionSigns({ position }: { position: GateVisualState }) {
+  const open = position === "open" || position === "moving";
+  const closed = position === "closed";
+  const caption = position === "open" ? "Confirmed open" : position === "closed" ? "Confirmed closed" : position === "moving" ? "Moving" : "No confirmed position";
+  return (
+    <figure className="gc-signs" aria-label={`Position: ${caption}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- fixed local artwork */}
+      <img src="/signs/sign-open.png" alt="" aria-hidden="true" className={open ? "is-lit" : "is-dim"} />
+      {/* eslint-disable-next-line @next/next/no-img-element -- fixed local artwork */}
+      <img src="/signs/sign-closed.png" alt="" aria-hidden="true" className={closed ? "is-lit" : "is-dim"} />
+      <figcaption>{caption}</figcaption>
+    </figure>
+  );
+}
+
+/** Real lamp artwork (public/leds/*.png, cut from the supplied LED button set). */
+function Lamp({ led, size = "md" }: { led: Led | "off"; size?: "md" | "lg" }) {
+  // eslint-disable-next-line @next/next/no-img-element -- fixed local artwork
+  return <img className={`gc-lamp gc-lamp-${size} is-${led}`} src={`/leds/led-${led}.png`} alt="" aria-hidden="true" draggable={false} />;
 }
 
 export default function GateConditionPanel({ gates, runtime, getPosition, systemMode, now, temperatureC = {} }: {
@@ -89,7 +147,7 @@ export default function GateConditionPanel({ gates, runtime, getPosition, system
   return (
     <section className="gate-condition" aria-label="Gate condition">
       <div className={`gc-system led-${system.led}`}>
-        <span className="gc-led gc-led-lg" aria-hidden="true"><i /></span>
+        <Lamp led={system.led} size="lg" />
         <div>
           <span className="gc-eyebrow">System</span>
           <strong>{system.title}</strong>
@@ -101,7 +159,7 @@ export default function GateConditionPanel({ gates, runtime, getPosition, system
           <div className="gc-gate-art"><GateTile gate={gate} position={position} /></div>
           <div className="gc-gate-body">
             <header>
-              <span className="gc-led" aria-hidden="true"><i /></span>
+              <Lamp led={status.led} />
               <div>
                 <strong>{gate.name}</strong>
                 <small>{gate.id} · {status.reason}</small>
@@ -109,25 +167,20 @@ export default function GateConditionPanel({ gates, runtime, getPosition, system
             </header>
             <div className="gc-gauges">
               <Gauge
+                reverse
                 label={temp === undefined ? "Temperature · not fitted" : "Controller temperature"}
                 value={temp === undefined ? "No sensor" : temp.toFixed(1)}
                 unit={temp === undefined ? undefined : "°C"}
                 fraction={temp === undefined ? null : temp / 80}
-                tone={temp === undefined ? "none" : temp >= 60 ? "red" : temp >= 45 ? "amber" : "green"}
               />
               <Gauge
+                reverse
                 label={age === null ? "Heartbeat · none yet" : "Since last heartbeat"}
                 value={age === null ? "None" : String(age)}
                 unit={age === null ? undefined : "s"}
                 fraction={age === null ? null : age / HEARTBEAT_LIMIT_S}
-                tone={age === null ? "none" : age > HEARTBEAT_LIMIT_S ? "red" : age > 30 ? "amber" : "green"}
               />
-              <Gauge
-                label="Confirmed position"
-                value={position === "open" ? "Open" : position === "closed" ? "Closed" : position === "moving" ? "Moving" : "Unknown"}
-                fraction={position === "closed" ? 0 : position === "open" ? 1 : position === "moving" ? 0.5 : null}
-                tone={position === "unknown" ? "none" : position === "moving" ? "amber" : "green"}
-              />
+              <PositionSigns position={position} />
             </div>
             {run?.commissioned === false && <p className="gc-note">Readings start once this gate is commissioned and its controller reports.</p>}
           </div>

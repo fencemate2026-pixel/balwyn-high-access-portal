@@ -1,5 +1,6 @@
 import { getSql } from "@/db";
-import { createMfaChallengeCookie, clearMfaChallengeCookie, getOrCreateTotpEnrollment, requestFingerprint, signInRateKey, verifyOperatorCredentials } from "@/lib/portal-auth";
+import { createMfaChallengeCookie, clearMfaChallengeCookie, createSessionCookie, credentialIdentity, getOrCreateTotpEnrollment, recordAccountSignIn, requestFingerprint, signInRateKey, verifyAccountCredentials, verifyOperatorCredentials } from "@/lib/portal-auth";
+import { recordActivity, getPortalSnapshot } from "@/lib/portal-store";
 import { isSameOriginSignInRequest } from "@/lib/google-signin";
 import { reserveSignInAttempt, SignInRateLimitError } from "@/lib/signin-rate-limit";
 import { readSignInBody } from "@/lib/signin-request";
@@ -19,8 +20,22 @@ export async function POST(request: Request) {
     const db = getSql();
     await reserveSignInAttempt(db, await signInRateKey(`email:ip:${request.headers.get("cf-connecting-ip") ?? "unknown"}`), 24);
     await reserveSignInAttempt(db, await signInRateKey(`email:account:${body.email.trim().toLowerCase()}`));
-    const user = await verifyOperatorCredentials(body.email, body.password);
+    // Site accounts first (Render/Azure settings), then per-person accounts.
+    const user = await verifyOperatorCredentials(body.email, body.password)
+      ?? await verifyAccountCredentials(body.email, body.password);
     if (!user) return Response.json({ error: "The email or password was not recognised. Use an approved operator account." }, { status: 401, headers });
+    // View-only per-person accounts sign in with the password alone: they cannot
+    // open gates or change anything. Operators and administrators always get the
+    // authenticator step below.
+    if (user.accountId && user.role === "viewer") {
+      const identity = await credentialIdentity(user);
+      if (!identity) return Response.json({ error: "This account is not available." }, { status: 401, headers });
+      const snapshot = await getPortalSnapshot(user);
+      headers.append("Set-Cookie", await createSessionCookie(user, identity));
+      await recordAccountSignIn(user);
+      await recordActivity(user, "Signed in", "Email and password (view-only account)", "access");
+      return Response.json({ snapshot }, { headers });
+    }
     const enrollment = await getOrCreateTotpEnrollment(user);
     headers.set("Set-Cookie", await createMfaChallengeCookie(user, await requestFingerprint(request)));
     return Response.json({ requiresAuthenticator: true,

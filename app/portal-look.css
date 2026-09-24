@@ -270,14 +270,14 @@ body.hire-open #hire-nav-item .portal-nav-button {
    ============================================================================= */
 /* 1. Zing Sans Rust on every element, including SVG text, inline styles, dialogs,
       toasts and menus rendered outside the portal container. */
-*, *::before, *::after, text, tspan { font-family: "Zing Sans Rust", "Zing Sans Rust Base", system-ui, sans-serif !important; }
+*:not(#mk-x), *:not(#mk-x)::before, *:not(#mk-x)::after, text:not(#mk-x), tspan:not(#mk-x) { font-family: "Zing Sans Rust", "Zing Sans Rust Base", system-ui, sans-serif !important; }
 
 /* 2. Square corners on everything the site draws. Only lights stay round.
       (Google's own sign-in button is inside Google's frame and cannot be restyled.) */
-*, *::before, *::after { border-radius: 0 !important; }
-.gate-photo-lamp, .gc-led, .gc-led i, .status-dot, .health-pulse, .health-pulse i,
-[class*="status-dot"], .led, .lamp,
-.fh .fh-day-num.is-today, .fh .fh-cell.is-today .fh-cell-num { border-radius: 50% !important; }
+*:not(#mk-x), *:not(#mk-x)::before, *:not(#mk-x)::after { border-radius: 0 !important; }
+.gate-photo-lamp:not(#mk-x), .gc-led:not(#mk-x), .gc-led:not(#mk-x) i, .gc-lamp:not(#mk-x), .status-dot:not(#mk-x),
+.health-pulse:not(#mk-x), .health-pulse:not(#mk-x) i, [class*="status-dot"]:not(#mk-x), .led:not(#mk-x), .lamp:not(#mk-x),
+.fh .fh-day-num.is-today:not(#mk-x), .fh .fh-cell.is-today .fh-cell-num:not(#mk-x) { border-radius: 50% !important; }
 
 /* 3. Every h2, on every page and in every dialog, on the navy bar with the orange edge. */
 h2 {
@@ -298,3 +298,44 @@ h2 {
 h2:hover { transform: translateY(-3px); box-shadow: 0 5px 0 rgba(0,0,0,.25), 0 12px 18px rgba(11,42,85,.32); }
 h2 svg { color: #ffffff; }
 @media (prefers-reduced-motion: reduce) { h2:hover { transform: none; } }
+
+/* The hire week chart belongs on the Dashboard only. */
+.workspace-content:not([data-view="dashboard"]) #week-hire-chart { display: none !important; }
+/* Gates & booms shows installed units only: the search/area filter is unnecessary for two gates. */
+.workspace-content[data-view="gates"] .gate-toolbar { display: none !important; }
+
+/* ---- Real-life dials, lamps and signs (source artwork supplied 24 Sep 2026) ---------- */
+.gc-gauges { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; align-items: stretch; }
+.gc-gauge {
+  display: grid !important; justify-items: center; gap: 4px; margin: 0; padding: 10px 8px 8px !important;
+  background: linear-gradient(180deg, #eef3e6 0%, #dfe8d2 100%) !important;   /* the pale dial face of the source set */
+  border: 1px solid #b9c7a8 !important;
+  box-shadow: inset 0 1px 0 #ffffff, inset 0 -2px 4px rgba(0,0,0,.08), 0 3px 0 #a9b69a, 0 8px 14px rgba(16,24,40,.18) !important;
+}
+.gc-gauge svg { width: 100%; max-width: 200px; height: auto; overflow: visible; }
+.gc-gauge-value { font-size: 15px; font-weight: 800; fill: #14223a; }
+.gc-gauge.is-empty .gc-gauge-value { font-size: 13px; fill: #6b7585; }
+.gc-gauge figcaption { font-size: .72rem; font-weight: 700; color: #33412a; text-align: center; letter-spacing: .02em; }
+.gc-signs {
+  margin: 0; display: grid; grid-template-columns: 1fr; gap: 6px; align-content: center; justify-items: center;
+  padding: 10px 8px 8px; background: linear-gradient(180deg, #1a2c4d 0%, #0e1c36 100%);
+  border: 1px solid #061a38; box-shadow: inset 0 2px 6px rgba(0,0,0,.55), 0 3px 0 #b9c3d2;
+}
+.gc-signs img { width: 100%; max-width: 170px; height: auto; display: block; transition: filter 200ms ease, opacity 200ms ease; }
+.gc-signs img.is-lit { filter: drop-shadow(0 0 10px rgba(255,255,255,.35)) drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
+.gc-signs img.is-dim { filter: grayscale(1) brightness(.55); opacity: .55; }
+.gc-signs figcaption { color: #dbe6f7; font-size: .72rem; font-weight: 700; }
+.gc-lamp { display: block; flex-shrink: 0; width: 34px; height: 34px; border-radius: 50% !important; filter: drop-shadow(0 3px 4px rgba(0,0,0,.5)); }
+.gc-lamp-lg { width: 64px; height: 64px; }
+.gc-lamp.is-green { filter: drop-shadow(0 0 14px rgba(46,224,90,.75)) drop-shadow(0 3px 4px rgba(0,0,0,.5)); }
+.gc-lamp.is-amber { filter: drop-shadow(0 0 14px rgba(255,190,40,.8)) drop-shadow(0 3px 4px rgba(0,0,0,.5)); animation: gc-lamp-pulse 1.4s ease-in-out infinite; }
+.gc-lamp.is-red { filter: drop-shadow(0 0 16px rgba(255,59,47,.85)) drop-shadow(0 3px 4px rgba(0,0,0,.5)); animation: gc-lamp-pulse .8s ease-in-out infinite; }
+@keyframes gc-lamp-pulse { 50% { opacity: .7; } }
+@media (prefers-reduced-motion: reduce) { .gc-lamp { animation: none !important; } }
+
+/* Gates & booms: two large cards, artwork contained inside its own frame. */
+.workspace-content[data-view="gates"] .access-grid { grid-template-columns: repeat(2, minmax(320px, 520px)) !important; justify-content: start; }
+.access-card .access-icon { position: relative !important; width: 100% !important; height: 260px !important; overflow: hidden !important; }
+.access-card .access-icon .stage { position: absolute !important; inset: 0 !important; }
+.access-card .access-icon { margin-bottom: 12px !important; }
+.access-card > *:not(.access-icon) { position: relative !important; z-index: 2 !important; }

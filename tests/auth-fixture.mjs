@@ -11,6 +11,7 @@ export async function databaseFixture(t) {
     CREATE TABLE storage.buckets (id text PRIMARY KEY, name text, public boolean,
       file_size_limit bigint, allowed_mime_types text[]);`);
   await pg.exec(readFileSync(new URL("../supabase/migrations/20260920062504_balwyn_portal_netlify.sql", import.meta.url), "utf8"));
+  await pg.exec(readFileSync(new URL("../supabase/migrations/20260924120000_portal_accounts.sql", import.meta.url), "utf8"));
   await pg.exec("SET ROLE balwyn_app; SET search_path = balwyn_portal, pg_catalog;");
   const statement = (sql, values = []) => ({
     sql: postgresPlaceholders(sql), values,
