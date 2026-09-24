@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import FacilityHirePanel from "./facility-hire-panel";
 import DashboardOpsStrip from "./dashboard-ops-strip";
+import OperatorHelpDock from "./operator-help-dock";
 import "./hire-dock.css";
 
 function portalMode() {
@@ -96,15 +97,11 @@ export default function DashboardHireDock() {
     if (why) why.textContent = statusCopy(mode, attention);
   }, [mode, attention]);
 
-  // Tab state: while Facility hire is open, its tab shows as the active one.
   useEffect(() => {
     document.body.classList.toggle("hire-open", open);
     return () => document.body.classList.remove("hire-open");
   }, [open]);
 
-  // Facility hire sits directly under the fire/emergency bar and flush against
-  // the sidebar: measure both so the bar is never covered (it was being
-  // squashed) and there is no gap between the sidebar and the page.
   useEffect(() => {
     if (!open) return;
     const place = () => {
@@ -132,6 +129,7 @@ export default function DashboardHireDock() {
   return (
     <>
       <DashboardOpsStrip />
+      <OperatorHelpDock />
       {open ? (
         <div className="hire-overlay" role="region" aria-label="Facility hire">
           <FacilityHirePanel />
