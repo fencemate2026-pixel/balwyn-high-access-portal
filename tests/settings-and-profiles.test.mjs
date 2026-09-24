@@ -44,9 +44,9 @@ async function unlock(cookie) {
   return `${cookie}; ${response.headers.getSetCookie()[0].split(";")[0]}`;
 }
 
-test("all configuration mutations reject a valid administrator session without password unlock", async (t) => {
+test("sensitive configuration mutations reject a valid administrator session without password unlock", async (t) => {
   const { cookie } = await fixture(t);
-  for (const action of ["save_schedule", "add_automation", "toggle_automation", "delete_automation", "update_settings", "provision_controller", "reset_auth_lockouts"]) {
+  for (const action of ["add_automation", "toggle_automation", "delete_automation", "update_settings", "provision_controller", "reset_auth_lockouts"]) {
     const response = await portal.POST(request("/api/portal", { action }, cookie));
     assert.equal(response.status, 403);
     assert.equal((await response.json()).code, "admin_password_required");
@@ -209,4 +209,21 @@ test('password credentials and existing sessions cannot bypass the site email re
   assert.equal(await auth.verifyOperatorCredentials(user.email, password), null);
   assert.equal(await auth.verifyOperatorCredentials(user.displayName, password), null);
   assert.equal(await auth.getSessionUser(request('/api/portal', undefined, cookie)), null);
+});
+
+test("schedules save with an operator session without password unlock, but reject viewers and cross-origin requests", async (t) => {
+  const { pg } = await fixture(t);
+  const week = Object.fromEntries(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => [day, { enabled: true, open: "06:00", close: "18:00" }]));
+  env.GOOGLE_ALLOWED_EMAILS = `${user.email}|operator`;
+  const cookie = (await auth.createSessionCookie({ ...user, role: "operator" })).split(";")[0];
+  const body = { action: "save_schedule", gateId: "TF-ENTRY", week };
+  const response = await portal.POST(request("/api/portal", body, cookie));
+  assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+  assert.equal((await pg.query("SELECT open_time FROM gate_schedules WHERE gate_id = 'TF-ENTRY' AND day = 'Monday'")).rows[0].open_time, "06:00");
+  assert.equal((await portal.POST(request("/api/portal", body, cookie, { Origin: "https://evil.example" }))).status, 403);
+  assert.equal((await portal.POST(request("/api/portal", { ...body, week: { ...week, Monday: { enabled: true, open: "25:00", close: "26:00" } } }, cookie))).status, 400);
+  env.GOOGLE_ALLOWED_EMAILS = `${user.email}|viewer`;
+  const viewer = (await auth.createSessionCookie({ ...user, role: "viewer" })).split(";")[0];
+  assert.equal((await portal.POST(request("/api/portal", body, viewer))).status, 403);
+  assert.equal((await portal.POST(request("/api/portal", body))).status, 401);
 });
