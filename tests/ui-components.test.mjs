@@ -125,16 +125,16 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
 
   assert.match(html, /Portal sync/);
   assert.match(html, /Timezone · Australia\/Melbourne/);
-  assert.match(html, /Heartbeat just now/);
-  assert.match(html, /Safety healthy/);
+  assert.match(html, /Since last report/);
+  assert.match(html, /Verified circuit/);
   assert.match(html, /Heartbeat coverage · 2\/2 active controllers/);
   // Site decision: fire evacuation is offered, lockdown is not.
   assert.match(html, /START FIRE \/ EVACUATION/);
   assert.doesNotMatch(html, /START LOCKDOWN/);
-  // Gate tiles use the approved gate artwork; the lamp colour follows the confirmed position.
-  assert.match(html, /class=\"tile gate-tile gate-photo access-icon gate-state-run is-open single-swing\"/);
-  assert.match(html, /class=\"tile gate-tile gate-photo access-icon gate-state-stop is-closed single-swing\"/);
-  assert.match(html, /src=\"\/gates\/pedestrian-gate.jpg\"/);
+  // SSR retains approved fallback artwork; the 3D model is client-only and state driven.
+  assert.match(html, /class=\"gate-tile gate-model access-icon gate-state-run is-open single-swing\"/);
+  assert.match(html, /class=\"gate-tile gate-model access-icon gate-state-stop is-closed single-swing\"/);
+  assert.match(html, /src=\"\/gates\/single-swing-blue.webp\"/);
   assert.doesNotMatch(html, /single-gate-image|double-gate-image/);
 });
 
@@ -153,15 +153,15 @@ test("renders gate tile states with accessible labels", async () => {
 
   const open = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "open" }));
   assert.match(open, /gate-state-run/);
-  assert.match(open, /<span class="stage"><span class="gate-photo-frame"/);
-  assert.match(open, /src="\/gates\/boom-gate.jpg"/);
-  assert.match(open, /gate-photo-lamp lamp-run/);
+  assert.match(open, /<span class="gate-model-fallback"/);
+  assert.match(open, /src="\/gates\/boom-blue.webp"/);
+  assert.match(open, /gate-state-run/);
   assert.doesNotMatch(open, /lamp-stop|lamp-issue/);
   assert.match(open, /aria-label="Office Entry 1 Boom Gate: Operating, Confirmed open"/);
 
   const closed = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "closed" }));
   assert.match(closed, /gate-state-stop/);
-  assert.match(closed, /gate-photo-lamp lamp-stop/);
+  assert.match(closed, /gate-state-stop/);
   assert.match(closed, /aria-label="Office Entry 1 Boom Gate: Stop, Confirmed closed"/);
 
   const moving = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "moving" }));
@@ -171,7 +171,7 @@ test("renders gate tile states with accessible labels", async () => {
 
   const issue = renderToStaticMarkup(React.createElement(GateTile, { gate, position: "unknown" }));
   assert.match(issue, /gate-state-issue/);
-  assert.match(issue, /gate-photo-lamp lamp-issue/);
+  assert.match(issue, /gate-state-issue/);
   assert.doesNotMatch(issue, /lamp-run|lamp-stop/);
   assert.match(issue, /aria-label="Office Entry 1 Boom Gate: Issue, Status unknown"/);
 
@@ -181,4 +181,25 @@ test("renders gate tile states with accessible labels", async () => {
     ariaLabel: "Custom office gate label",
   }));
   assert.match(custom, /aria-label="Custom office gate label"/);
+});
+
+// A realistic presentation must not turn stale or invalid sensor data green.
+test("condition cards distinguish commissioning, faults and invalid heartbeats", async () => {
+  const { controllerHealth } = await vite.ssrLoadModule("/app/gate-condition-panel.tsx");
+  const now = Date.now();
+  const online = { commissioned: true, controllerState: "online", safetyOk: true, lastSeen: new Date(now).toISOString(), lastCommandState: "idle" };
+  assert.equal(controllerHealth(undefined, "unknown", now).tone, "amber");
+  assert.equal(controllerHealth(online, "closed", now).tone, "green");
+  assert.equal(controllerHealth({ ...online, lastSeen: "invalid" }, "closed", now).tone, "red");
+  assert.equal(controllerHealth({ ...online, lastSeen: new Date(now - 91_000).toISOString() }, "closed", now).tone, "red");
+  assert.equal(controllerHealth({ ...online, controllerState: "fault" }, "closed", now).tone, "red");
+  assert.equal(controllerHealth({ ...online, safetyOk: null }, "closed", now).tone, "amber");
+});
+
+test("campus calendar keeps Monday boundaries across Melbourne daylight saving", async () => {
+  const { campusDate, shiftDate, weekStart } = await vite.ssrLoadModule("/app/campus-calendar.tsx");
+  assert.equal(campusDate(new Date("2026-10-03T16:30:00Z")), "2026-10-04");
+  assert.equal(weekStart("2026-10-04"), "2026-09-28");
+  assert.equal(shiftDate("2026-10-04", 1), "2026-10-05");
+  assert.equal(shiftDate("2026-12-31", 1), "2027-01-01");
 });
