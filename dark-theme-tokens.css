@@ -1,0 +1,18 @@
+:root {
+  --bg-page: #0b131e;
+  --bg-sidebar: #dce5ef;
+  --bg-card: #121e2c;
+  --bg-card-raised: #182738;
+  --bg-card-hover: #1c2e42;
+  --text-primary: #eef4fc;
+  --text-secondary: #a4b4c8;
+  --text-muted: #7e91a8;
+  --border-subtle: #26374b;
+  --accent-green: #42e8a4;
+  --accent-blue: #55acff;
+  --status-warning: #f5bd64;
+  --status-error: #ff727f;
+  --glow-green: 0 0 12px #42e8a466, 0 0 28px #42e8a422;
+  --glow-blue: 0 0 12px #55acff66, 0 0 28px #55acff22;
+  --shadow-card: 0 16px 40px #00000033, inset 0 1px 0 #ffffff08;
+}

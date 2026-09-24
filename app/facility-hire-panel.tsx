@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Users } from "lucide-react";
-import "./facility-hire.css";
+
 
 type HireArea = { key: string; label: string; active?: boolean };
 type HireVisit = {
@@ -119,7 +119,7 @@ function monthTitle(iso: string): { month: string; year: string } {
   };
 }
 
-export default function FacilityHirePanel() {
+export default function FacilityHirePanel({ canBook = true }: { canBook?: boolean }) {
   const today = melbourneToday();
   const [weekStart, setWeekStart] = useState(() => mondayOf(today));
   const [monthCursor, setMonthCursor] = useState(() => monthStart(today));
@@ -153,24 +153,26 @@ export default function FacilityHirePanel() {
   const rangeFrom = weekStart < gridStart ? weekStart : gridStart;
   const rangeTo = weekEnd > gridEnd ? weekEnd : gridEnd;
 
-  const load = useCallback(async () => {
-    const response = await fetch(`/api/hire?from=${rangeFrom}&to=${rangeTo}`, { cache: "no-store" });
+  const load = useCallback(async (signal?: AbortSignal) => {
+    const response = await fetch(`/api/hire?from=${rangeFrom}&to=${rangeTo}`, { cache: "no-store", signal });
     const body = await response.json() as HirePayload;
     if (!response.ok) throw new Error(body.error || "Hire records could not be loaded.");
+    if (signal?.aborted) return;
     setData(body);
     setError(body.error ?? "");
   }, [rangeFrom, rangeTo]);
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
     // Start the load after the effect returns (state is only set once the
     // request resolves), which keeps React from cascading renders.
     queueMicrotask(() => {
-      load().catch((reason) => {
+      load(controller.signal).catch((reason) => {
         if (active) setError(reason instanceof Error ? reason.message : "Hire records could not be loaded.");
       });
     });
-    return () => { active = false; };
+    return () => { active = false; controller.abort(); };
   }, [load]);
 
   const visitsByDay = useMemo(() => {
@@ -212,6 +214,7 @@ export default function FacilityHirePanel() {
       setNotice(`Saved: ${fullName}, ${longDate(date)}, ${startTime}–${endTime}.`);
       setComment("");
       await load();
+      window.dispatchEvent(new Event("campus-bookings-updated"));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The hire record could not be saved.");
     } finally {
@@ -233,7 +236,7 @@ export default function FacilityHirePanel() {
             <button type="button" className="fh-3d" onClick={jumpToToday}>Today</button>
             <button type="button" className="fh-3d" aria-label="Next week" onClick={() => setWeekStart(addDays(weekStart, 7))}><ChevronRight aria-hidden="true" /></button>
           </div>
-          <a className="fh-3d fh-primary" href="#fh-booking"><Plus aria-hidden="true" /> New booking</a>
+          {canBook && <a className="fh-3d fh-primary" href="#fh-booking"><Plus aria-hidden="true" /> New booking</a>}
         </div>
       </header>
 
@@ -250,12 +253,12 @@ export default function FacilityHirePanel() {
           const visits = visitsByDay.get(iso) ?? [];
           const isToday = iso === today;
           return (
-            <article key={iso} className={`fh-day${isToday ? " is-today" : ""}${iso === selectedDay ? " is-selected" : ""}`} onClick={() => chooseDay(iso)}>
+            <article key={iso} tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); chooseDay(iso); } }} className={`fh-day${isToday ? " is-today" : ""}${iso === selectedDay ? " is-selected" : ""}`} onClick={() => chooseDay(iso)}>
               <div className="fh-day-head">
                 <span>{DAY_NAMES[index]}</span>
                 <span className={`fh-day-num${isToday ? " is-today" : ""}`}>{Number(iso.slice(8))}</span>
               </div>
-              {visits.length === 0 ? <p className="fh-empty">No bookings</p> : visits.map((visit, i) => (
+              {visits.length === 0 ? <p className="fh-empty">{error ? "Unavailable" : data ? "No bookings" : "Loading…"}</p> : visits.map((visit, i) => (
                 <button type="button" key={visit.occurrence_id ?? i} className={`fh-booking ${areaClass(visit)}`} onClick={(event) => { event.stopPropagation(); setSelectedVisit(visit); setSelectedDay(iso); }}>
                   <strong>{visitTitle(visit)}</strong>
                   <span>{clock(visit.starts_at)} – {clock(visit.ends_at)}</span>
@@ -271,9 +274,9 @@ export default function FacilityHirePanel() {
         })}
       </div>
 
-      <div className="fh-lower">
+      <div className={`fh-lower${canBook ? "" : " is-view-only"}`}>
         {/* Client booking */}
-        <article className="fh-panel" id="fh-booking">
+        {canBook && <article className="fh-panel" id="fh-booking">
           <h2><Users aria-hidden="true" /> Client booking</h2>
           <form className="fh-form" onSubmit={onSubmit}>
             <label>Full name<input value={fullName} onChange={(event) => setFullName(event.target.value)} required maxLength={120} autoComplete="off" /></label>
@@ -290,7 +293,7 @@ export default function FacilityHirePanel() {
             <label className="fh-wide">Comments<textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Access notes, condition on arrival, damage noted" maxLength={4000} /></label>
             <button type="submit" className="fh-3d fh-primary fh-wide" disabled={saving}>{saving ? "Saving…" : "Save client and booking"}</button>
           </form>
-        </article>
+        </article>}
 
         {/* Month calendar */}
         <article className="fh-panel fh-month">
@@ -337,7 +340,7 @@ export default function FacilityHirePanel() {
                 <span>{statusLabel(selectedVisit)}{depositLabel(selectedVisit) ? ` · ${depositLabel(selectedVisit)}` : ""}</span>
               </>
             ) : (
-              <span>{selectedVisits.length === 0 ? `${longDate(selectedDay)}: nothing booked.` : `${longDate(selectedDay)}: select a booking to see its details.`}</span>
+              <span>{error ? "Booking records are unavailable." : !data ? "Loading booking records…" : selectedVisits.length === 0 ? `${longDate(selectedDay)}: nothing booked.` : `${longDate(selectedDay)}: select a booking to see its details.`}</span>
             )}
           </div>
         </article>

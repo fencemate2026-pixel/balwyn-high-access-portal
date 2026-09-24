@@ -6,7 +6,7 @@ import { ArrowRight, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from "lucide-
 
 import DashboardClient from "./dashboard-client";
 import SessionExitGuard from "./session-exit-guard";
-import DashboardHireDock from "./dashboard-hire-dock";
+import OperatorHelpDock from "./operator-help-dock";
 import BrandLogo from "./brand-logo";
 import BrandArtwork from "./brand-artwork";
 import type { PortalSnapshot } from "@/lib/portal-model";
@@ -237,7 +237,7 @@ export default function DemoLogin() {
   if (snapshot) return (
     <>
       <SessionExitGuard />
-      <DashboardHireDock />
+      <OperatorHelpDock />
       <DashboardClient initialData={snapshot} user={snapshot.user} onSignOut={handleSignOut} />
     </>
   );

@@ -14,7 +14,8 @@ export default function BrandLogo({ className = "" }: { className?: string }) {
       width={800}
       height={330}
       alt="Magic Keys — Secure access. Safer schools. Protecting futures."
-      decoding="async"
+      decoding="sync"
+      loading="eager"
     />
   );
 }

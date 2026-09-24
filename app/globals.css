@@ -1,4 +1,3 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
@@ -48,6 +47,13 @@
 }
 
 @theme inline {
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-green: var(--accent-green);
+  --color-status-warning: var(--status-warning);
+  --color-status-error: var(--status-error);
+  --shadow-card: var(--shadow-card);
+  --shadow-glow-green: var(--glow-green);
+  --shadow-glow-blue: var(--glow-blue);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

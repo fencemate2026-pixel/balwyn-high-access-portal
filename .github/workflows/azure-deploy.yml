@@ -1,6 +1,6 @@
 # Build, test and deploy the portal container to Azure App Service.
-# Manual trigger only during the migration, so a push to main keeps deploying
-# to Render until cutover day. After cutover, add `push: branches: [main]`.
+# Azure is the active host. Deploy verified main-branch updates automatically;
+# keep the manual trigger available for an explicit redeployment.
 #
 # Authentication uses GitHub's OpenID Connect federation: no Azure password or
 # key is stored in GitHub. Repository settings needed (Settings > Secrets and
@@ -10,6 +10,8 @@
 name: Deploy to Azure
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

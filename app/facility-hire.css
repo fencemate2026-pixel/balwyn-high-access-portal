@@ -1,7 +1,7 @@
 /* Facility hire — approved layout (week board / booking form / month calendar).
    Scoped under .fh so the older layered stylesheets cannot reach in.
    Headings use the site-wide navy bar from portal-look.css. */
-.fh { display: grid; gap: 16px; font-family: "Zing Sans Rust", "Zing Sans Rust Base", system-ui, sans-serif; color: #14223a; }
+.fh { display: grid; gap: 16px; font-family: var(--font-ui); color: #14223a; }
 
 /* Toolbar */
 .fh-toolbar { display: grid; gap: 10px; }
@@ -121,18 +121,6 @@
 .fh-event span { font-weight: 600; }
 .fh-event time { font-size: .68rem; }
 
-/* ---- Premium pass: square corners, orange, colour-coded calendar ------------------- */
-.fh, .fh * { border-radius: 0 !important; }
-.fh .fh-day-num.is-today, .fh .fh-cell.is-today .fh-cell-num { border-radius: 50% !important; background: #ff6a22 !important; }
-.fh-day { border-top: 4px solid #0b2a55; }
-.fh-day.is-today { border-top-color: #ff6a22; background: linear-gradient(180deg, #fff6ef 0%, #ffffff 40%); }
-.fh-day-head span:first-child { text-transform: uppercase; letter-spacing: .08em; }
-.fh-primary { background: linear-gradient(180deg, #ff7a36 0%, #d9500f 100%) !important; border-color: #a83c08 !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 2px 0 #8a3106, 0 4px 8px rgba(217,80,15,.3) !important; }
-.fh-month-title strong { color: #ff6a22; }
-.fh-month-dow { background: #0b2a55; color: #ffffff !important; border-bottom-color: #ff6a22 !important; }
-.fh-month-dow:nth-child(6), .fh-month-dow:nth-child(7) { background: #1f4f99; }
-.fh-cell:nth-child(7n), .fh-cell:nth-child(7n - 1) { background: #f1f5fb; }
-.fh-cell.is-selected { box-shadow: inset 0 0 0 2px #ff6a22 !important; }
 /* Each area has its own colour, used on the week board and the calendar. */
 .fh-booking, .fh-event { --area: #1f4f99; border-left-color: var(--area) !important; }
 .fh-booking { background: color-mix(in srgb, var(--area) 8%, #ffffff); }

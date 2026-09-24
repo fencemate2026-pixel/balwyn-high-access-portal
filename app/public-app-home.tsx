@@ -52,6 +52,7 @@ export default function PublicAppHome() {
           </div>
 
           <aside className="magic-entry-brief" aria-label="Portal overview">
+            <img src="/turnstile-concept.webp" className="entry-hardware-concept" alt="Isometric concept illustration of a dark metallic turnstile with a blue glass card reader" /><small className="entry-hardware-label">Hardware concept illustration · installed gate types are shown in the portal</small>
             <div className="magic-entry-status-card">
               <strong>Live operational context</strong>
               <p>Designed for real-world campus review with clear status semantics, controller heartbeat context and audit-aware actions.</p>
@@ -83,7 +84,7 @@ export default function PublicAppHome() {
       </section>
 
       <footer className="magic-entry-footer">
-        <img src="/rjl-commercial-logo.png" alt="RJL Commercial Group" width={150} height={50} />
+        <img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial Group" width={150} height={50} />
         <nav aria-label="Policies and support">
           <Link href="/privacy">Privacy Policy</Link>
           <Link href="/terms">Terms of Use</Link>

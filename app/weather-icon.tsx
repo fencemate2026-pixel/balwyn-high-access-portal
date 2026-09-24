@@ -1,8 +1,10 @@
 "use client";
 
+import { useId } from "react";
+
 export default function WeatherIcon({ kind, size = 28 }: { kind?: string; size?: number }) {
   const k = kind || "cloud";
-  const id = `wx-${k}-${Math.round(size)}`;
+  const id = `wx-${useId().replace(/:/g, "")}`;
   return (
     <svg className={`wx-icon wx-${k}`} width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
       <defs>
@@ -26,7 +28,7 @@ export default function WeatherIcon({ kind, size = 28 }: { kind?: string; size?:
       </defs>
       {(k === "sun" || k === "sun-cloud") && (
         <g>
-          <g opacity=".55" stroke="#ffcc4d" strokeWidth="2.2" strokeLinecap="round">
+          <g className="weather-rays" opacity=".55" stroke="#ffcc4d" strokeWidth="2.2" strokeLinecap="round">
             <path d="M32 6v6M32 52v6M6 32h6M52 32h6M12 12l4 4M48 48l4 4M12 52l4-4M48 16l4-4" />
           </g>
           <circle cx={k === "sun-cloud" ? 24 : 32} cy={k === "sun-cloud" ? 24 : 32} r={k === "sun-cloud" ? 12 : 14} fill={`url(#${id}-sun)`} />
@@ -34,6 +36,7 @@ export default function WeatherIcon({ kind, size = 28 }: { kind?: string; size?:
       )}
       {(k === "cloud" || k === "sun-cloud" || k === "rain" || k === "storm" || k === "snow") && (
         <path
+          className="weather-cloud"
           filter={`url(#${id}-soft)`}
           fill={k === "storm" ? `url(#${id}-storm)` : `url(#${id}-cloud)`}
           d="M16 40c-6 0-10-4.4-10-10 0-5.2 3.8-9.5 8.8-10.2C16.6 13.6 23 9 31 9c9.2 0 16.4 6.4 17.6 15.2 5 .6 9.4 5 9.4 10.4 0 5.8-4.6 10.4-10.4 10.4H16z"
@@ -41,7 +44,7 @@ export default function WeatherIcon({ kind, size = 28 }: { kind?: string; size?:
         />
       )}
       {k === "rain" && (
-        <g stroke="#7ec8ff" strokeWidth="2.4" strokeLinecap="round">
+        <g className="weather-rain" stroke="#7ec8ff" strokeWidth="2.4" strokeLinecap="round">
           <path d="M22 46l-3 10M32 46l-3 11M42 46l-3 10" />
         </g>
       )}
