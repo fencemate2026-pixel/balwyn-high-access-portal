@@ -1,0 +1,69 @@
+# Build, test and deploy the portal container to Azure App Service.
+# Manual trigger only during the migration, so a push to main keeps deploying
+# to Render until cutover day. After cutover, add `push: branches: [main]`.
+#
+# Authentication uses GitHub's OpenID Connect federation: no Azure password or
+# key is stored in GitHub. Repository settings needed (Settings > Secrets and
+# variables > Actions):
+#   secrets:   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#   variables: AZURE_ACR (e.g. magickeysbalwyn), AZURE_RG, AZURE_APP
+name: Deploy to Azure
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: azure-deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --include=dev --no-audit --no-fund
+      - run: npm run build
+      - run: node --test tests/*.test.mjs
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Build image in Azure Container Registry
+        run: |
+          az acr build --registry "${{ vars.AZURE_ACR }}" \
+            --image "magickeys-portal:${{ github.sha }}" \
+            --image "magickeys-portal:latest" .
+      - name: Point the web app at the new image
+        run: |
+          az webapp config container set \
+            --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" \
+            --container-image-name "${{ vars.AZURE_ACR }}.azurecr.io/magickeys-portal:${{ github.sha }}" \
+            --container-registry-url "https://${{ vars.AZURE_ACR }}.azurecr.io"
+          az webapp restart --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}"
+      - name: Wait for the health check
+        run: |
+          HOST=$(az webapp show --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" --query defaultHostName -o tsv)
+          echo "App host: $HOST (direct access is Cloudflare-only; the platform health check is authoritative)"
+          for i in $(seq 1 30); do
+            STATE=$(az webapp show --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" --query state -o tsv)
+            echo "state=$STATE"; [ "$STATE" = "Running" ] && exit 0; sleep 10
+          done
+          echo "Web app did not reach Running"; exit 1

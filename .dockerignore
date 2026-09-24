@@ -1,0 +1,15 @@
+# Never send secrets, local builds or VCS data into the image build.
+.git
+.github
+node_modules
+.next
+.env*
+!.env.example
+*.tsbuildinfo
+.netlify
+.sites-runtime
+archive
+dist
+out
+tests
+deploy

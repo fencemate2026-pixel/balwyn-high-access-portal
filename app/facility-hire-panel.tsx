@@ -163,8 +163,12 @@ export default function FacilityHirePanel() {
 
   useEffect(() => {
     let active = true;
-    load().catch((reason) => {
-      if (active) setError(reason instanceof Error ? reason.message : "Hire records could not be loaded.");
+    // Start the load after the effect returns (state is only set once the
+    // request resolves), which keeps React from cascading renders.
+    queueMicrotask(() => {
+      load().catch((reason) => {
+        if (active) setError(reason instanceof Error ? reason.message : "Hire records could not be loaded.");
+      });
     });
     return () => { active = false; };
   }, [load]);
