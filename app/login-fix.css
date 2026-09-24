@@ -175,3 +175,21 @@
 @media (prefers-reduced-motion: reduce) {
   .access-login *, .access-login *::before, .access-login *::after { animation: none !important; transition: none !important; }
 }
+
+/* Midnight navy and electric-blue palette; existing content and layout retained. */
+.access-login { --login-muted: #b1b5d0; color: #f5f6ff; background: radial-gradient(ellipse at 8% 60%, #1657ed50, transparent 33%), radial-gradient(ellipse at 92% 70%, #394eff38, transparent 34%), #07081b; }
+.access-login::before { opacity: .2; }
+.access-login-header, .access-login-footer { border-color: #292b4a; }
+.access-login-card { background: #10122beF; border-color: #2a315d; box-shadow: 0 24px 70px #0005, 0 0 48px #3458ff18; }
+.access-login-card::before { background: linear-gradient(90deg, transparent, #477aff, transparent); }
+.access-login-input, .access-login-provider, .access-login-google { background: #0c0e25; border-color: #303655; color: #f5f6ff; }
+.access-login-provider:hover { background: #171b3c; border-color: #527bff; }
+.access-login-story h2 span, .access-login-text-button, .access-login-help-toggle { color: #8eacff; }
+.access-login-lock { background: #3665ff20; border-color: #4269ff55; color: #8eacff; }
+.access-login-input:focus-within { border-color: #527bff; box-shadow: 0 0 0 3px #4169ff25; }
+.access-login-submit { color: #fff; background: #3765eb; border-color: #527bff; box-shadow: 0 5px 25px #3458ff30; }
+.access-login-submit:hover:not(:disabled) { background: #4574fa; box-shadow: 0 5px 28px #3458ff50; }
+.access-login-eyebrow > span { background: #527bff; box-shadow: 0 0 12px #527bff88; }
+.access-login-gate > span { color: #c4cbed; }
+.access-login-orbit { border-color: #527bff50; box-shadow: 0 0 60px #235cff30, inset 0 0 35px #235cff15; }
+.access-login-help, .access-login-enrollment { background: #0c0e25; border-color: #303655; }
