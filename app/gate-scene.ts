@@ -113,19 +113,23 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
   const orient = () => leaves.forEach((leaf, index) => { if (boom) leaf.rotation.z = angle; else leaf.rotation.y = angle * (index ? -1 : 1); });
   const update = (next: GateVisualState) => {
     position = next;
-    const colour = next === "open" || next === "moving" ? 0x42e8a4 : next === "closed" ? 0xff727f : next === "inactive" ? 0x566477 : 0xf5bd64;
+    const colour = next === "open" ? 0x42e8a4 : next === "closed" ? 0xff727f : next === "inactive" ? 0x566477 : 0xf5bd64;
     statusMaterials.forEach((material) => { material.color.setHex(colour); material.emissive.setHex(colour); material.emissiveIntensity = next === "inactive" ? 0 : .8; });
     model.visible = true; dirtyFrames = 3;
     wake();
   };
-  const frame = () => {
+  const frame = (time: number) => {
     if (!visible || document.hidden || disposed) { renderer.setAnimationLoop(null); return; }
     const target = angleFor();
     angle = reduced.matches ? target : THREE.MathUtils.lerp(angle, target, .075);
     if (Math.abs(target - angle) < .001) angle = target;
+    const flashing = position !== "inactive" && !reduced.matches;
+    // One gentle pulse per second; only status feedback changes its colour.
+    const intensity = flashing ? .25 + 1.75 * ((Math.sin(time * Math.PI * 2 / 1000) + 1) / 2) ** 3 : position === "inactive" ? 0 : .8;
+    statusMaterials.forEach((material) => { material.emissiveIntensity = intensity; });
     orient(); renderer.render(scene, camera);
-    // No idle render loop: hardware stays still until a verified state or size changes.
-    if (angle === target && --dirtyFrames <= 0) renderer.setAnimationLoop(null);
+    // Stop offscreen/inactive animation; respect reduced-motion preferences.
+    if (!flashing && angle === target && --dirtyFrames <= 0) renderer.setAnimationLoop(null);
   };
   function wake() { if (visible && !document.hidden && !disposed) renderer.setAnimationLoop(frame); }
   const resize = () => {
