@@ -1,6 +1,9 @@
 "use client";
 
 import GateConditionPanel from "./gate-condition-panel";
+import CampusCalendar from "./campus-calendar";
+import CampusWeather from "./campus-weather";
+import FacilityHirePanel from "./facility-hire-panel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
@@ -124,7 +127,7 @@ import {
   type WeekPlan,
 } from "@/lib/portal-model";
 
-type ViewKey = "dashboard" | "gates" | "cctv" | "guidance" | "schedule" | "automation" | "safety" | "access" | "activity" | "settings";
+type ViewKey = "dashboard" | "hire" | "gates" | "cctv" | "guidance" | "schedule" | "automation" | "safety" | "access" | "activity" | "settings";
 
 type DashboardClientProps = {
   user: PortalUser;
@@ -141,7 +144,8 @@ const groupConfig = {
 } satisfies Record<GroupKey, { name: string; short: string; icon: typeof Fence }>;
 
 const viewMeta: Record<ViewKey, { label: string; description: string }> = {
-  dashboard: { label: "Dashboard", description: "Live school-wide access overview" },
+  dashboard: { label: "Campus overview", description: "Your school. Connected and in view." },
+  hire: { label: "Facility hire", description: "Bookings, visitors and upcoming campus use" },
   gates: { label: "Gates & booms", description: `${activeGates.length} installed gate${activeGates.length === 1 ? "" : "s"} · live status` },
   cctv: { label: "CCTV & zones", description: "Authorised camera verification and site-zone awareness" },
   guidance: { label: "Emergency guidance", description: "Prepare verified, school-approved directions for staff and projector screens" },
@@ -194,21 +198,20 @@ function GateIcon({ gate, position }: { gate: Gate; position: GateVisualState })
   return <GateTile gate={gate} position={position} />;
 }
 
-function SafetyCommand({ mode, active, authorised, onConfirm }: { mode: "lockdown" | "fire"; active: boolean; authorised: boolean; onConfirm: () => void }) {
-  const lockdown = mode === "lockdown";
-  const Icon = lockdown ? ShieldAlert : Flame;
+function SafetyCommand({ mode, active, authorised, onConfirm }: { mode: "fire"; active: boolean; authorised: boolean; onConfirm: () => void }) {
+  const Icon = Flame;
   return (
     <button
       className={`safety-command ${mode}${active ? " is-live" : ""}`}
-      aria-label={lockdown ? "Review emergency lockdown gate commands" : "Review fire evacuation gate commands"}
+      aria-label="Review fire evacuation gate commands"
       aria-pressed={active}
       disabled={!authorised}
       onClick={onConfirm}
     >
       <span className="safety-command-icon"><Icon /></span>
       <span>
-        <strong>{active ? (lockdown ? "LOCKDOWN · ACTIVE" : "FIRE / EVACUATION · ACTIVE") : (lockdown ? "START LOCKDOWN" : "START FIRE / EVACUATION")}</strong>
-        <em>{!authorised ? "Administrator approval required" : active ? "Priority active · confirmation required to reissue" : lockdown ? "Queues CLOSE commands · confirmation required" : "Queues OPEN commands · confirmation required"}</em>
+        <strong>{active ? "FIRE / EVACUATION · ACTIVE" : "START FIRE / EVACUATION"}</strong>
+        <em>{!authorised ? "Administrator approval required" : active ? "Priority active · confirmation required to reissue" : "Queues OPEN commands · confirmation required"}</em>
       </span>
     </button>
   );
@@ -237,7 +240,7 @@ function EmergencyAlertPanel({
     <section className={`emergency-alert-panel ${mode}`} role="alert" aria-live="assertive" aria-atomic="true">
       <header>
         <span className="emergency-alert-icon"><Icon /></span>
-        <span><small>Priority gate response issued</small><strong>{fire ? "Fire / evacuation · open commands" : "Lockdown · close commands"}</strong></span>
+        <span><small>Priority gate response issued</small><strong>{fire ? "Fire / evacuation · open commands" : "Unsupported legacy priority · administrator review required"}</strong></span>
         <i className="emergency-alert-pulse" />
       </header>
       <div className="emergency-alert-state">
@@ -246,7 +249,7 @@ function EmergencyAlertPanel({
         <span><AlertTriangle /><span><strong>{failed} require attention</strong><small>Offline, blocked or faulted controllers</small></span></span>
         {fire && <span><MonitorUp /><span><strong>{projectorAccess ? "Projector link not yet commissioned" : "Projector broadcasts require a plan upgrade"}</strong><small>{projectorAccess ? "No broadcast is claimed without system feedback" : "Advanced feature · locked on this plan"}</small></span></span>}
       </div>
-      <p>{fire ? "Evacuate by the nearest safe exit and follow the school emergency plan." : "Move inside, secure the area and await an authorised all-clear."}</p>
+      <p>{fire ? "Evacuate by the nearest safe exit and follow the school emergency plan." : "This legacy priority is not a supported command. Ask an administrator to review and clear portal priority; no gate position is inferred."}</p>
       <footer>
         {fire && <a href="tel:000"><PhoneCall /> Triple Zero (000)</a>}
         <Button variant="outline" disabled={!canClear} onClick={onClear}><RotateCcw /> {canClear ? "Clear emergency priority" : "Administrator required to clear"}</Button>
@@ -296,7 +299,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const [automationTrigger, setAutomationTrigger] = useState("At a scheduled time");
   const [automationAction, setAutomationAction] = useState("Notify authorised operators");
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [pendingEmergency, setPendingEmergency] = useState<"lockdown" | "fire" | "clear" | null>(null);
+  const [pendingEmergency, setPendingEmergency] = useState<"fire" | "clear" | null>(null);
   const [pendingGateCommand, setPendingGateCommand] = useState<{ gate: Gate; position: GatePosition } | null>(null);
   const [controllerCredential, setControllerCredential] = useState<{ gateId: string; token: string } | null>(null);
   const selectedVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
@@ -441,16 +444,14 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   }, []);
 
   useEffect(() => {
-    if (!voiceAnnouncements || systemMode === "normal" || typeof window === "undefined") return;
+    if (!voiceAnnouncements || systemMode !== "fire" || typeof window === "undefined") return;
 
     const speakWarning = () => {
       if (!("speechSynthesis" in window)) return;
       const synth = window.speechSynthesis;
       const voice = findAustralianVoice(synth.getVoices()) ?? selectedVoiceRef.current;
 
-      const message = systemMode === "lockdown"
-        ? "Warning. Lockdown gate commands issued. Check every gate confirmation."
-        : "Warning. Fire evacuation gate commands issued. Check every gate confirmation and evacuate now.";
+      const message = "Warning. Fire evacuation gate commands issued. Check every gate confirmation and evacuate now.";
       const utterance = new SpeechSynthesisUtterance(message);
       utterance.lang = "en-AU";
       utterance.rate = 0.84;
@@ -487,8 +488,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     return gateVisualState(gate, runtimeFor(gate), positionMonitoring);
   }
 
-  const openCount = activeGates.filter((gate) => runtimeFor(gate)?.controllerState === "online" && runtimeFor(gate)?.reportedPosition === "open").length;
-  const closedCount = activeGates.filter((gate) => runtimeFor(gate)?.controllerState === "online" && runtimeFor(gate)?.reportedPosition === "closed").length;
+  const openCount = activeGates.filter((gate) => getPosition(gate) === "open").length;
+  const closedCount = activeGates.filter((gate) => getPosition(gate) === "closed").length;
   const unknownCount = activeGates.length - openCount - closedCount;
   const onlineCount = activeGates.filter((gate) => runtimeFor(gate)?.controllerState === "online").length;
   const safetyHealthyCount = activeGates.filter((gate) => runtimeFor(gate)?.controllerState === "online" && runtimeFor(gate)?.safetyOk === true).length;
@@ -496,14 +497,6 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const credentialCount = activeGates.filter((gate) => runtimeFor(gate)?.credentialIssued).length;
   const scheduledGateCount = activeGates.filter((gate) => Object.values(schedules[gate.id]).some((plan) => plan.enabled)).length;
   const operationalReady = commissionedCount === activeGates.length && onlineCount === activeGates.length && safetyHealthyCount === activeGates.length;
-
-  const groupSummary = (Object.keys(groupConfig) as GroupKey[]).map((group) => {
-    const allGroupGates = gates.filter((gate) => gate.group === group);
-    const groupGates = allGroupGates.filter((gate) => gate.active);
-    const open = groupGates.filter((gate) => runtimeFor(gate)?.controllerState === "online" && runtimeFor(gate)?.reportedPosition === "open").length;
-    const closed = groupGates.filter((gate) => runtimeFor(gate)?.controllerState === "online" && runtimeFor(gate)?.reportedPosition === "closed").length;
-    return { group, total: allGroupGates.length, active: groupGates.length, inactive: allGroupGates.length - groupGates.length, open, closed, unknown: groupGates.length - open - closed };
-  });
 
   const emergencyExpected = systemMode === "fire" ? "open" : "closed";
   const emergencyConfirmed = systemMode === "normal" ? 0 : activeGates.filter((gate) => {
@@ -576,11 +569,11 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     synth.speak(utterance);
   }
 
-  async function activateEmergency(mode: "lockdown" | "fire") {
+  async function activateEmergency(mode: "fire") {
     try {
       await postPortal({ action: "emergency", mode }, `emergency-${mode}`);
       setActiveView("gates");
-      toast.warning(mode === "lockdown" ? "Lockdown gate commands issued" : "Fire / evacuation gate commands issued", {
+      toast.warning("Fire / evacuation gate commands issued", {
         description: "The portal is waiting for each controller and physical position input.",
       });
     } catch (reason) {
@@ -811,12 +804,12 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   }
 
   return (
-    <SidebarProvider className={`control-portal mode-${systemMode}`} style={{ "--sidebar-width": "17.5rem" } as React.CSSProperties}>
+    <SidebarProvider className={`control-portal mode-${systemMode}`} style={{ "--sidebar-width": "15.5rem" } as React.CSSProperties}>
       <Sidebar collapsible="offcanvas" className="control-sidebar">
         <SidebarHeader className="portal-sidebar-header"><div className="magic-sidebar-brand"><BrandLogo /><span>Balwyn High School</span></div></SidebarHeader>
         <SidebarSeparator />
         <SidebarContent>
-          <SidebarGroup><SidebarGroupLabel>Operations</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("dashboard", LayoutDashboard)}{navItem("gates", DoorOpen, String(activeGates.length))}{navItem("cctv", Camera)}{navItem("guidance", MapPin)}{navItem("schedule", CalendarDays)}{navItem("automation", Workflow, String(automations.filter((rule) => rule.enabled).length))}{navItem("safety", ShieldCheck)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
+          <SidebarGroup><SidebarGroupLabel>Operations</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("dashboard", LayoutDashboard)}{navItem("gates", DoorOpen, String(activeGates.length))}{navItem("hire", CalendarDays)}{navItem("cctv", Camera)}{navItem("guidance", MapPin)}{navItem("schedule", CalendarDays)}{navItem("automation", Workflow, String(automations.filter((rule) => rule.enabled).length))}{navItem("safety", ShieldCheck)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
           <SidebarGroup><SidebarGroupLabel>Administration</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("access", Users)}{navItem("activity", ClipboardList, activity.length ? String(activity.length) : undefined)}{navItem("settings", Settings2)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
           <div className="sidebar-system-card"><span><Wifi /> System connection</span><strong><i /> Portal online</strong><small>{activeGates.length} active · {gates.length - activeGates.length} inactive</small><small>{onlineCount} of {activeGates.length} active gate controllers online</small><small>{commissionedCount} commissioned · {credentialCount} credentials issued</small><small className="voice-status"><Volume2 /> Gate voice · {voiceAnnouncements ? "On" : "Off"}</small></div>
         </SidebarContent>
@@ -826,14 +819,14 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
       <SidebarInset className="portal-workspace">
         <header className="workspace-header">
-          <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="location-logo"><img src="/balwyn-watermark.png" alt="" /></span><div><small>Managed site</small><strong>Balwyn High School</strong></div></div>
-          <div className="workspace-header-right"><span className="connection-pill"><i /> Encrypted connection</span><button className="notification-button" aria-label="View system alerts" onClick={() => onlineCount === activeGates.length ? toast.success("All controllers online", { description: "Physical gate feedback is available for every access point." }) : toast.warning(`${activeGates.length - onlineCount} active gate controllers are not online`, { description: `${commissionedCount} have completed a verified heartbeat; ${credentialCount} credentials have been issued.` })}><Bell /></button><div className="header-operator"><Avatar><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><span><strong>{displayName}</strong><small>{roleLabel}</small></span></div></div>
+          <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="location-logo"><img src="/balwyn-crest-clear.png" alt="Balwyn High School crest" /></span><div><small>Managed site</small><strong>Balwyn High School</strong></div></div>
+          <div className="workspace-header-right"><div className={`system-status-cluster ${operationalReady ? "is-ready" : "is-attention"}`}><i className="signal-dot" /><span><small>Controller status</small><strong>{operationalReady ? "All systems ready" : "Commissioning"}</strong></span><b>{onlineCount}/{activeGates.length}</b></div><span className="connection-pill"><i /> Encrypted connection</span><button className="notification-button" aria-label="View system alerts" onClick={() => onlineCount === activeGates.length ? toast.success("All controllers online", { description: "Physical gate feedback is available for every access point." }) : toast.warning(`${activeGates.length - onlineCount} active gate controllers are not online`, { description: `${commissionedCount} have completed a verified heartbeat; ${credentialCount} credentials have been issued.` })}><Bell /></button><div className="header-operator"><Avatar><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><span><strong>{displayName}</strong><small>{roleLabel}</small></span></div></div>
         </header>
 
         <section className="safety-bar" aria-label="Emergency gate commands">
           <div className={`safety-bar-status${systemMode === "normal" ? "" : " is-alert"}`}>
             <i className="status-dot" />
-            <span><small>System state</small><strong>{systemMode === "normal" ? "No emergency active" : systemMode === "lockdown" ? "Lockdown active" : "Fire / evacuation active"}</strong></span>
+            <span><small>System state</small><strong>{systemMode === "normal" ? "No emergency active" : systemMode === "lockdown" ? "Unsupported legacy priority" : "Fire / evacuation active"}</strong></span>
           </div>
           <div className="safety-command-grid"><SafetyCommand mode="fire" active={systemMode === "fire"} authorised={isAdministrator} onConfirm={() => setPendingEmergency("fire")} /></div>
           <div className="command-safety-note"><Radio /> Local safety circuits remain authoritative</div>
@@ -841,8 +834,10 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
         {systemMode !== "normal" && <EmergencyAlertPanel mode={systemMode} onClear={() => setPendingEmergency("clear")} confirmed={emergencyConfirmed} pending={emergencyPending} failed={emergencyFailed} canClear={isAdministrator} projectorAccess={advancedFeaturesEnabled} />}
 
+        <div className="campus-context"><CampusCalendar onManage={() => setActiveView("hire")} canBook={canOperate} /><CampusWeather /></div>
+
         <div className="workspace-content" data-view={activeView}>
-          <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span><div className="workspace-context" aria-label="Portal context"><span>Portal sync · {portalTimeLabel(serverTime)}</span><span>Timezone · Australia/Melbourne</span><span>Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</span></div></div><div className="workspace-title-meta"><div className="workspace-powered-by"><span>Powered by RJL Commercial</span><img src="/rjl-commercial-logo.png" alt="RJL Commercial" /></div><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>
+          <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span><div className="workspace-context" aria-label="Portal context"><span>Portal sync · {portalTimeLabel(serverTime)}</span><span>Timezone · Australia/Melbourne</span><span>Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</span></div></div><div className="workspace-title-meta"><div className="workspace-powered-by"><span>Technology by</span><img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial" /></div><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>
           {activeView === "dashboard" && (
             <div className="desk-service-row">
               <button type="button" onClick={() => { setActiveView("activity"); toast.message("Fault report", { description: "Use the activity log to record the gate, time and fault. Controllers stay amber until a verified heartbeat exists." }); }}>Report a fault</button>
@@ -852,7 +847,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
           {activeView === "dashboard" && (
             <>
-              <GateConditionPanel gates={activeGates} runtime={gateRuntime} getPosition={getPosition} systemMode={systemMode} now={currentTime} />
+              <GateConditionPanel gates={activeGates} runtime={gateRuntime} getPosition={getPosition} systemMode={systemMode} now={currentTime} onSelect={setSelectedGate} />
               <section className="health-strip" aria-label="Platform and controller health">
                 <div className="health-lead"><span className="health-pulse"><i /></span><span><strong>Portal available</strong><small>Persistent control and audit service</small></span></div>
                 <div><Network /><span><strong>{onlineCount} / {activeGates.length}</strong><small>Controllers responding</small></span></div>
@@ -864,16 +859,17 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
                 <article className="summary-card primary-summary"><span>Active gates</span><strong>{activeGates.length}</strong><small>Tony Frizza Stadium Entry · Side Entry</small></article>
                 <article className="summary-card"><span>Physically open</span><strong className="open-number">{positionMonitoring ? openCount : "—"}</strong><small>{positionMonitoring ? `${unknownCount} positions not confirmed` : "Position monitoring paused"}</small></article>
                 <article className="summary-card"><span>Physically secured</span><strong>{positionMonitoring ? closedCount : "—"}</strong><small>{positionMonitoring ? "Confirmed by independent inputs" : "Position monitoring paused"}</small></article>
-                <article className="summary-card"><span>System state</span><strong className={`mode-word ${systemMode}`}>{systemMode === "normal" ? "Normal" : systemMode === "fire" ? "Fire" : "Lockdown"}</strong><small>{systemMode === "normal" ? "Standard priority · commissioning status shown" : "Priority commands require confirmation"}</small></article>
+                <article className="summary-card"><span>System state</span><strong className={`mode-word ${systemMode}`}>{systemMode === "normal" ? "Normal" : systemMode === "fire" ? "Fire" : "Unsupported legacy priority"}</strong><small>{systemMode === "normal" ? "Standard priority · commissioning status shown" : "Priority commands require confirmation"}</small></article>
               </section>
               <section className="dashboard-panels">
-                <article className="panel area-panel"><div className="panel-heading"><div><h2>Active areas</h2><small>Physical feedback status</small></div><Button variant="ghost" onClick={() => setActiveView("gates")}>View all gates <ChevronRight /></Button></div><div className="area-list">{groupSummary.filter(({ active }) => active > 0).map(({ group, active, open, closed, unknown }) => { const sampleGate = activeGates.find((gate) => gate.group === group) ?? activeGates[0]; return <button key={group} onClick={() => setActiveView("gates")}><span className="area-icon"><GateIcon gate={sampleGate} position={getPosition(sampleGate)} /></span><span><strong>{groupConfig[group].name}</strong><small>{active} active gate{active === 1 ? "" : "s"}</small></span><span className="area-state"><strong>{!active ? "Inactive" : positionMonitoring ? `${open} confirmed open` : "Paused"}</strong><small>{!active ? "Not activated yet" : positionMonitoring ? `${closed} secured · ${unknown} unknown` : "Monitoring"}</small></span><ChevronRight /></button>; })}</div></article>
-                <article className="panel next-schedule-panel"><div className="panel-heading"><div><h2>Schedule</h2><small>Approved operating records</small></div><CalendarDays /></div><div className="schedule-highlight"><Clock3 /><div><strong>{scheduledGateCount ? `${scheduledGateCount} gate${scheduledGateCount === 1 ? "" : "s"} configured` : "No schedules approved"}</strong><small>{scheduledGateCount ? "Review each gate’s enabled days and times" : "No automatic schedule action is enabled"}</small><span>Only saved operator-approved times are displayed</span></div></div><Button className="schedule-button" onClick={() => setActiveView("schedule")}>Manage gate schedules <ChevronRight /></Button></article>
+                <article className="panel next-schedule-panel"><div className="panel-heading"><div><h2>Gate schedules</h2><small>Approved operating records</small></div><CalendarDays /></div><div className="schedule-highlight"><Clock3 /><div><strong>{scheduledGateCount ? `${scheduledGateCount} gates configured` : "No schedules approved"}</strong><small>{scheduledGateCount ? "Review enabled days and times" : "Automatic schedule operation is not enabled"}</small></div></div><Button className="schedule-button" onClick={() => setActiveView("schedule")}>Manage schedules <ChevronRight /></Button></article>
+                <article className="panel overview-activity"><div className="panel-heading"><div><h2>Recent activity</h2><small>Verified operator and controller events</small></div><Button variant="ghost" onClick={() => setActiveView("activity")}>View log <ChevronRight /></Button></div>{activity.length ? activity.slice(0, 3).map((record) => <div className="overview-event" key={record.id}><Activity /><div><strong>{record.action}</strong><small>{record.actorName} · {activityTime(record.createdAt)}</small></div></div>) : <div className="overview-empty"><ClipboardList /><strong>Ready for the first event</strong><span>Gate and operator activity will appear here.</span></div>}</article>
               </section>
-              <section className="quick-gates-section active-dashboard-gates"><div className="section-heading"><div><h2>Active gate controls</h2><small>Quick access</small></div><span>Select a gate to view its status and controls.</span></div>{renderGateCards(activeGates)}</section>
               {!advancedFeaturesEnabled && <section className="advanced-discovery"><span className="advanced-eyebrow"><LockKeyhole /> Discover Magic Keys Advanced</span><h2>See what’s possible beyond gate access.</h2><p>Explore camera zones, an emergency-response example and the messages a connected classroom could display.</p><div className="advanced-discovery-actions"><Button variant="outline" onClick={() => setActiveView("guidance")}><MapPin /> Explore emergency guidance</Button><Button variant="outline" onClick={() => setActiveView("cctv")}><Camera /> Explore CCTV & zones</Button><Button onClick={() => setUpgradeOpen(true)}>Discuss your school’s upgrade <ChevronRight /></Button></div></section>}
             </>
           )}
+
+          {activeView === "hire" && <FacilityHirePanel canBook={canOperate} />}
 
           {activeView === "gates" && (
             <section className="view-panel">
@@ -927,7 +923,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
                 <article className="cctv-camera-console">
                   <div className="cctv-panel-heading">
                     <div><span>Authorised camera view</span><strong>{selectedCamera.name}</strong></div>
-                    <span className={`cctv-mode is-${systemMode}`}>{systemMode === "normal" ? "Normal mode" : systemMode === "fire" ? "Fire priority" : "Lockdown priority"}</span>
+                    <span className={`cctv-mode is-${systemMode}`}>{systemMode === "normal" ? "Normal mode" : systemMode === "fire" ? "Fire priority" : "Unsupported legacy priority"}</span>
                   </div>
 
                   <div className="cctv-primary-feed" aria-label={`${selectedCamera.name} camera preview is not connected`}>
@@ -1153,7 +1149,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
               <div className="admin-settings-shortcuts"><Button variant="outline" onClick={() => setActiveView("access")}><Network /> Relay controllers</Button><Button variant="outline" onClick={() => setActiveView("schedule")}><CalendarDays /> Operating schedules</Button><Button variant="outline" onClick={() => setActiveView("automation")}><Workflow /> Automation rules</Button></div>
               <CompassWiringReference />
               <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Monitoring</h2><small>Persistent system behaviour · administrator only</small></div><Gauge /></div><label><span><strong>Gate-position monitoring</strong><small>Display independent open and closed inputs</small></span><Switch checked={positionMonitoring} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ positionMonitoring: value }, "setting-position")} /></label><label><span><strong>Fault and offline alerts</strong><small>Highlight controllers that stop reporting</small></span><Switch checked={faultAlerts} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ faultAlerts: value }, "setting-faults")} /></label><label><span><strong>Australian English announcements</strong><small>{voiceStatusText}</small></span><Switch checked={voiceAnnouncements} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ voiceAnnouncements: value }, "setting-voice")} /></label></article><article className="settings-card"><div className="panel-heading"><div><h2>Magic Keys</h2><small>System information</small></div><Power /></div><div className="setting-info"><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Access points</span><strong>{gates.length}</strong></div><div><span>Portal</span><strong className="online-text"><i /> Secure service online</strong></div><div><span>Controllers</span><strong>{onlineCount} online · {commissionedCount} commissioned · {credentialCount} credentials</strong></div><div><span>Position feedback</span><strong>{activeGates.length - unknownCount} of {activeGates.length} active gates confirmed</strong></div><div><span>Emergency integration</span><strong>Not complete until school-approved commissioning</strong></div></div></article></section>
-              <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Compass ACB-004 integration</h2><small>Existing school control system · retained</small></div><Network /></div><div className="setting-info"><div><span>Control platform</span><strong>Existing Compass ACB-004 · four doors</strong></div><div><span>Interface method</span><strong>Pi isolated relay · open-only trigger</strong></div><div><span>ACB-004 feedback</span><strong>No live position or safety feedback</strong></div><div><span>Output mapping</span><strong>Awaiting onsite schedule and terminal verification</strong></div><div><span>Command policy</span><strong>Blocked until each output is commissioned</strong></div></div></article><article className="settings-card"><div className="panel-heading"><div><h2>Integration safeguards</h2><small>Required before live relay control</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> Document each Compass output and served gate</span><span><CheckCircle2 /> Verify NO/NC state and pulse or maintained mode</span><span><CheckCircle2 /> Retain local gate safety and manual controls</span><span><CheckCircle2 /> Confirm independent open and closed feedback</span><span><CheckCircle2 /> Witness normal, fire and lockdown scenarios</span></div></article></section>
+              <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Compass ACB-004 integration</h2><small>Existing school control system · retained</small></div><Network /></div><div className="setting-info"><div><span>Control platform</span><strong>Existing Compass ACB-004 · four doors</strong></div><div><span>Interface method</span><strong>Pi isolated relay · open-only trigger</strong></div><div><span>ACB-004 feedback</span><strong>No live position or safety feedback</strong></div><div><span>Output mapping</span><strong>Awaiting onsite schedule and terminal verification</strong></div><div><span>Command policy</span><strong>Blocked until each output is commissioned</strong></div></div></article><article className="settings-card"><div className="panel-heading"><div><h2>Integration safeguards</h2><small>Required before live relay control</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> Document each Compass output and served gate</span><span><CheckCircle2 /> Verify NO/NC state and pulse or maintained mode</span><span><CheckCircle2 /> Retain local gate safety and manual controls</span><span><CheckCircle2 /> Confirm independent open and closed feedback</span><span><CheckCircle2 /> Witness normal and fire-open scenarios; verify lockdown requests are refused</span></div></article></section>
               <section className="module-marketplace">
                 <div className="module-heading"><div><h2>Platform modules</h2><p>Add capabilities as the school’s operational requirements expand.</p></div><Badge variant="outline">{enabledModules.size} of {platformModules.length} configured</Badge></div>
                 <div className="module-list">{platformModules.map((module) => { const Icon = module.icon; const locked = module.key === "video" && !advancedFeaturesEnabled; const enabled = !locked && enabledModules.has(module.key); return <article className={`module-row ${enabled ? "is-enabled" : ""}`} key={module.key}><span className="module-icon"><Icon /></span><div><strong>{module.name}</strong><p>{module.description}</p></div><span className="module-status"><i />{module.core ? "Core service" : locked ? "Upgrade required" : enabled ? "Enabled in portal" : "Available"}</span><Button variant={enabled ? "outline" : "default"} disabled={!isAdministrator || Boolean(module.core) || busyAction === `module-${module.key}`} onClick={() => toggleModule(module)}>{locked ? <><LockKeyhole /> Upgrade plan</> : module.core ? "Active" : enabled ? "Disable" : "Enable"}</Button></article>; })}</div>
@@ -1197,7 +1193,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
               <SheetHeader className="gate-sheet-header"><SheetTitle>{selectedGate.name}</SheetTitle><SheetDescription>{selectedGate.type} · {selectedGate.area}</SheetDescription></SheetHeader>
               <div className="inactive-gate-details"><GateIcon gate={selectedGate} position="inactive" /><span className="gate-activation-badge is-inactive">Inactive</span><h3>Not activated yet</h3><p>This access point is listed for future activation. Gate controls, schedules and indicator lights are off.</p></div>
             </>;
-            return <><SheetHeader className="gate-sheet-header"><SheetTitle>{selectedGate.name}</SheetTitle><SheetDescription>{selectedGate.type}</SheetDescription><span className="sheet-overline">{selectedGate.area} · {selectedGate.id}</span></SheetHeader><Tabs defaultValue="control" className="gate-tabs"><TabsList variant="line" className="gate-tabs-list"><TabsTrigger value="control">Control</TabsTrigger><TabsTrigger value="schedule">Schedule</TabsTrigger><TabsTrigger value="details">Details</TabsTrigger></TabsList><TabsContent value="control" className="sheet-tab-content"><div className="sheet-gate-visual"><GateIcon gate={selectedGate} position={getPosition(selectedGate)} /><strong>{positionMonitoring ? status.label : "Position monitoring paused"}</strong><span>{positionMonitoring ? status.detail : "Physical feedback is hidden by the current portal setting."}</span></div><div className="command-packet-path" aria-label="Gate command packet path"><span><strong>1 · Portal</strong><small>Authorised request stored</small></span><ChevronRight /><span><strong>2 · Controller</strong><small>Encrypted poll retrieves packet</small></span><ChevronRight /><span><strong>3 · Relay</strong><small>Local safety permits pulse</small></span><ChevronRight /><span><strong>4 · Feedback</strong><small>Limit input confirms result</small></span></div><div className="command-packet-state"><Network /><span><strong>{runtime?.lastCommandId ? `Packet #${runtime.lastCommandId} · ${runtime.lastCommandState}` : "No command packet issued"}</strong><small>{runtime?.lastCommandId ? runtime.lastError || "Physical result remains separate from the requested direction." : "Opening this screen or reviewing a command does not signal the gate."}</small></span></div>{!canControl && <p className="control-blocked-note"><AlertTriangle /> {systemMode !== "normal" ? "Manual controls are blocked by emergency priority." : !canOperate ? "Your current role is view-only and cannot issue relay commands." : commandInFlight ? "A command packet is already awaiting controller or physical confirmation." : !runtime?.commissioned ? "Issue this controller's credential and complete onsite commissioning first." : runtime?.safetyOk !== true ? "Relay commands are blocked until the local safety circuit reports healthy." : "Relay commands are blocked while the controller is offline."}</p>}<div className="sheet-actions"><Button className="open-gate-command" onClick={() => setPendingGateCommand({ gate: selectedGate, position: "open" })} disabled={!canControl}><UnlockKeyhole /> Review open command</Button><Button variant="outline" onClick={() => setPendingGateCommand({ gate: selectedGate, position: "closed" })} disabled={!canControl}><LockKeyhole /> Review close command</Button></div><RemoteOpenPanel key={selectedGate.id} endpoint="/api/doors/open" gateId={selectedGate.id} allowed={canOperate && systemMode === "normal"} /></TabsContent><TabsContent value="schedule" className="sheet-tab-content"><div className="sheet-schedule-summary"><CalendarDays /><h3>Weekly operating schedule</h3><p>{Object.values(schedules[selectedGate.id]).filter((plan) => plan.enabled).length} scheduled days are enabled. Controller-side schedule execution stays disabled until commissioning sign-off.</p><Button onClick={() => { setSelectedScheduleGateId(selectedGate.id); setSelectedGate(null); setActiveView("schedule"); }}>Edit full schedule <ChevronRight /></Button></div></TabsContent><TabsContent value="details" className="sheet-tab-content"><div className="identity-rows"><div><span>Asset ID</span><strong>{selectedGate.id}</strong></div><div><span>Controlled area</span><strong>{selectedGate.area}</strong></div><div><span>Gate type</span><strong>{selectedGate.type}</strong></div><div><span>Controller</span><strong>{runtime?.controllerState ?? "uncommissioned"}</strong></div><div><span>Safety input</span><strong>{runtime?.safetyOk === true ? "Healthy" : runtime?.safetyOk === false ? "Fault / blocked" : "No feedback"}</strong></div><div><span>Last physical contact</span><strong>{runtime?.lastSeen ? activityTime(runtime.lastSeen) : "Never"}</strong></div><div><span>Last command packet</span><strong>{runtime?.lastCommandId ? `#${runtime.lastCommandId} · ${runtime.lastCommandState}` : "None issued"}</strong></div></div></TabsContent></Tabs></>;
+            return <><SheetHeader className="gate-sheet-header"><SheetTitle>{selectedGate.name}</SheetTitle><SheetDescription>{selectedGate.type}</SheetDescription><span className="sheet-overline">{selectedGate.area} · {selectedGate.id}</span></SheetHeader><Tabs defaultValue="control" className="gate-tabs"><TabsList variant="line" className="gate-tabs-list"><TabsTrigger value="control">Control</TabsTrigger><TabsTrigger value="schedule">Schedule</TabsTrigger><TabsTrigger value="details">Details</TabsTrigger></TabsList><TabsContent value="control" className="sheet-tab-content"><div className="sheet-gate-visual"><GateIcon gate={selectedGate} position={getPosition(selectedGate)} /><strong>{positionMonitoring ? status.label : "Position monitoring paused"}</strong><span>{positionMonitoring ? status.detail : "Physical feedback is hidden by the current portal setting."}</span></div><div className="command-packet-path" aria-label="Gate command packet path"><span><strong>1 · Portal</strong><small>Authorised request stored</small></span><ChevronRight /><span><strong>2 · Controller</strong><small>Encrypted poll retrieves packet</small></span><ChevronRight /><span><strong>3 · Relay</strong><small>Local safety permits pulse</small></span><ChevronRight /><span><strong>4 · Feedback</strong><small>Limit input confirms result</small></span></div><div className="command-packet-state"><Network /><span><strong>{runtime?.lastCommandId ? `Packet #${runtime.lastCommandId} · ${runtime.lastCommandState}` : "No command packet issued"}</strong><small>{runtime?.lastCommandId ? runtime.lastError || "Physical result remains separate from the requested direction." : "Opening this screen or reviewing a command does not signal the gate."}</small></span></div>{!canControl && <p className="control-blocked-note"><AlertTriangle /> {systemMode !== "normal" ? "Manual controls are blocked by emergency priority." : !canOperate ? "Your current role is view-only and cannot issue relay commands." : commandInFlight ? "A command packet is already awaiting controller or physical confirmation." : !runtime?.commissioned ? "Issue this controller's credential and complete onsite commissioning first." : runtime?.safetyOk !== true ? "Relay commands are blocked until the local safety circuit reports healthy." : "Relay commands are blocked while the controller is offline."}</p>}<div className="sheet-actions"><Button className="open-gate-command" onClick={() => setPendingGateCommand({ gate: selectedGate, position: "open" })} disabled={!canControl}><UnlockKeyhole /> Review open command</Button><Button variant="outline" onClick={() => setPendingGateCommand({ gate: selectedGate, position: "closed" })} disabled={!canControl}><LockKeyhole /> Review close command</Button></div><RemoteOpenPanel key={selectedGate.id} endpoint="/api/doors/open" gateId={selectedGate.id} allowed={canOperate && systemMode === "normal"} /></TabsContent><TabsContent value="schedule" className="sheet-tab-content"><div className="sheet-schedule-summary"><CalendarDays /><h3>Weekly operating schedule</h3><p>{Object.values(schedules[selectedGate.id]).filter((plan) => plan.enabled).length} scheduled days are enabled. Controller-side schedule execution stays disabled until commissioning sign-off.</p><Button onClick={() => { setSelectedScheduleGateId(selectedGate.id); setSelectedGate(null); setActiveView("schedule"); }}>Edit full schedule <ChevronRight /></Button></div></TabsContent><TabsContent value="details" className="sheet-tab-content"><img className="gate-caution-sign" src="/automatic-gate-caution.webp" alt="Caution: automatic gate. Keep clear." /><div className="identity-rows"><div><span>Asset ID</span><strong>{selectedGate.id}</strong></div><div><span>Controlled area</span><strong>{selectedGate.area}</strong></div><div><span>Gate type</span><strong>{selectedGate.type}</strong></div><div><span>Controller</span><strong>{runtime?.controllerState ?? "uncommissioned"}</strong></div><div><span>Safety input</span><strong>{runtime?.safetyOk === true ? "Healthy" : runtime?.safetyOk === false ? "Fault / blocked" : "No feedback"}</strong></div><div><span>Last physical contact</span><strong>{runtime?.lastSeen ? activityTime(runtime.lastSeen) : "Never"}</strong></div><div><span>Last command packet</span><strong>{runtime?.lastCommandId ? `#${runtime.lastCommandId} · ${runtime.lastCommandState}` : "None issued"}</strong></div></div></TabsContent></Tabs></>;
           })()}
         </SheetContent>
       </Sheet>
@@ -1226,17 +1222,17 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       <AlertDialog open={Boolean(pendingEmergency)} onOpenChange={(open) => !open && setPendingEmergency(null)}>
         <AlertDialogContent className="emergency-confirm-dialog">
           <AlertDialogHeader>
-            <AlertDialogTitle>{pendingEmergency === "clear" ? "Clear emergency priority?" : systemMode === pendingEmergency ? `Reissue ${pendingEmergency} gate command packets?` : pendingEmergency === "fire" ? "Issue fire / evacuation gate commands?" : "Issue lockdown gate commands?"}</AlertDialogTitle>
+            <AlertDialogTitle>{pendingEmergency === "clear" ? "Clear emergency priority?" : systemMode === pendingEmergency ? `Reissue ${pendingEmergency} gate command packets?` : "Issue fire / evacuation gate commands?"}</AlertDialogTitle>
             <AlertDialogDescription>
               {pendingEmergency === "clear"
                 ? "This clears portal priority only. It does not move any gate or declare the site safe. Confirm every gate and follow the school’s approved all-clear procedure."
-                : `${systemMode === pendingEmergency ? "This deliberately reissues" : "This will queue"} ${pendingEmergency === "fire" ? "OPEN" : "CLOSE"} command packets for ${activeGates.length} active gate controllers. The ${gates.length - activeGates.length} inactive access points are excluded. Only ${onlineCount} controllers are currently online and ${commissionedCount} are commissioned. Previously queued packets are superseded; already-collected packets cannot be recalled. Local safety controls and the school’s Emergency Management Plan remain authoritative.`}
+                : `${systemMode === pendingEmergency ? "This deliberately reissues" : "This will queue"} OPEN command packets for ${activeGates.length} active gate controllers. The ${gates.length - activeGates.length} inactive access points are excluded. Only ${onlineCount} controllers are currently online and ${commissionedCount} are commissioned. Previously queued packets are superseded; already-collected packets cannot be recalled. Local safety controls and the school’s Emergency Management Plan remain authoritative.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className={pendingEmergency === "fire" ? "confirm-fire" : "confirm-lockdown"}
+              className={pendingEmergency === "fire" ? "confirm-fire" : "confirm-clear"}
               onClick={() => {
                 const action = pendingEmergency;
                 setPendingEmergency(null);
@@ -1244,7 +1240,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
                 else if (action) void activateEmergency(action);
               }}
             >
-              {pendingEmergency === "clear" ? "Clear priority" : pendingEmergency === "fire" ? "Issue OPEN commands" : "Issue CLOSE commands"}
+              {pendingEmergency === "clear" ? "Clear priority" : "Issue OPEN commands"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
