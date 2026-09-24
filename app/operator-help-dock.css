@@ -43,6 +43,25 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
+.operator-help-tabs {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem 0;
+}
+
+.operator-help-tabs button {
+  border: 0;
+  background: #e5e7eb;
+  color: #111827;
+  border-radius: 0.45rem;
+  padding: 0.3rem 0.55rem;
+}
+
+.operator-help-tabs button.is-active {
+  background: #111827;
+  color: #fff;
+}
+
 .operator-help-list {
   max-height: 16rem;
   overflow: auto;
@@ -56,6 +75,12 @@
   padding: 0.55rem 0.7rem;
   border-radius: 0.7rem;
   white-space: pre-wrap;
+}
+
+.operator-help-item small {
+  display: block;
+  margin-bottom: 0.3rem;
+  opacity: 0.7;
 }
 
 .operator-help-item.is-user {
