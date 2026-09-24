@@ -9,13 +9,11 @@ function portalMode() {
   const portal = document.querySelector(".control-portal");
   const className = portal?.className || "";
   if (className.includes("mode-fire")) return "fire";
-  if (className.includes("mode-lockdown")) return "lockdown";
   return "normal";
 }
 
-function statusCopy(mode: "normal" | "fire" | "lockdown", attention: boolean) {
+function statusCopy(mode: "normal" | "fire", attention: boolean) {
   if (mode === "fire") return "FIRE — open packets queued, no confirmed movement";
-  if (mode === "lockdown") return "LOCKDOWN — close packets queued, no confirmed movement";
   if (attention) return "Amber: commissioning — 0 controllers online, no verified heartbeat";
   return "Normal — portal online";
 }
@@ -39,7 +37,7 @@ function applyLiveGateArt() {
 
 export default function DashboardHireDock() {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"normal" | "fire" | "lockdown">("normal");
+  const [mode, setMode] = useState<"normal" | "fire">("normal");
   const [attention, setAttention] = useState(true);
 
   useEffect(() => {
