@@ -79,6 +79,18 @@ function areaList(visit: HireVisit): string[] {
   }
   return [];
 }
+// Colour per hire area, shared by the week board, calendar and legend.
+const AREA_COLOURS: Array<{ match: RegExp; className: string; label: string }> = [
+  { match: /frizza|stadium/i, className: "fh-area-stadium", label: "Tony Frizza Stadium" },
+  { match: /gym/i, className: "fh-area-gymnasium", label: "Gymnasium" },
+  { match: /oval|ground/i, className: "fh-area-oval", label: "Oval and grounds" },
+  { match: /tennis/i, className: "fh-area-tennis", label: "Tennis courts" },
+  { match: /car ?park/i, className: "fh-area-carpark", label: "Car park" },
+];
+function areaClass(visit: HireVisit): string {
+  const first = areaList(visit)[0] ?? "";
+  return AREA_COLOURS.find((entry) => entry.match.test(first))?.className ?? "";
+}
 function visitTitle(visit: HireVisit): string {
   return visit.organisation || visit.full_name || visit.schedule_name || "Hire booking";
 }
@@ -221,6 +233,10 @@ export default function FacilityHirePanel() {
         </div>
       </header>
 
+      <p className="fh-legend" aria-label="Area colours">
+        {AREA_COLOURS.map((entry) => <span key={entry.className} className={entry.className}><i aria-hidden="true" />{entry.label}</span>)}
+      </p>
+
       {error && <p className="fh-note fh-note-error" role="alert">{error}</p>}
       {notice && <p className="fh-note" role="status">{notice}</p>}
 
@@ -236,7 +252,7 @@ export default function FacilityHirePanel() {
                 <span className={`fh-day-num${isToday ? " is-today" : ""}`}>{Number(iso.slice(8))}</span>
               </div>
               {visits.length === 0 ? <p className="fh-empty">No bookings</p> : visits.map((visit, i) => (
-                <button type="button" key={visit.occurrence_id ?? i} className="fh-booking" onClick={(event) => { event.stopPropagation(); setSelectedVisit(visit); setSelectedDay(iso); }}>
+                <button type="button" key={visit.occurrence_id ?? i} className={`fh-booking ${areaClass(visit)}`} onClick={(event) => { event.stopPropagation(); setSelectedVisit(visit); setSelectedDay(iso); }}>
                   <strong>{visitTitle(visit)}</strong>
                   <span>{clock(visit.starts_at)} – {clock(visit.ends_at)}</span>
                   {areaList(visit).length > 0 && <small>{areaList(visit).join(", ")}</small>}
@@ -296,7 +312,7 @@ export default function FacilityHirePanel() {
                   onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); chooseDay(iso); } }}>
                   <span className="fh-cell-num">{dayNumber === 1 && !inMonth ? shortDate(iso) : dayNumber}</span>
                   {visits.slice(0, 2).map((visit, i) => (
-                    <button type="button" key={visit.occurrence_id ?? i} className={`fh-event is-${visit.status ?? "confirmed"}`} onClick={(event) => { event.stopPropagation(); setSelectedVisit(visit); setSelectedDay(iso); }}>
+                    <button type="button" key={visit.occurrence_id ?? i} className={`fh-event is-${visit.status ?? "confirmed"} ${areaClass(visit)}`} onClick={(event) => { event.stopPropagation(); setSelectedVisit(visit); setSelectedDay(iso); }}>
                       <span>{visitTitle(visit)}</span><time>{clock(visit.starts_at)}</time>
                     </button>
                   ))}

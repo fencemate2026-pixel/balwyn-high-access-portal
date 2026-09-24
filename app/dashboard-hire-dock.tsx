@@ -104,6 +104,23 @@ export default function DashboardHireDock() {
     return () => document.body.classList.remove("hire-open");
   }, [open]);
 
+  // Facility hire sits directly under the fire/emergency bar and flush against
+  // the sidebar: measure both so the bar is never covered (it was being
+  // squashed) and there is no gap between the sidebar and the page.
+  useEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const bar = document.querySelector(".safety-bar");
+      const sidebar = document.querySelector('[data-slot="sidebar-container"]');
+      const root = document.documentElement;
+      if (bar) root.style.setProperty("--hire-top", `${Math.ceil(bar.getBoundingClientRect().bottom)}px`);
+      if (sidebar) root.style.setProperty("--hire-left", `${Math.floor(sidebar.getBoundingClientRect().right)}px`);
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open]);
+
   useEffect(() => {
     function onClick(event: MouseEvent) {
       const target = event.target as HTMLElement | null;

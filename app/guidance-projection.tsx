@@ -83,7 +83,7 @@ export default function GuidanceProjection({ route }: { route: GuidanceRoute }) 
       width: "100%", height: "100%", display: "flex", flexDirection: "column",
       background: "#0f2136", color: "#f4f8fc",
       borderTop: `14px solid ${tone.rail}`,
-      fontFamily: '"Barlow Condensed", "Barlow", system-ui, sans-serif',
+      fontFamily: '"Zing Sans Rust", "Zing Sans Rust Base", system-ui, sans-serif',
     }}>
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -122,7 +122,7 @@ export default function GuidanceProjection({ route }: { route: GuidanceRoute }) 
               </span>
               <span style={{ fontSize: 44, fontWeight: 600, lineHeight: 1.1 }}>{step.text}</span>
               <span style={{
-                fontFamily: '"Barlow", sans-serif', fontSize: 28, color: "#61809f",
+                fontFamily: '"Zing Sans Rust", "Zing Sans Rust Base", system-ui, sans-serif', fontSize: 28, color: "#61809f",
                 fontVariantNumeric: "tabular-nums",
               }}>
                 {step.metres ? `${step.metres} m` : ""}
@@ -142,7 +142,7 @@ export default function GuidanceProjection({ route }: { route: GuidanceRoute }) 
             <span style={{ fontSize: 56, fontWeight: 700, lineHeight: 1 }}>{route.destination}</span>
             {route.totalMetres ? (
               <span style={{
-                marginLeft: "auto", fontFamily: '"Barlow", sans-serif', fontSize: 30,
+                marginLeft: "auto", fontFamily: '"Zing Sans Rust", "Zing Sans Rust Base", system-ui, sans-serif', fontSize: 30,
                 color: "#9cb4cd", fontVariantNumeric: "tabular-nums",
               }}>
                 {route.totalMetres} m

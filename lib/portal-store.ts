@@ -35,6 +35,13 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+// Command expiry is housekeeping: run it at most every 10 s from snapshot reads
+// instead of on every 4 s refresh, so dashboard reads stop queuing behind the
+// database write lock. Controller polls and operator actions still expire
+// commands through their own paths.
+let lastExpirySweep = 0;
+const EXPIRY_SWEEP_INTERVAL_MS = 10_000;
+
 export async function ensurePortalSeeded() {
   const d1 = getSql();
   const seeded = await d1.prepare("SELECT id FROM system_state WHERE id = 1").first();
@@ -80,15 +87,20 @@ export async function ensurePortalSeeded() {
   ).run();
 }
 
-export async function getPortalSnapshot(user: PortalUser): Promise<PortalSnapshot> {
-  await ensurePortalSeeded();
+export async function getPortalSnapshot(user: PortalUser, seededCheckDone = false): Promise<PortalSnapshot> {
+  // The seed check used to be a separate round trip before every read. The
+  // reads below already fetch system_state, so seeding now runs only when that
+  // row is actually missing (first ever start), then the snapshot is re-read.
   const db = getDb();
   const d1 = getSql();
   const expiry = nowIso();
+  if (Date.now() - lastExpirySweep >= EXPIRY_SWEEP_INTERVAL_MS) {
+  lastExpirySweep = Date.now();
   await d1.batch([
     d1.prepare("UPDATE gate_states SET last_command_state = 'failed', last_error = 'Command expired before controller confirmation.', updated_at = CURRENT_TIMESTAMP WHERE last_command_id IN (SELECT id FROM command_queue WHERE state IN ('queued', 'dispatched') AND expires_at <= ?)").bind(expiry),
     d1.prepare("UPDATE command_queue SET state = 'failed', acknowledged_at = CURRENT_TIMESTAMP, detail = 'Command expired before controller confirmation.' WHERE state IN ('queued', 'dispatched') AND expires_at <= ?").bind(expiry),
   ]);
+  }
   const [systemRows, gateRows, scheduleRows, activityRows, ruleRows, settingRows] = await Promise.all([
     db.select().from(systemState).where(eq(systemState.id, 1)).limit(1),
     db.select().from(gateStates).orderBy(asc(gateStates.gateId)),
@@ -97,6 +109,10 @@ export async function getPortalSnapshot(user: PortalUser): Promise<PortalSnapsho
     db.select().from(automationRules).orderBy(asc(automationRules.id)),
     db.select().from(portalSettings).where(eq(portalSettings.id, 1)).limit(1),
   ]);
+  if (!systemRows.length && !seededCheckDone) {
+    await ensurePortalSeeded();
+    return getPortalSnapshot(user, true);
+  }
 
   const scheduleMap = Object.fromEntries(GATES.map((gate) => [gate.id, makeWeekPlan(gate)])) as Record<string, WeekPlan>;
   for (const row of scheduleRows) {

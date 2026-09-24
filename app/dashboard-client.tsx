@@ -1,5 +1,6 @@
 "use client";
 
+import GateConditionPanel from "./gate-condition-panel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
@@ -299,6 +300,9 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const [pendingGateCommand, setPendingGateCommand] = useState<{ gate: Gate; position: GatePosition } | null>(null);
   const [controllerCredential, setControllerCredential] = useState<{ gateId: string; token: string } | null>(null);
   const selectedVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  // Incremented whenever this operator changes something. Background refreshes
+  // started before the change are discarded, so stale state never reappears.
+  const mutationEpochRef = useRef(0);
 
   useEffect(() => {
     if (!isAdministrator) return;
@@ -372,6 +376,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       throw new Error("Enter an administrator password, then submit the change again.");
     }
     setBusyAction(label);
+    mutationEpochRef.current += 1;
     try {
       const response = await fetch("/api/portal", {
         method: "POST",
@@ -385,6 +390,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       }
       if (result.code === "admin_password_required") { setAdminAccessUntil(0); setControllerCredential(null); if (isAdministrator) setAdminUnlockOpen(true); }
       if (!response.ok || !result.snapshot) throw new Error(result.error || "The operation could not be completed.");
+      mutationEpochRef.current += 1;
       applySnapshot(result.snapshot);
       if (result.controllerCredential) setControllerCredential(result.controllerCredential);
       return result;
@@ -395,22 +401,28 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   useEffect(() => {
     let active = true;
+    let timer: number | undefined;
     const refresh = async () => {
+      const epochAtStart = mutationEpochRef.current;
       try {
         const response = await fetch("/api/portal", { cache: "no-store" });
         if (response.status === 401) {
           await onSignOut?.();
           return;
         }
-        if (!response.ok) return;
-        const result = await response.json() as { snapshot?: PortalSnapshot };
-        if (active && result.snapshot) applySnapshot(result.snapshot, scheduleDirty);
+        if (response.ok) {
+          const result = await response.json() as { snapshot?: PortalSnapshot };
+          // Discard if the operator changed something while this was in flight.
+          if (active && result.snapshot && epochAtStart === mutationEpochRef.current) applySnapshot(result.snapshot, scheduleDirty);
+        }
       } catch {
         // Retain the last confirmed state and let the connection status communicate staleness.
+      } finally {
+        if (active) timer = window.setTimeout(refresh, 4000);
       }
     };
-    const timer = window.setInterval(refresh, 4000);
-    return () => { active = false; window.clearInterval(timer); };
+    timer = window.setTimeout(refresh, 4000);
+    return () => { active = false; if (timer) window.clearTimeout(timer); };
   }, [scheduleDirty, onSignOut]);
 
   useEffect(() => {
@@ -577,12 +589,25 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   }
 
   async function clearEmergency() {
+    // Stop the repeating spoken warning straight away; the confirmed state follows.
+    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     try {
       await postPortal({ action: "clear_emergency" }, "clear-emergency");
       toast.success("Emergency priority cleared", { description: "Uncollected emergency packets were cancelled. Already-collected packets cannot be recalled; confirm every gate before resuming normal operation." });
       if (typeof window !== "undefined") window.setTimeout(announceAllClear, 120);
     } catch (reason) {
-      toast.error("Emergency priority was not cleared", { description: reason instanceof Error ? reason.message : "Use the approved local procedure." });
+      const message = reason instanceof Error ? reason.message : "";
+      if (/not active/i.test(message)) {
+        // Already cleared on the server: show the real state instead of an error.
+        try {
+          const response = await fetch("/api/portal", { cache: "no-store" });
+          const result = await response.json() as { snapshot?: PortalSnapshot };
+          if (result.snapshot) { mutationEpochRef.current += 1; applySnapshot(result.snapshot); }
+          toast.success("Emergency priority is already cleared");
+          return;
+        } catch { /* fall through to the error below */ }
+      }
+      toast.error("Emergency priority was not cleared", { description: message || "Use the approved local procedure." });
     }
   }
 
@@ -765,10 +790,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
           return (
             <button className={`access-card ${gate.active ? "is-active" : "is-inactive"} ${positionMonitoring ? "" : "is-monitoring-paused"} controller-${runtimeFor(gate)?.controllerState ?? "uncommissioned"}`} key={gate.id} aria-label={`${gate.name} · ${gate.active ? "Active" : "Inactive"} · ${status.label}`} aria-haspopup="dialog" onClick={() => setSelectedGate(gate)}>
               <span className="access-card-heading"><span><strong>{gate.name}</strong><small>{gate.type}</small></span><span className={`gate-activation-badge ${gate.active ? "is-active" : "is-inactive"}`}>{gate.active ? "Active" : "Inactive"}</span></span>
-              <span className="access-card-meta">
-                <span>{gate.area}</span>
-                <span>{gate.id}</span>
-              </span>
+              {/* Area / ID pills removed at the owner's request: the card shows the gate itself. */}
               <GateIcon gate={gate} position={position} />
               <span className="access-card-footer">
                 <span className="access-card-context">
@@ -830,6 +852,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
           {activeView === "dashboard" && (
             <>
+              <GateConditionPanel gates={activeGates} runtime={gateRuntime} getPosition={getPosition} systemMode={systemMode} now={currentTime} />
               <section className="health-strip" aria-label="Platform and controller health">
                 <div className="health-lead"><span className="health-pulse"><i /></span><span><strong>Portal available</strong><small>Persistent control and audit service</small></span></div>
                 <div><Network /><span><strong>{onlineCount} / {activeGates.length}</strong><small>Controllers responding</small></span></div>

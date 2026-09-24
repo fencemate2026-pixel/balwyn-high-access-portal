@@ -329,7 +329,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .authenticator-enrollment { margin: 0 0 13px; padding: 12px; display: grid; gap: 6px; color: #294b60; background: #f3f8fb; border: 1px solid #c9dce7; border-radius: 9px; }
 .authenticator-enrollment strong { color: #0a315b; font-size: .82rem; }
 .authenticator-enrollment span, .authenticator-enrollment small { font-size: .67rem; line-height: 1.45; }
-.authenticator-enrollment code { padding: 9px 10px; color: #082f57; background: #fff; border: 1px solid #bfd2dd; border-radius: 7px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .79rem; font-weight: 800; letter-spacing: .07em; text-align: center; overflow-wrap: anywhere; }
+.authenticator-enrollment code { padding: 9px 10px; color: #082f57; background: #fff; border: 1px solid #bfd2dd; border-radius: 7px; font-family: var(--font-ui); font-size: .79rem; font-weight: 800; letter-spacing: .07em; text-align: center; overflow-wrap: anywhere; }
 .authenticator-enrollment a { width: fit-content; color: #0b67bd; font-size: .7rem; font-weight: 750; text-decoration: underline; text-underline-offset: 3px; }
 .demo-otp-container { width: 100%; justify-content: center; }
 .demo-otp-container [data-slot="input-otp-group"] { width: 100%; justify-content: center; gap: 6px; }
@@ -760,7 +760,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .position-label i, .status-legend i { width: 7px; height: 7px; display: inline-block; background: currentColor; border-radius: 50%; }
 .position-label.is-open, .status-legend .is-open { color: var(--orange-deep); }
 .position-label.is-closed, .status-legend .is-closed { color: #66757d; }
-.access-card-footer > span:last-child { color: #8a979e; font-family: ui-monospace, monospace; font-size: .55rem; }
+.access-card-footer > span:last-child { color: #8a979e; font-family: var(--font-ui); font-size: .55rem; }
 
 /* Gate list and schedule */
 .view-panel, .activity-panel { padding: 24px; }
