@@ -193,3 +193,51 @@
 .access-login-gate > span { color: #c4cbed; }
 .access-login-orbit { border-color: #527bff50; box-shadow: 0 0 60px #235cff30, inset 0 0 35px #235cff15; }
 .access-login-help, .access-login-enrollment { background: #0c0e25; border-color: #303655; }
+
+
+/* Reference layout: a focused left sign-in rail and full-height brand artwork. */
+.access-login-split .access-login-shell { width: 100%; max-width: none; padding: 0; }
+.access-login-split .access-login-header, .access-login-split .access-login-footer { display: none; }
+.access-login-split .access-login-layout { display: grid; grid-template-columns: minmax(360px, 33.4%) minmax(0, 1fr); gap: 0; padding: 0; min-height: 100svh; align-items: stretch; }
+.access-login-split .access-login-panel { grid-column: 1; grid-row: 1; width: 100%; max-width: none; margin: 0; padding: 48px clamp(24px, 3.4vw, 58px) 24px; display: flex; flex-direction: column; justify-content: center; background: linear-gradient(155deg, #101d2d, #09121b 80%); }
+.access-login-split .access-login-card { width: 100%; max-width: 440px; margin: auto auto 0; padding: clamp(24px, 2.2vw, 38px); border-radius: 20px; background: linear-gradient(145deg, #192839, #121e2c); border-color: #30485f; box-shadow: none; }
+.access-login-split .access-login-heading h1 { font-size: clamp(27px, 2.3vw, 36px); font-weight: 650; letter-spacing: -.04em; }
+.access-login-split .access-login-heading > p { font-size: 12px; }
+.access-login-split .access-login-kicker { font-size: 8px; }
+.access-login-split .access-login-assurance { font-size: 10px; }
+.access-login-split .access-login-legal { margin: 22px 0 auto; padding-bottom: 8px; }
+.access-login-brand-stage { grid-column: 2; grid-row: 1; position: relative; background: #fff; overflow: hidden; min-height: 100svh; }
+.access-login-brand-stage .magic-wide-artwork { position: absolute; inset: 0; width: 100%; height: 100%; background: white; overflow: hidden; }
+.access-login-brand-stage .magic-wide-wordmark { position: absolute; left: 3%; top: 50%; transform: translateY(-50%); width: 67%; height: auto; max-width: none; margin: 0; padding: 0; background: none; filter: none; border: 0; border-radius: 0; box-shadow: none; z-index: 2; }
+.access-login-brand-stage .magic-wide-ai-head { position: absolute; right: 0; top: 0; height: 100%; width: 30%; max-width: none; opacity: 1; transform: none; }
+.access-login-school-blue .access-login-layout { grid-template-columns: clamp(280px, 22vw, 360px) minmax(0, 1fr); }
+.access-login-school-blue .access-login-panel { padding: 24px; background: linear-gradient(150deg, #074983, #04376c 50%, #022850); justify-content: center; }
+.login-school-badge { width: 100%; max-width: 320px; margin: 0 auto; padding: 14px 13px 10px; border: 1px solid #bdcddc; border-radius: 8px; background: #fff; box-shadow: 0 4px 18px #001c3e35; display: flex; flex-direction: column; align-items: center; }
+.login-school-badge .magic-brand-logo { width: 100%; height: auto; max-width: none; padding: 0; border: 0; border-radius: 0; background: transparent; filter: none; box-shadow: none; }
+.login-school-badge .login-school-installer { width: 105px; height: auto; object-fit: contain; align-self: flex-end; margin-top: -8px; }
+.login-school-badge > span { margin-top: 9px; font-size: 10px; font-weight: 600; letter-spacing: .14em; color: #566476; }
+.access-login-school-blue .access-login-card { max-width: 320px; margin: 32px auto 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.access-login-school-blue .access-login-lock, .access-login-school-blue .access-login-kicker { display: none; }
+.access-login-school-blue .access-login-heading h1 { font-size: 26px; }
+.access-login-school-blue .access-login-heading > p { color: #c0d3e8; font-size: 12px; margin-bottom: 24px; }
+.access-login-school-blue .access-login-input { background: #07558f; border-color: #5392c0; }
+.access-login-school-blue .access-login-input input { color: #fff; }
+.access-login-school-blue .access-login-input input::placeholder { color: #b4cde2; }
+.access-login-school-blue .access-login-provider, .access-login-school-blue .access-login-submit { background: #0862a3; border-color: #5596c5; color: #fff; }
+.access-login-school-blue .access-login-assurance { border-color: #70a3c54d; color: #d0e0ef; margin-top: 22px; }
+.access-login-school-blue .access-login-assurance small, .access-login-school-blue .access-login-provider-note, .access-login-school-blue .access-login-help-toggle, .access-login-school-blue .access-login-legal a { color: #c0d3e8; }
+.access-login-school-blue .access-login-legal { margin: 20px 0 0; }
+.access-login-school-blue .magic-wide-artwork::after { content: ""; position: absolute; inset: 2% 26% 2% 16%; background: url('/balwyn-crest-clear.png') center / contain no-repeat; opacity: .095; z-index: 1; pointer-events: none; }
+.access-login-school-blue .magic-wide-ai-head { z-index: 3; }
+@media (max-width: 800px) {
+  .access-login-split .access-login-layout { display: flex; flex-direction: column; }
+  .access-login-brand-stage { order: 0; min-height: 165px; height: 25svh; max-height: 220px; }
+  .access-login-split .access-login-panel { order: 1; padding: 28px 24px 18px; flex: 1; }
+  .access-login-split .access-login-card { margin: 0 auto; }
+  .access-login-split .access-login-legal { margin: 18px 0 0; }
+  .access-login-brand-stage .magic-wide-wordmark { width: 64%; left: 5%; }
+  .access-login-brand-stage .magic-wide-ai-head { width: 28%; }
+  .access-login-school-blue .access-login-brand-stage { display: none; }
+  .access-login-school-blue .access-login-panel { min-height: 100svh; padding: 24px; }
+  .access-login-school-blue .access-login-card { margin: 28px auto 0; }
+}
