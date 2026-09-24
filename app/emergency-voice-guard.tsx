@@ -57,22 +57,13 @@ export default function EmergencyVoiceGuard() {
     }) as typeof synth.speak;
 
     synth.cancel = (() => {
-      if (protect && (synth.speaking || synth.pending)) return;
+      protect = false;
       originalCancel();
     }) as typeof synth.cancel;
 
-    function onClick(event: Event) {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      const fire = target.closest(".confirm-fire");
-      if (fire) speakNow();
-    }
-
-    document.addEventListener("click", onClick, true);
     synth.getVoices();
 
     return () => {
-      document.removeEventListener("click", onClick, true);
       synth.speak = originalSpeak;
       synth.cancel = originalCancel;
     };
