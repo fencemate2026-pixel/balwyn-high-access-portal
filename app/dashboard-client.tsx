@@ -271,7 +271,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const profileImage = userProfile?.avatarUrl || undefined;
   const [adminUnlockOpen, setAdminUnlockOpen] = useState(false);
   const adminUnlocked = isAdministrator && adminAccessUntil > currentTime;
-  const configurationView = ["settings", "schedule", "automation"].includes(activeView);
+  const configurationView = ["settings", "automation"].includes(activeView);
   const [plan, setPlan] = useState(initialData.plan);
   const [serverTime, setServerTime] = useState(initialData.serverTime);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -823,6 +823,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       <SidebarInset className="portal-workspace">
         <header className="workspace-header">
           <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="location-logo"><img src="/balwyn-crest-clear.png" alt="Balwyn High School crest" /></span><div><small>Managed site</small><strong>Balwyn High School</strong></div></div>
+          <div className="workspace-brand-partner"><span>Technology by</span><img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial Fencing and Gates" width={900} height={210} /></div>
           <div className="workspace-header-right"><div className={`system-status-cluster ${operationalReady ? "is-ready" : "is-attention"}`}><i className="signal-dot" /><span><small>Controller status</small><strong>{operationalReady ? "All systems ready" : "Commissioning"}</strong></span><b>{onlineCount}/{activeGates.length}</b></div><span className="connection-pill"><i /> Encrypted connection</span><button className="notification-button" aria-label="View system alerts" onClick={() => onlineCount === activeGates.length ? toast.success("All controllers online", { description: "Physical gate feedback is available for every access point." }) : toast.warning(`${activeGates.length - onlineCount} active gate controllers are not online`, { description: `${commissionedCount} have completed a verified heartbeat; ${credentialCount} credentials have been issued.` })}><Bell /></button><div className="header-operator"><Avatar><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><span><strong>{displayName}</strong><small>{roleLabel}</small></span></div></div>
         </header>
 
@@ -840,7 +841,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         <div className="campus-context"><CampusCalendar onManage={() => setActiveView("hire")} canBook={canOperate} /><CampusWeather /></div>
 
         <div className="workspace-content" data-view={activeView}>
-          <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span><div className="workspace-context" aria-label="Portal context"><span>Portal sync · {portalTimeLabel(serverTime)}</span><span>Timezone · Australia/Melbourne</span><span>Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</span></div></div><div className="workspace-title-meta"><div className="workspace-powered-by"><span>Technology by</span><img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial" /></div><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>
+          <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span><div className="workspace-context" aria-label="Portal context"><span>Portal sync · {portalTimeLabel(serverTime)}</span><span>Timezone · Australia/Melbourne</span><span>Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</span></div></div><div className="workspace-title-meta"><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>
           {activeView === "dashboard" && (
             <div className="desk-service-row">
               <button type="button" onClick={() => { setActiveView("activity"); toast.message("Fault report", { description: "Use the activity log to record the gate, time and fault. Controllers stay amber until a verified heartbeat exists." }); }}>Report a fault</button>
@@ -1014,10 +1015,10 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             </section>
           )}
 
-          {configurationView && !adminUnlocked && <section className="admin-settings-locked"><span className="admin-lock-icon"><LockKeyhole /></span><h2>Administrator settings</h2><p>{isAdministrator ? "Enter the administrator password to customise system settings, relay controllers, schedules and automation." : "An administrator must sign in to change system and relay settings."}</p>{isAdministrator && <AdminSettingsUnlock onUnlocked={settingsUnlocked} />}</section>}
+          {configurationView && !adminUnlocked && <section className="admin-settings-locked"><span className="admin-lock-icon"><LockKeyhole /></span><h2>Administrator settings</h2><p>{isAdministrator ? "Enter the administrator password to customise system settings, relay controllers and automation." : "An administrator must sign in to change system and relay settings."}</p>{isAdministrator && <AdminSettingsUnlock onUnlocked={settingsUnlocked} />}</section>}
           {(configurationView || activeView === "access") && adminUnlocked && <div className="admin-settings-banner"><span><ShieldCheck /> Administrator configuration unlocked</span><Button variant="outline" onClick={() => void lockSettings()}><LockKeyhole /> Lock settings</Button></div>}
 
-          {activeView === "schedule" && adminUnlocked && (
+          {activeView === "schedule" && (
             <section className="schedule-workspace">
               <div className="schedule-toolbar"><div><label htmlFor="schedule-gate">Select gate</label><NativeSelect id="schedule-gate" value={selectedScheduleGate.id} onChange={(event) => { setSelectedScheduleGateId(event.target.value); setScheduleDirty(false); }} className="gate-select">{gates.map((gate) => <NativeSelectOption key={gate.id} value={gate.id} disabled={!gate.active}>{gate.name}{gate.active ? "" : " · Inactive"}</NativeSelectOption>)}</NativeSelect></div><div className="schedule-toolbar-actions"><Button variant="outline" disabled={!canOperate} onClick={copyMondayToWeekdays}><Copy /> Copy Monday to weekdays</Button><Button onClick={saveSchedule} disabled={!canOperate || !scheduleDirty || busyAction === `schedule-${selectedScheduleGate.id}`}><Save /> {busyAction === `schedule-${selectedScheduleGate.id}` ? "Saving…" : scheduleDirty ? "Save schedule" : "No unsaved changes"}</Button></div></div>
               <div className="schedule-context"><span><GateIcon gate={selectedScheduleGate} position={getPosition(selectedScheduleGate)} /></span><div><h2>{selectedScheduleGate.name}</h2><small>{selectedScheduleGate.area} · {selectedScheduleGate.id}</small><p>{selectedScheduleGate.type}</p></div><div className="timezone-card"><Clock3 /><span><strong>Australia / Melbourne</strong><small>Schedule timezone</small></span></div></div>
