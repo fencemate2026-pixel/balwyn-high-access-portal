@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     if (!command && body.safetyOk && commissioned && body.scheduleControl === true) {
       command = await getOrCreateScheduledControllerCommand(gateId);
     }
-    return Response.json({ command, commissioned, pollAfterMs: 1500, serverTime: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ command, commissioned, pollAfterMs: 750, serverTime: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("controller poll failed", error);
     return Response.json({ error: "Controller command polling is temporarily unavailable." }, { status: 503 });
