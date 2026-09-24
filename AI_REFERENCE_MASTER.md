@@ -44,7 +44,7 @@ any proposed TCP/IP protocol adapter description; no proprietary ACB packet
 protocol, reader database sync or controller network commands are implemented.
 
 - Service: `pi-door-service/door_service.py`, `POST /doors/{1-4}/open` only.
-- Bounded 300–10,000 ms pulse acknowledgement on exactly one mapped BCM relay pin; default 500 ms. The installed controller determines the commissioned pulse duration.
+- The bundled `pi-door-service` tests require 300–800 ms pulses, default 500 ms. The portal gateway accepts acknowledgements up to 10,000 ms, but that does not change the service's configured bounds or prove an installed version supports a longer pulse.
 - Mock/dry-run by default; explicit verified hardware configuration required.
 - One-way open-only trigger: no closing, toggling, hold-open or emergency actuation.
 - No live door, lock-release or safety feedback. `pulsed` acknowledges the relay
@@ -83,16 +83,16 @@ hosting build before committing. Test results do not certify field wiring.
 
 **What it does:**
 - Lists nine access points: two active and seven inactive. Active status does not establish a physical gate position; green/open and red/closed indicators require current controller feedback.
-- Demonstrates emergency lockdown (no physical command through the open-only service)
-- Demonstrates fire/evacuation (no physical emergency operation through the open-only service)
+- Lockdown is unavailable; `resolveEmergencyCommand("lockdown")` throws.
+- Fire evacuation queues OPEN on `ACTIVE_GATES` only through the separate controller command queue, never through the open-only door service.
 - Weekly scheduling per gate
 - Activity logging with audit trail
 - Operator authentication (demo: paul sutton / REDACTED)
 
 **Tech stack:**
 - **Frontend:** React 19, Next.js 16, TypeScript, Tailwind CSS, shadcn/ui
-- **Build:** Vite + Vinext
-- **Deployment:** Netlify (static export)
+- **Production build:** Next.js (`npm run build`); Vite remains in the test tooling.
+- **Website hosting:** Azure App Service `magickeys-balwyn-portal`, container `magickeysbalwyn.azurecr.io/magickeys-portal:<git-sha>`. A merge is not live until the image is rebuilt and the app restarts.
 
 **Gate system:**
 - **Tony Frizza Stadium:** active single swing entry and inactive single swing exit
@@ -100,9 +100,10 @@ hosting build before committing. Test results do not certify field wiring.
 - **Staff Car Park:** inactive double swing entry and inactive entry boom
 - **Office:** inactive Entry 1 and Exit 1 double swing gates, plus inactive Entry 1 and Exit 1 boom gates
 
-**Simulated emergency modes:**
-- **LOCKDOWN:** Close all gates, repeat voice warnings every 6.5s
-- **FIRE/EVACUATION:** Open all gates, PA announcement, dynamic routing
+**Emergency policy:**
+- **LOCKDOWN:** Unsupported and rejected server-side; no lockdown-close controls or voice.
+- **FIRE/EVACUATION:** Queue OPEN for active gates only. Do not infer movement, PA delivery or a safe route from a queued command.
+- Help chat and Foundry remain Q&A only, without door or emergency action tools.
 
 ---
 
@@ -179,7 +180,7 @@ sentinel-wayfinding --scenarios examples/scenarios.json
 
 ### **Step 3: Ask Your AI to Learn**
 
-- "Explain how the emergency lockdown loop works"
+- "Explain why lockdown is rejected and how fire-open packets are queued"
 - "Design 3 new synthetic evacuation scenarios"
 - "How could we integrate Sentinel routing into Magic Keys?"
 
@@ -191,7 +192,7 @@ sentinel-wayfinding --scenarios examples/scenarios.json
 
 1. **Gate Automation (Magic Keys)**
    - 3 gate types, 3 campus areas
-   - Normal, lockdown, fire modes
+   - Normal operation and fire-only emergency requests; legacy lockdown state is not a supported action
    - Emergency overrides everything
 
 2. **Evacuation Routing (Sentinel)**
