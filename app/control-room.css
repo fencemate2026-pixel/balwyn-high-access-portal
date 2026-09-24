@@ -486,7 +486,7 @@ h1, h2, h3 { letter-spacing: -.025em; }
 .portal-workspace, .campus-weather { background-image: none; }
 .portal-workspace { background-color: #000; }
 .workspace-header, .safety-bar, .campus-weather { background-color: #191c24; }
-.control-sidebar .magic-sidebar-brand .magic-brand-logo { filter: brightness(0) invert(1); }
+
 .control-sidebar .portal-nav-button svg { color: #8f5fe8; }
 .control-sidebar [data-sidebar="menu-item"]:nth-child(4n+2) .portal-nav-button svg { color: #ffab00; }
 .control-sidebar [data-sidebar="menu-item"]:nth-child(4n+3) .portal-nav-button svg { color: #fc424a; }
@@ -549,3 +549,67 @@ h1, h2, h3 { letter-spacing: -.025em; }
   .control-portal :is(.summary-grid, .dashboard-panels, .access-grid) { gap: 16px; }
   .control-portal :is(.panel, .view-panel, .summary-card, .access-card, .campus-calendar, .campus-weather) { padding: 18px; }
 }
+
+/* Light working surfaces, with dark navigation and top context. */
+@font-face {
+  font-family: "Univers Extended";
+  src: local("Univers Extended"), local("Univers LT Std 53 Extended"), local("UniversLTStd-Ex");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+.control-portal, .operator-help-dock {
+  --font-ui: "Univers Extended", "Univers", Arial, sans-serif;
+  --font-display: var(--font-ui);
+  font-family: var(--font-ui);
+}
+.control-portal .portal-workspace { font-family: var(--font-ui); background: #f2f5fa; }
+.control-portal .workspace-brand-partner { background: transparent; border: 0; box-shadow: none; padding: 4px 12px; }
+.control-portal .workspace-brand-partner img { filter: none; }
+.control-portal .campus-context { max-width: none; background: #191c24; padding: 20px 28px; gap: 24px; align-items: stretch; }
+.control-portal .campus-context :is(.campus-calendar, .campus-weather) { padding: 18px; background: #222733; border-color: #343e50; border-radius: 12px; }
+.control-portal .campus-calendar .calendar-day { min-height: 88px; }
+.control-portal .workspace-content {
+  color-scheme: light;
+  --bg-page: #f2f5fa; --bg-card: #fff; --bg-card-raised: #edf3fc; --bg-card-hover: #e5effc;
+  --text-primary: #182840; --text-secondary: #3c506d; --text-muted: #596b83;
+  --border-subtle: #d5dfec; --border: #d5dfec; --input: #c7d4e4;
+  --background: #f2f5fa; --foreground: #182840; --card: #fff; --card-foreground: #182840;
+  --secondary: #edf3fc; --secondary-foreground: #3c506d; --muted: #edf3fc; --muted-foreground: #596b83;
+  --accent: #e5effc; --accent-foreground: #182840; --accent-blue: #096bd9; --accent-orange: #dd6500;
+  --status-warning: #985600; --status-error: #cf2846; --accent-green: #087b46;
+  color: var(--text-primary); background: #f2f5fa;
+}
+.control-portal .workspace-content :is(.panel, .view-panel, .hardware-card, .summary-card, .access-card, .settings-card, .identity-card, .permissions-card, .activity-panel, .schedule-workspace) {
+  background: #fff; border-color: #d5dfec; box-shadow: 0 3px 16px #203e6910;
+}
+.control-portal .workspace-content :is(h1, h2, h3, .panel-heading h2, .section-heading h2, .view-panel-heading h2) { color: #096bd9; }
+.control-portal .workspace-content :is(.panel-heading, .view-panel-heading, .section-heading) { border-left-color: #ff8a19; }
+.control-portal .workspace-content :is(input, select, textarea) { color-scheme: light; background: #fff; color: #182840; border-color: #bccce0; }
+.control-portal .workspace-content :is(input, textarea)::placeholder { color: #62738b; }
+.control-portal .workspace-content [data-slot="button"][data-variant="outline"] { background: #f1f6fe; color: #1558a4; border-color: #bfd2ed; }
+.control-portal .workspace-content :is(.desk-service-row, .activity-table thead, .schedule-table thead, .health-strip) { background: #eaf2ff; color: #284464; border-color: #cfdef0; }
+.control-portal .workspace-content .hardware-stage { background: radial-gradient(ellipse at 50% 65%, #d9eaff, #f7faff 75%); }
+.control-portal .workspace-content .concept-badge { color: #925300; background: #fff3d9; border-color: #efc988; }
+.control-portal .workspace-content .advanced-discovery :is(h2,p,span,small) { color: #fff; }
+.control-portal .fh { color: #182840; }
+.control-portal .fh :is(.fh-panel, .fh-cell, .fh-week, .fh-month, .fh-form, .fh-detail) { background: #fff; color: #182840; border-color: #cfdbeb; }
+.control-portal .fh :is(.fh-month-head, .fh-panel-head, .fh-week-head, .fh-dow) { background: #e9f2ff; color: #095fca; border-color: #c9ddf8; }
+.control-portal .fh :is(h2, h3, .fh-range, .fh-month-title, .fh-month-title strong) { color: #096bd9; }
+.control-portal .fh .fh-3d { background: #fff; color: #165cae; border-color: #bed0e9; }
+.control-portal .fh .fh-primary { background: #096bd9; border-color: #096bd9; color: #fff; }
+.control-portal .fh :is(.fh-booking, .fh-event) { background: color-mix(in srgb, var(--area, #2589f5) 14%, white); color: #193958; border-color: var(--area, #2589f5); }
+.control-portal .fh .fh-note { background: #e5f8ee; color: #11633c; border-color: #a6dabc; }
+.control-portal .fh .fh-note-error { background: #fff0e5; color: #973f15; border-color: #edc4aa; }
+@media (max-width: 767px) {
+  .control-portal .campus-context { padding: 16px; gap: 16px; }
+  .control-portal .campus-context :is(.campus-calendar, .campus-weather) { padding: 14px; }
+}
+.control-portal .fh :is(.fh-day.is-today, .fh-cell.is-today) { background: #edf5ff; border-color: #2685ed; }
+.control-portal .fh :is(.fh-month-dow, .fh-day-head) { background: #e9f2ff; color: #155ba5; }
+.control-portal .fh :is(.fh-day-num.is-today, .fh-cell.is-today .fh-cell-num) { background: #096bd9; color: #fff; }
+.control-portal .fh .fh-3d:hover { background: #e4efff; color: #1458a5; }
+.control-portal .fh .fh-primary:hover { background: #0757b3; color: #fff; }
+.control-portal .workspace-content :is(.status-chip.is-healthy, .status-chip.is-online) { background: #e4f7ed; color: #08653c; border-color: #9ed7b8; }
+.control-portal .workspace-content :is(.status-chip.is-uncommissioned, .status-chip.is-pending, .control-blocked-note) { background: #fff3df; color: #87510a; border-color: #ebc78d; }
+.control-portal .workspace-content .gate-activation-badge.is-active { background: #e5f0ff; color: #0b60bb; }
