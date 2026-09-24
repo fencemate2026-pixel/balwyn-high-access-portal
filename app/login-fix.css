@@ -1,77 +1,177 @@
-/* Login: logo sits in the rail, no engineering chips */
-.magic-login-assurance {
-  display: none !important;
+/* The sign-in surface shares the dashboard's navy palette and Tailwind utilities.
+   All rules are scoped here so authenticated dashboard styles stay independent. */
+.access-login {
+  --login-ink: #edf4ff;
+  --login-muted: #a4b5cb;
+  --login-blue: #68b6ff;
+  color: var(--login-ink);
+  background: radial-gradient(ellipse at 18% 44%, #10273c 0, transparent 48%), radial-gradient(ellipse at 95% 2%, #132338 0, transparent 42%), #0b131e;
+  font-family: var(--font-ui);
+  position: relative;
+  isolation: isolate;
 }
-
-.magic-login-brand {
-  display: flex !important;
-  justify-content: center !important;
-  margin: 0 0 22px !important;
+.access-login::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: linear-gradient(#87b9ed04 1px, transparent 1px), linear-gradient(90deg, #87b9ed04 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(#0008, transparent 85%);
 }
-.magic-login-brand a {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 8px !important;
-  width: 100% !important;
-  max-width: 260px !important;
-  margin: 0 auto !important;
-  padding: 14px 16px 12px !important;
-  border-radius: 16px !important;
-  background: #fff !important;
-  box-shadow: 0 8px 24px rgba(0, 24, 48, .16) !important;
+.access-login-shell { width: min(1480px, 100%); min-height: 100svh; margin: 0 auto; padding: 30px clamp(24px, 5vw, 76px) 24px; display: flex; flex-direction: column; }
+.access-login-header { min-height: 72px; padding-bottom: 22px; border-bottom: 1px solid #7397bd20; }
+.access-login-brand { display: block; flex-shrink: 0; border-radius: 5px; }
+.access-login-brand .magic-brand-logo { display: block; width: 180px; height: auto; padding: 0; background: transparent; filter: brightness(0) invert(.96); border: 0; box-shadow: none; border-radius: 0; }
+.access-login-school img { width: 31px; height: 44px; object-fit: contain; filter: brightness(0) invert(.9); }
+.access-login-school span { display: grid; gap: 6px; }
+.access-login-school small { font-size: 9px; line-height: 1.4; color: #94a9c1; letter-spacing: .17em; }
+.access-login-school strong { font-size: 12px; font-weight: 550; color: #e2eaf5; }
+.access-login-layout { flex: 1; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: clamp(42px, 7vw, 108px); padding: 38px 0 30px; }
+.access-login-story { min-width: 0; padding-left: 6px; }
+.access-login-eyebrow { display: flex; align-items: center; gap: 10px; margin: 0; color: #a8c4e2; font-size: 11px; font-weight: 550; letter-spacing: .15em; text-transform: uppercase; }
+.access-login-eyebrow > span { width: 6px; height: 6px; border-radius: 50%; background: #69b8ff; box-shadow: 0 0 12px #55acff88; }
+.access-login-story h2 { margin: 22px 0 18px; color: #f0f5fd; font-size: clamp(40px, 4.2vw, 62px); font-weight: 500; letter-spacing: -.055em; line-height: 1.09; }
+.access-login-story h2 span { color: #7abfff; }
+.access-login-description { margin: 0; font-size: 14px; line-height: 1.8; color: var(--login-muted); letter-spacing: .005em; }
+.access-login-hardware { position: relative; margin: 0 -10px 0 -24px; height: clamp(290px, 26vw, 370px); }
+.access-login-gates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; gap: 10px; height: 100%; padding: 24px 12px; }
+.access-login-gate { min-width: 0; text-align: center; }
+.access-login-gate img { display: block; width: 100%; height: clamp(140px, 17vw, 230px); object-fit: contain; mix-blend-mode: lighten; }
+.access-login-gate > span { display: block; margin-top: 10px; color: #b8d6ef; font-size: 10px; letter-spacing: .02em; }
+.access-login-orbit { position: absolute; width: 75%; height: 36%; left: 11%; bottom: 15%; z-index: -1; border: 1px solid #549cd221; border-radius: 50%; transform: rotate(-15deg); box-shadow: 0 0 50px #2387d013, inset 0 0 35px #2387d00d; }
+.access-login-hardware figcaption { position: absolute; right: 6%; bottom: 8px; display: flex; align-items: center; gap: 7px; font-size: 8px; letter-spacing: .09em; color: #95a8bd; }
+.access-login-hardware figcaption span { width: 4px; height: 4px; border-radius: 50%; background: #80a3c4; }
+.access-login-story-footer { margin-top: 16px; color: #a4bad1; }
+.access-login-story-footer > svg { width: 30px; height: 30px; padding: 5px; flex-shrink: 0; color: #73b8eb; border: 1px solid #37516d; border-radius: 9px; }
+.access-login-story-footer p { margin: 0; font-size: 11px; line-height: 1.7; color: #c4d4e7; }
+.access-login-story-footer p span { display: block; color: #95a9c1; font-size: 10px; }
+.access-login-panel { width: 100%; max-width: 460px; margin-left: auto; min-width: 0; }
+.access-login-card { position: relative; padding: 38px; border: 1px solid #2c4058; border-radius: 23px; background: linear-gradient(145deg, #19283be8, #111d2dfa 68%); box-shadow: 0 28px 80px #0005, inset 0 1px #ffffff08; }
+.access-login-card::before { content: ""; position: absolute; top: -1px; left: 22%; right: 22%; height: 1px; background: linear-gradient(90deg, transparent, #80b3e9aa, transparent); }
+.access-login-card.has-form { padding-top: 30px; padding-bottom: 28px; }
+.access-login-card.has-form .access-login-lock { display: none; }
+.access-login-card.has-form .access-login-heading > p { margin-top: 10px; margin-bottom: 22px; }
+.access-login-card.has-form .access-login-divider { margin-top: 18px; margin-bottom: 18px; }
+.access-login-card.has-form .access-login-assurance { margin-top: 20px; padding-top: 14px; padding-bottom: 14px; }
+.access-login-card.has-form .access-login-help-toggle { margin-top: 14px; }
+.access-login-lock { width: 46px; height: 46px; border-radius: 14px; margin-bottom: 24px; color: #76c4ff; background: linear-gradient(135deg, #2b517149, #19324875); border: 1px solid #365a7d; box-shadow: inset 0 1px #9bd7ff15; }
+.access-login-lock svg { width: 21px; height: 21px; stroke-width: 1.5; }
+.access-login-kicker { margin: 0 0 12px; font-size: 9px; letter-spacing: .17em; line-height: 1.5; color: #9eb5ce; }
+.access-login-heading h1 { margin: 0; font-size: clamp(27px, 2.4vw, 35px); letter-spacing: -.045em; line-height: 1.18; font-weight: 500; color: #f3f7ff; }
+.access-login-heading > p { margin: 12px 0 28px; max-width: 290px; color: var(--login-muted); font-size: 12px; line-height: 1.8; }
+.access-login-form { display: flex; flex-direction: column; gap: 10px; }
+.access-login-form label { display: block; margin: 0; font-size: 11px; line-height: 1.5; color: #d8e5f4; font-weight: 500; }
+.access-login-label-row { margin-top: 10px; }
+.access-login-input { display: flex; align-items: center; gap: 11px; min-height: 50px; padding: 0 14px; border: 1px solid #35475f; border-radius: 9px; background: #0d1827; color: #e8f1fd; transition: border-color 140ms, box-shadow 140ms; }
+.access-login-input:focus-within { border-color: #69b5ff; box-shadow: 0 0 0 3px #55acff1c; }
+.access-login-input > svg { width: 16px; height: 16px; flex-shrink: 0; color: #839db9; }
+.access-login-input input { appearance: none; border: 0; outline: 0; box-shadow: none; background: transparent; color: #eef5ff; width: 100%; min-width: 0; min-height: 48px; padding: 0; font-family: inherit; font-size: 13px; border-radius: 0; }
+.access-login-input input::placeholder { color: #8296b0; opacity: 1; }
+.access-login-input input:autofill { -webkit-text-fill-color: #eef5ff; box-shadow: inset 0 0 0 100px #16273c; caret-color: #fff; }
+.access-login-input input#login-code { font-size: 22px; letter-spacing: .3em; }
+.access-login-input button { display: grid; place-items: center; flex-shrink: 0; width: 36px; min-height: 44px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: #9cb2cc; cursor: pointer; margin-right: -9px; }
+.access-login-input button svg { width: 17px; height: 17px; }
+.access-login-submit, .access-login-provider { display: flex; justify-content: center; align-items: center; gap: 11px; width: 100%; min-height: 50px; padding: 12px 16px; border-radius: 9px; font-family: inherit; font-size: 12px; font-weight: 550; line-height: 1.5; text-decoration: none; cursor: pointer; transition: background 140ms, border-color 140ms, box-shadow 140ms; }
+.access-login-submit { margin-top: 12px; border: 1px solid #61b6ff; color: #071526; background: linear-gradient(110deg, #7ec7ff, #50a9f8); box-shadow: 0 5px 18px #248fef20, inset 0 1px #fff3; }
+.access-login-submit:hover:not(:disabled) { background: linear-gradient(110deg, #98d3ff, #77bdff); box-shadow: 0 6px 24px #248fef38; }
+.access-login-submit svg, .access-login-provider > svg { width: 17px; height: 17px; flex-shrink: 0; }
+.access-login-submit > svg:last-child { margin-left: auto; }
+.access-login-submit:disabled, .access-login-provider:disabled { opacity: .58; cursor: not-allowed; }
+.access-login-text-button { padding: 4px 0; border: 0; background: transparent; color: #8ac5ff; font-family: inherit; font-size: 10px; line-height: 1.5; cursor: pointer; }
+.access-login-text-button:hover, .access-login-legal a:hover { color: #c4e3ff; text-decoration: underline; text-underline-offset: 3px; }
+.access-login-divider { display: flex; align-items: center; gap: 15px; margin: 24px 0; color: #9caec4; }
+.access-login-divider::before, .access-login-divider::after { content: ""; height: 1px; flex: 1; background: #304057; }
+.access-login-divider span { font-size: 10px; white-space: nowrap; }
+.access-login-providers { display: flex; flex-direction: column; gap: 12px; }
+.access-login-provider { background: #1a2b40; border: 1px solid #3b5270; color: #e8f2ff; }
+.access-login-provider:hover:not(:disabled) { background: #243b55; border-color: #6993be; }
+.access-login-provider > svg:last-child { width: 15px; height: 15px; margin-left: auto; color: #98b5d4; }
+.access-login-provider > .access-login-google-mark { width: 20px; height: 20px; margin: 0; padding: 3px; background: #fff; border-radius: 4px; }
+.access-login-google { min-height: 44px; width: 100%; display: flex; justify-content: center; }
+.access-login-google > div { max-width: 100%; }
+.access-login-microsoft-icon { display: grid; grid-template-columns: repeat(2, 8px); gap: 2px; width: 18px; height: 18px; flex-shrink: 0; }
+.access-login-microsoft-icon i:nth-child(1) { background: #f25022; }
+.access-login-microsoft-icon i:nth-child(2) { background: #7fba00; }
+.access-login-microsoft-icon i:nth-child(3) { background: #00a4ef; }
+.access-login-microsoft-icon i:nth-child(4) { background: #ffb900; }
+.access-login-provider-note { margin: -2px 0 4px; font-size: 10px; line-height: 1.65; color: #a3b6ce; }
+.access-login-assurance { display: flex; align-items: center; gap: 12px; padding: 20px 0; margin: 27px 0 0; border-top: 1px solid #304056; border-bottom: 1px solid #304056; }
+.access-login-assurance > svg:first-child { width: 19px; height: 19px; flex-shrink: 0; color: #78b7e7; }
+.access-login-assurance span { color: #cbd9e9; font-size: 10px; line-height: 1.6; }
+.access-login-assurance small { display: block; color: #95a9c2; font-size: 9px; }
+.access-login-assurance > svg:last-child { margin-left: auto; width: 14px; height: 14px; color: #65d4a5; }
+.access-login-help-toggle { margin: 20px auto 0; padding: 5px; border: 0; background: transparent; color: #b1c3da; font-family: inherit; font-size: 10px; line-height: 1.6; cursor: pointer; }
+.access-login-help-toggle svg { width: 13px; height: 13px; }
+.access-login-help-toggle:hover { color: #f0f6ff; }
+.access-login-help, .access-login-enrollment { border: 1px solid #405c7b; background: #0d1b2c; border-radius: 9px; padding: 14px; margin-top: 16px; color: #d9e7f7; font-size: 11px; line-height: 1.75; overflow-wrap: anywhere; }
+.access-login-help p, .access-login-enrollment p { font-size: 11px; color: #b5c7dd; margin: 6px 0 0; line-height: 1.8; }
+.access-login-enrollment { margin: 0 0 10px; }
+.access-login-enrollment code { display: block; padding: 12px 0; color: #a5d6ff; font-size: 15px; letter-spacing: .06em; user-select: all; }
+.access-login-enrollment span { display: block; }
+.access-login-error { background: #4a263940; border: 1px solid #825061; color: #ffc3cc; border-radius: 8px; padding: 12px; margin: 14px 0; font-size: 11px; line-height: 1.75; overflow-wrap: anywhere; }
+.access-login-loading { min-height: 62px; margin: 0; color: #b5cae1; font-size: 11px; }
+.access-login-loading svg { width: 17px; height: 17px; }
+.access-login-notice { margin: 0; border: 1px solid #735d38; border-radius: 9px; background: #6d4f1826; color: #f0d09e; padding: 16px; font-size: 12px; line-height: 1.8; }
+.access-login-legal { margin-top: 22px; color: #8098b4; font-size: 10px; }
+.access-login-legal a { padding: 5px; color: #a1b5cd; text-decoration: none; }
+.access-login-footer { border-top: 1px solid #7397bd20; padding-top: 22px; min-height: 53px; }
+.access-login-footer > p { margin: 0; font-size: 10px; color: #b6c8df; }
+.access-login-footer > p > span { color: #8da3bd; }
+.access-login-footer > p > span[aria-hidden] { display: inline-block; padding: 0 11px; color: #4d6681; }
+.access-login-partner { text-decoration: none; }
+.access-login-partner span { font-size: 8px; letter-spacing: .13em; color: #94abc5; }
+.access-login-partner img { width: 122px; height: auto; object-fit: contain; background: transparent; filter: drop-shadow(0 1px 1px #c3dfff33); }
+.access-login :is(a, button):focus-visible { outline: 2px solid #8ccbff; outline-offset: 4px; }
+@media (min-width: 1440px) and (min-height: 950px) {
+  .access-login-layout { padding-top: 42px; padding-bottom: 38px; }
+  .access-login-hardware { height: 385px; }
 }
-.magic-login-brand .magic-brand-logo {
-  display: block !important;
-  width: 210px !important;
-  max-width: 100% !important;
-  height: auto !important;
-  aspect-ratio: auto !important;
-  margin: 0 auto !important;
+@media (max-width: 1000px) {
+  .access-login-shell { padding-inline: 30px; }
+  .access-login-layout { gap: 36px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .access-login-story h2 { font-size: 42px; }
+  .access-login-card { padding: 28px; }
+  .access-login-hardware { height: 290px; margin-left: -20px; margin-right: -20px; }
 }
-.magic-login-brand a > span {
-  display: block !important;
-  width: 100% !important;
-  text-align: center !important;
-  color: #365976 !important;
-  font-size: .78rem !important;
-  letter-spacing: .12em !important;
+@media (max-width: 760px) {
+  .access-login-shell { padding: 22px 24px 20px; }
+  .access-login-header { min-height: 59px; padding-bottom: 18px; gap: 14px; }
+  .access-login-brand .magic-brand-logo { width: 142px; }
+  .access-login-school img { width: 23px; height: 32px; }
+  .access-login-school small { display: none; }
+  .access-login-school strong { font-size: 10px; max-width: 92px; line-height: 1.5; }
+  .access-login-school { gap: 8px; }
+  .access-login-layout { display: flex; flex-direction: column; gap: 30px; padding: 30px 0; }
+  .access-login-story { width: 100%; max-width: 480px; padding: 0; }
+  .access-login-intro { text-align: center; }
+  .access-login-eyebrow { justify-content: center; font-size: 9px; }
+  .access-login-story h2 { font-size: 36px; margin: 15px 0 0; }
+  .access-login-story h2 br { display: none; }
+  .access-login-story h2 span { display: block; }
+  .access-login-description, .access-login-story-footer, .access-login-hardware { display: none; }
+  .access-login-panel { margin: 0; max-width: 440px; }
+  .access-login-card { padding: 27px; border-radius: 19px; }
+  .access-login-lock { width: 40px; height: 40px; border-radius: 12px; margin-bottom: 21px; }
+  .access-login-heading h1 { font-size: 30px; }
+  .access-login-heading > p { margin-bottom: 24px; }
+  .access-login-input input { font-size: 16px; }
+  .access-login-input input::placeholder { font-size: 12px; }
+  .access-login-help-toggle, .access-login-text-button, .access-login-legal a { min-height: 44px; display: inline-flex; align-items: center; }
+  .access-login-legal { margin-top: 18px; }
+  .access-login-footer { flex-wrap: wrap; justify-content: center; gap: 13px; padding-top: 20px; }
+  .access-login-footer > p { font-size: 9px; }
+  .access-login-partner img { width: 102px; }
 }
-
-/* =============================================================================
-   Login, 24 Sep 2026: light panel so the three transparent logos (Magic Keys,
-   Balwyn High School, RJL Commercial) all read in their true colours; the
-   navy panel made the navy crest and black lettering disappear.
-   ============================================================================= */
-.magic-login-panel {
-  background: linear-gradient(180deg, #ffffff 0%, #f3f6fa 100%) !important;
-  color: #14223a !important;
-  border-right: 4px solid #ff6a22 !important;
-  box-shadow: 6px 0 24px rgba(11,42,85,.12) !important;
+@media (max-width: 360px) {
+  .access-login-shell { padding-inline: 16px; }
+  .access-login-card { padding: 23px; }
+  .access-login-brand .magic-brand-logo { width: 126px; }
+  .access-login-school strong { font-size: 9px; }
+  .access-login-story h2 { font-size: 32px; }
+  .access-login-assurance { gap: 9px; }
 }
-.magic-login-panel h1 { color: #0b2a55 !important; }
-.magic-login-panel p, .magic-login-heading p, .magic-login-provider-note { color: #3a4760 !important; }
-.magic-login-approval { color: #1d6b35 !important; }
-.magic-login-legal a, .magic-login-legal span { color: #52607a !important; }
-/* Magic Keys logo sits directly on the panel: no white card. */
-.magic-login-brand a { background: transparent !important; box-shadow: none !important; border: 0 !important; padding: 0 !important; }
-.magic-login-brand .magic-brand-logo { width: 250px !important; max-width: 100% !important; margin: 0 auto !important; }
-.magic-login-brand a > span { color: #0b2a55 !important; text-align: center; font-weight: 700; }
-/* Inputs for the light panel (shown when email accounts exist). */
-.magic-login-input { background: #ffffff !important; border: 1px solid #b9c3d3 !important; color: #14223a !important; }
-.magic-login-input input { color: #14223a !important; }
-.magic-login-input svg { color: #52607a !important; }
-.magic-login-panel label { color: #14223a !important; }
-.magic-login-divider span { color: #52607a !important; background: #f7f9fc !important; }
-
-/* Evenly spaced partner logos. */
-.magic-login-partners {
-  display: flex; align-items: center; justify-content: space-evenly; gap: 0;
-  margin: 26px 0 0; padding: 18px 0 0; border-top: 1px solid #d5dce7;
+@media (prefers-reduced-motion: reduce) {
+  .access-login *, .access-login *::before, .access-login *::after { animation: none !important; transition: none !important; }
 }
-.magic-login-partners a { display: block; line-height: 0; transition: transform 140ms ease; }
-.magic-login-partners a:hover { transform: translateY(-2px); }
-.magic-login-partners .partner-crest { width: 78px; height: auto; display: block; }
-.magic-login-partners .partner-rjl { width: 190px; height: auto; display: block; }
-.magic-login-forgot { color: #d9500f !important; font-weight: 700 !important; }
