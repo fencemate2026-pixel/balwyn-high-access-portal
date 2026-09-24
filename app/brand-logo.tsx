@@ -1,21 +1,18 @@
-// The real Magic Keys logo, unaltered artwork, pre-cropped to the logo itself
-// with a transparent background (public/magic-keys-logo.png, 800 x 330).
-//
-// Previously this was an SVG that cropped the full 1254 x 1254 square with a
-// viewBox and relied on an SVG filter to hide the white backing. The shared
-// .magic-brand-logo rule sets overflow: visible, so the uncropped white square
-// spilled outside the logo card on the login page. A plain image cannot spill.
+import { useId } from "react";
+
+// Keep the original transparent artwork; map its dark ink to white and blue
+// ink to bright blue at render time, consistently on every branded screen.
 export default function BrandLogo({ className = "" }: { className?: string }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element -- static brand asset, fixed size, no optimisation needed
-    <img
-      className={`magic-brand-logo ${className}`}
-      src="/magic-keys-logo.png"
-      width={800}
-      height={330}
-      alt="Magic Keys — Secure access. Safer schools. Protecting futures."
-      decoding="sync"
-      loading="eager"
-    />
-  );
+  const filterId = `magic-keys-${useId().replace(/:/g, "")}`;
+  return <>
+    <svg width="0" height="0" aria-hidden="true" style={{ position: "absolute", pointerEvents: "none" }}>
+      <defs><filter id={filterId} colorInterpolationFilters="sRGB">
+        <feColorMatrix type="matrix" values="1 0 -1 0 1  .45 0 -.45 0 1  0 0 0 0 1  0 0 0 1 0" />
+      </filter></defs>
+    </svg>
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img className={`magic-brand-logo ${className}`} src="/magic-keys-logo.png" width={800} height={330}
+      style={{ filter: `url(#${filterId})` }}
+      alt="Magic Keys — Secure access. Safer schools. Protecting futures." decoding="sync" loading="eager" />
+  </>;
 }
