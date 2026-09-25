@@ -17,7 +17,7 @@ export function formatGateTileAriaLabel(gateName: string, position: GateVisualSt
   return `${gateName}: ${status.state}, ${status.detail}`;
 }
 
-export default function GateTile({ gate, position, motion, ariaLabel }: { gate: Gate; position: GateVisualState; motion?: GateMotion; ariaLabel?: string }) {
+export default function GateTile({ gate, position, motion, interactive = false, ariaLabel }: { gate: Gate; position: GateVisualState; motion?: GateMotion; interactive?: boolean; ariaLabel?: string }) {
   const host = useRef<HTMLSpanElement>(null);
   const scene = useRef<GateScene | null>(null);
   const target = motion?.target ?? (position === "open" || position === "closed" ? position : null);
@@ -37,17 +37,17 @@ export default function GateTile({ gate, position, motion, ariaLabel }: { gate: 
       started = true;
       void import("./gate-scene").then(({ createGateScene }) => {
         if (disposed) return;
-        scene.current = createGateScene(element, gate.kind, latest.current.position, latest.current.target, () => setReady(false));
+        scene.current = createGateScene(element, gate.kind, latest.current.position, latest.current.target, () => setReady(false), interactive);
         setReady(true);
       }).catch(() => { /* Local artwork remains visible when WebGL is unavailable. */ });
     }, { rootMargin: "100px" });
     observer.observe(element);
     return () => { disposed = true; observer.disconnect(); scene.current?.dispose(); scene.current = null; };
-  }, [gate.kind]);
+  }, [gate.kind, interactive]);
   const tone = position === "inactive" ? "off" : position === "closed" ? "stop" : position === "open" ? "run" : "issue";
-  return <span className={`gate-tile gate-model access-icon gate-state-${tone} is-${position} ${gate.kind}${ready ? " is-rendered" : ""}`} role="img" aria-label={ariaLabel ?? (detail === stateText(position).detail ? formatGateTileAriaLabel(gate.name, position) : `${formatGateTileAriaLabel(gate.name, position)}. ${detail}`)}>
+  return <span className={`gate-tile gate-model access-icon gate-state-${tone} is-${position} ${gate.kind}${ready ? " is-rendered" : ""}${interactive ? " is-interactive" : ""}`} role={interactive ? "group" : "img"} aria-label={ariaLabel ?? (detail === stateText(position).detail ? formatGateTileAriaLabel(gate.name, position) : `${formatGateTileAriaLabel(gate.name, position)}. ${detail}`)}>
     <span className="gate-model-fallback" aria-hidden="true"><img src={`/gates/${gate.kind === "boom" ? "boom" : gate.kind}-blue.webp`} alt="" /><span>Hardware illustration · {detail}</span></span>
-    <span className="gate-model-canvas" ref={host} aria-hidden="true" />
+    <span className="gate-model-canvas" ref={host} aria-hidden={interactive ? undefined : true} />
     <span className="gate-led-indicator" aria-hidden="true"><i /><span>{detail}</span></span>
   </span>;
 }
