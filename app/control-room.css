@@ -441,6 +441,8 @@ h1, h2, h3 { letter-spacing: -.025em; }
 .gate-led-indicator { --led: #ffc365; position: absolute; top: 14px; left: 14px; z-index: 2; display: inline-flex; align-items: center; gap: 9px; padding: 7px 11px; border: 1px solid #506176; border-radius: 999px; background: #07131ded; color: #e6eef8; font-size: 12px; }
 .gate-led-indicator > i { display: block; width: 11px; height: 11px; border-radius: 50%; color: var(--led); background: radial-gradient(circle at 35% 30%, #fff, var(--led) 45%, #15222b 100%); border: 1px solid var(--led); box-shadow: 0 0 7px var(--led), 0 0 15px var(--led); animation: gate-led-pulse 1s ease-in-out infinite; }
 .gate-model.is-open .gate-led-indicator { --led: #00d25b; }
+.gate-led-indicator { max-width: calc(100% - 28px); line-height: 1.4; text-align: left; }
+.gate-led-indicator > i { flex: 0 0 11px; }
 .gate-model.is-closed .gate-led-indicator { --led: #fc424a; }
 .gate-model.is-inactive .gate-led-indicator { --led: #566477; }
 .gate-model.is-inactive .gate-led-indicator > i { animation: none; box-shadow: none; background: #566477; }
