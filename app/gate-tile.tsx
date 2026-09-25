@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Gate, GateVisualState } from "@/lib/portal-model";
+import type { GateMotion } from "@/lib/gate-motion";
 import type { GateScene } from "./gate-scene";
 
 function stateText(position: GateVisualState) {
@@ -16,12 +17,14 @@ export function formatGateTileAriaLabel(gateName: string, position: GateVisualSt
   return `${gateName}: ${status.state}, ${status.detail}`;
 }
 
-export default function GateTile({ gate, position, ariaLabel }: { gate: Gate; position: GateVisualState; ariaLabel?: string }) {
+export default function GateTile({ gate, position, motion, ariaLabel }: { gate: Gate; position: GateVisualState; motion?: GateMotion; ariaLabel?: string }) {
   const host = useRef<HTMLSpanElement>(null);
   const scene = useRef<GateScene | null>(null);
-  const latest = useRef(position);
+  const target = motion?.target ?? (position === "open" || position === "closed" ? position : null);
+  const detail = motion?.label ?? stateText(position).detail;
+  const latest = useRef({ position, target });
   const [ready, setReady] = useState(false);
-  useEffect(() => { latest.current = position; scene.current?.update(position); }, [position]);
+  useEffect(() => { latest.current = { position, target }; scene.current?.update(position, target); }, [position, target]);
   useEffect(() => {
     const element = host.current;
     if (!element) return;
@@ -34,7 +37,7 @@ export default function GateTile({ gate, position, ariaLabel }: { gate: Gate; po
       started = true;
       void import("./gate-scene").then(({ createGateScene }) => {
         if (disposed) return;
-        scene.current = createGateScene(element, gate.kind, latest.current, () => setReady(false));
+        scene.current = createGateScene(element, gate.kind, latest.current.position, latest.current.target, () => setReady(false));
         setReady(true);
       }).catch(() => { /* Local artwork remains visible when WebGL is unavailable. */ });
     }, { rootMargin: "100px" });
@@ -42,9 +45,9 @@ export default function GateTile({ gate, position, ariaLabel }: { gate: Gate; po
     return () => { disposed = true; observer.disconnect(); scene.current?.dispose(); scene.current = null; };
   }, [gate.kind]);
   const tone = position === "inactive" ? "off" : position === "closed" ? "stop" : position === "open" ? "run" : "issue";
-  return <span className={`gate-tile gate-model access-icon gate-state-${tone} is-${position} ${gate.kind}${ready ? " is-rendered" : ""}`} role="img" aria-label={ariaLabel ?? formatGateTileAriaLabel(gate.name, position)}>
-    <span className="gate-model-fallback" aria-hidden="true"><img src={`/gates/${gate.kind === "boom" ? "boom" : gate.kind}-blue.webp`} alt="" /><span>Hardware illustration · {stateText(position).detail}</span></span>
+  return <span className={`gate-tile gate-model access-icon gate-state-${tone} is-${position} ${gate.kind}${ready ? " is-rendered" : ""}`} role="img" aria-label={ariaLabel ?? `${formatGateTileAriaLabel(gate.name, position)}. ${detail}`}>
+    <span className="gate-model-fallback" aria-hidden="true"><img src={`/gates/${gate.kind === "boom" ? "boom" : gate.kind}-blue.webp`} alt="" /><span>Hardware illustration · {detail}</span></span>
     <span className="gate-model-canvas" ref={host} aria-hidden="true" />
-    <span className="gate-led-indicator" aria-hidden="true"><i /><span>{stateText(position).detail}</span></span>
+    <span className="gate-led-indicator" aria-hidden="true"><i /><span>{detail}</span></span>
   </span>;
 }
