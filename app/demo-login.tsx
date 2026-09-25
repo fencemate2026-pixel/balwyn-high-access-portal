@@ -1,16 +1,53 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Check, Eye, EyeOff, HelpCircle, LoaderCircle, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
-import DashboardClient from "./dashboard-client";
 import SessionExitGuard from "./session-exit-guard";
-import OperatorHelpDock from "./operator-help-dock";
 import BrandLogo from "./brand-logo";
 import BrandArtwork from "./brand-artwork";
 import type { PortalSnapshot } from "@/lib/portal-model";
 import { GOOGLE_SIGN_IN_ORIGIN, GOOGLE_SIGN_IN_URL } from "@/lib/google-signin-origin";
+
+// Gate rendering and operator tools are only needed after authentication.
+const DashboardClient = dynamic(() => import("./dashboard-client"), {
+  loading: () => <main className="login-workspace-loading" role="status"><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /><h1>Opening your workspace…</h1><p>You’re signed in. Loading campus controls.</p></main>,
+});
+const OperatorHelpDock = dynamic(() => import("./operator-help-dock"));
+
+function prepareWorkspace() {
+  void import("./dashboard-client").catch(() => { /* Loading is retried when the workspace renders. */ });
+}
+
+let googleIdentityRequest: Promise<void> | null = null;
+function loadGoogleIdentity(): Promise<void> {
+  if (window.google) return Promise.resolve();
+  if (googleIdentityRequest) return googleIdentityRequest;
+  googleIdentityRequest = new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.dataset.googleIdentity = "true";
+    const timer = window.setTimeout(fail, 12000);
+    function fail() {
+      window.clearTimeout(timer);
+      script.remove();
+      reject(new Error("Google could not be loaded. Please try again."));
+    }
+    script.onload = () => { window.clearTimeout(timer); if (window.google) resolve(); else fail(); };
+    script.onerror = fail;
+    document.head.appendChild(script);
+  }).catch((reason) => { googleIdentityRequest = null; throw reason; });
+  return googleIdentityRequest;
+}
+
+async function prepareGoogleSignIn() {
+  // Download the provider SDK while the browser-bound challenge is prepared.
+  const [config] = await Promise.all([fetchGoogleSignInConfig(), loadGoogleIdentity()]);
+  return config;
+}
 
 type Providers = { google: boolean; microsoft: boolean; email: boolean };
 type Enrollment = { secret: string; account: string };
@@ -41,14 +78,12 @@ declare global {
 }
 
 export default function DemoLogin() {
-  const [hydrated, setHydrated] = useState(false);
   const [snapshot, setSnapshot] = useState<PortalSnapshot | null>(null);
   const [googleConfig, setGoogleConfig] = useState<GoogleSignInConfig | null>(null);
   const [googlePortalLink, setGooglePortalLink] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [providers, setProviders] = useState<Providers | null>(null);
-  // Email/password is shown only when the server reports it configured, so staff
-  // never face a form that cannot work (live: google true, microsoft false, email false).
+  // Keep the requested form visible; server readiness still controls submission.
   const emailAvailable = providers?.email === true;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,6 +97,7 @@ export default function DemoLogin() {
   const [submitting, setSubmitting] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const signInBusyRef = useRef(false);
+  const restoreSessionRef = useRef(true);
 
   const refreshGoogleSignIn = useCallback(async () => {
     if (window.location.origin !== GOOGLE_SIGN_IN_ORIGIN) {
@@ -72,7 +108,7 @@ export default function DemoLogin() {
     setPreparing(true);
     setGoogleError("");
     try {
-      setGoogleConfig(await fetchGoogleSignInConfig());
+      setGoogleConfig(await prepareGoogleSignIn());
     } catch (reason) {
       setGoogleError(reason instanceof Error ? reason.message : "Google sign-in is temporarily unavailable.");
     } finally {
@@ -83,6 +119,8 @@ export default function DemoLogin() {
   const handleGoogleCredential = useCallback(async (response: GoogleCredentialResponse, config: GoogleSignInConfig) => {
     if (signInBusyRef.current) return;
     signInBusyRef.current = true;
+    restoreSessionRef.current = false;
+    prepareWorkspace();
     setSubmitting(true);
     setError("");
     try {
@@ -108,32 +146,35 @@ export default function DemoLogin() {
       });
       window.history.replaceState(null, "", "/login");
     }
-    async function loadSignIn() {
-      const [portal, options] = await Promise.allSettled([
-        fetch("/api/portal", { cache: "no-store", signal: AbortSignal.timeout(12000) }).then(async (response) => response.ok ? response.json() as Promise<{ snapshot: PortalSnapshot }> : null),
-        fetch("/api/auth/providers", { cache: "no-store", signal: AbortSignal.timeout(12000) }).then(async (response) => {
-          if (!response.ok) throw new Error("Sign-in options could not be loaded. Please refresh the page.");
-          return response.json() as Promise<Providers>;
-        }),
-      ]);
-      if (!active) return;
-      setHydrated(true);
-      if (options.status === "fulfilled") setProviders(options.value);
-      else setError("Sign-in options could not be loaded. Please refresh the page.");
-      if (portal.status === "fulfilled" && portal.value?.snapshot) { setSnapshot(portal.value.snapshot); return; }
-      if (options.status === "fulfilled" && options.value.google) {
+    const controller = new AbortController();
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]);
+    // A slow or expired session must never hold up available sign-in methods.
+    void fetch("/api/portal", { cache: "no-store", signal })
+      .then(async (response) => response.ok ? response.json() as Promise<{ snapshot: PortalSnapshot }> : null)
+      .then((portal) => {
+        if (active && restoreSessionRef.current && portal?.snapshot) setSnapshot(portal.snapshot);
+      }).catch(() => { /* Sign-in remains available when session restoration fails. */ });
+
+    async function loadProviders() {
+      try {
+        const response = await fetch("/api/auth/providers", { cache: "no-store", signal });
+        if (!response.ok) throw new Error("Provider request failed.");
+        const options = await response.json() as Providers;
+        if (!active) return;
+        setProviders(options);
+        if (!options.google) return;
         if (window.location.origin !== GOOGLE_SIGN_IN_ORIGIN) {
           setGooglePortalLink(true);
           return;
         }
         setPreparing(true);
-        try { const config = await fetchGoogleSignInConfig(); if (active) setGoogleConfig(config); }
+        try { const config = await prepareGoogleSignIn(); if (active) setGoogleConfig(config); }
         catch { if (active) setGoogleError("Google could not be loaded. Please try again."); }
         finally { if (active) setPreparing(false); }
-      }
+      } catch { if (active) setError("Sign-in options could not be loaded. Please refresh the page."); }
     }
-    void loadSignIn();
-    return () => { active = false; };
+    void loadProviders();
+    return () => { active = false; controller.abort(); };
   }, []);
 
   useEffect(() => {
@@ -154,32 +195,16 @@ export default function DemoLogin() {
       if (width !== lastWidth) renderGoogleButton();
     });
     if (googleButtonRef.current) observer.observe(googleButtonRef.current);
-    const existing = document.querySelector<HTMLScriptElement>('script[data-google-identity="true"]');
-    if (existing) {
-      if (window.google) renderGoogleButton();
-      else existing.addEventListener("load", renderGoogleButton, { once: true });
-      return () => { cancelled = true; observer.disconnect(); existing.removeEventListener("load", renderGoogleButton); };
-    }
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.dataset.googleIdentity = "true";
-    script.onload = renderGoogleButton;
-    script.onerror = () => {
-      if (cancelled) return;
-      script.remove();
-      setGoogleConfig(null);
-      setGoogleError("Google could not be loaded. Please try again.");
-    };
-    document.head.appendChild(script);
+    renderGoogleButton();
     return () => { cancelled = true; observer.disconnect(); };
   }, [googleConfig, snapshot, authenticator, handleGoogleCredential]);
 
   async function handleEmailSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (signInBusyRef.current) return;
+    if (signInBusyRef.current || (!authenticator && !emailAvailable)) return;
     signInBusyRef.current = true;
+    restoreSessionRef.current = false;
+    prepareWorkspace();
     setSubmitting(true);
     setError("");
     try {
@@ -200,6 +225,7 @@ export default function DemoLogin() {
   async function handleMicrosoftSignIn() {
     if (signInBusyRef.current || !providers?.microsoft) return;
     signInBusyRef.current = true;
+    restoreSessionRef.current = false;
     setSubmitting(true);
     setError("");
     try {
@@ -224,6 +250,7 @@ export default function DemoLogin() {
       if (!result.ok) throw new Error("Sign-out failed. Please try again.");
     } catch { window.alert("Sign-out could not be completed. Please check your connection and try again."); return; }
     window.google?.accounts.id.disableAutoSelect();
+    restoreSessionRef.current = false;
     setError(""); setPassword(""); setCode(""); setAuthenticator(false); setEnrollment(null); setSnapshot(null);
     if (providers?.google) await refreshGoogleSignIn();
   }
@@ -235,8 +262,6 @@ export default function DemoLogin() {
       <DashboardClient initialData={snapshot} user={snapshot.user} onSignOut={handleSignOut} />
     </>
   );
-
-  const socialAvailable = providers?.google || providers?.microsoft;
 
   return (
     <main className="access-login access-login-split access-login-school-blue min-h-svh antialiased">
@@ -256,19 +281,17 @@ export default function DemoLogin() {
           <section className="access-login-panel" aria-labelledby="magic-login-title">
             <div className="login-school-badge">
               <BrandLogo />
-              {/* eslint-disable-next-line @next/next/no-img-element -- existing local installer artwork */}
-              <img className="login-school-installer" src="/rjl-commercial-logo-clear.png" alt="RJL Commercial" width={900} height={210} />
               <span>BALWYN HIGH SCHOOL</span>
             </div>
-            <div className={`access-login-card${emailAvailable || authenticator ? " has-form" : ""}`}>
+            <div className="access-login-card has-form">
               <div className="access-login-lock flex items-center justify-center" aria-hidden="true"><LockKeyhole /></div>
-              <p className="access-login-kicker">YOUR SCHOOL. YOUR ACCESS.</p>
+              <p className="access-login-kicker">CAMPUS ACCESS PORTAL</p>
               <div className="access-login-heading">
                 <h1 id="magic-login-title">{authenticator ? "Verify your sign-in" : "Welcome back."}</h1>
                 <p>{authenticator ? "Enter the six-digit code from your authenticator app." : "Sign in to your Balwyn High School workspace."}</p>
               </div>
 
-              {(authenticator || emailAvailable) && <form className="access-login-form" onSubmit={handleEmailSignIn} aria-busy={submitting}>
+              <form className="access-login-form" onSubmit={handleEmailSignIn} aria-busy={submitting}>
                 {authenticator ? <>
                   {enrollment && <div className="access-login-enrollment"><strong>Set up your authenticator</strong><p>Add a new account in your authenticator app. Choose a time-based key and enter:</p><code>{enrollment.secret}</code><span>Account: {enrollment.account}</span></div>}
                   <label htmlFor="login-code">Authenticator code</label>
@@ -280,30 +303,37 @@ export default function DemoLogin() {
                   <div className="access-login-input"><Mail aria-hidden="true" /><input id="login-email" name="username" type="text" inputMode="email" autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Your approved email or username" maxLength={254} required /></div>
                   <div className="access-login-label-row flex items-center justify-between gap-3"><label htmlFor="login-password">Password</label><button className="access-login-text-button" type="button" aria-expanded={help} aria-controls={help ? "login-help" : undefined} onClick={() => setHelp(!help)}>Forgot password?</button></div>
                   <div className="access-login-input"><LockKeyhole aria-hidden="true" /><input id="login-password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} maxLength={1024} required placeholder="Enter your password" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}</button></div>
-                  <button className="access-login-submit" type="submit" disabled={submitting || !hydrated || !providers?.email}>{submitting ? <><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Signing in…</> : <>Sign in<ArrowRight aria-hidden="true" /></>}</button>
+                  <button className="access-login-submit" type="submit" disabled={submitting || !emailAvailable} aria-describedby={providers && !emailAvailable ? "login-email-availability" : undefined}>{submitting ? <><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Signing in…</> : <>Sign in<ArrowRight aria-hidden="true" /></>}</button>
+                  {providers && !emailAvailable && <p id="login-email-availability" className="access-login-provider-note">Email sign-in is awaiting account setup. Please use Google or contact your administrator.</p>}
                 </>}
-              </form>}
+              </form>
 
               {error && <p className="access-login-error" role="alert">{error}</p>}
               {!authenticator && <>
                 {!providers && !error && <p className="access-login-loading flex items-center justify-center gap-3" role="status"><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Loading sign-in options…</p>}
                 {!providers && error && <button type="button" className="access-login-provider" onClick={() => window.location.reload()}>Reload sign-in options<ArrowRight aria-hidden="true" /></button>}
-                {providers && !emailAvailable && !socialAvailable && <p className="access-login-notice" role="status">Sign-in is not available right now. Please contact your portal administrator.</p>}
-                {emailAvailable && socialAvailable && <div className="access-login-divider"><span>or continue with</span></div>}
-                {socialAvailable && <div className="access-login-providers" aria-busy={preparing || submitting}>
+                <div className="access-login-divider"><span>or use your school account</span></div>
+                <div className="access-login-providers" aria-busy={preparing || submitting}>
                   {providers?.google && (googlePortalLink ? <a className="access-login-provider access-login-google-link" href={GOOGLE_SIGN_IN_URL} target="_top"><GoogleMark />Continue with Google<ArrowRight aria-hidden="true" /></a> : googleConfig ? <div ref={googleButtonRef} className="access-login-google" aria-label="Sign in with Google" /> : <button className="access-login-provider" type="button" disabled={preparing || submitting} onClick={() => void refreshGoogleSignIn()}><GoogleMark />{preparing ? "Loading Google…" : "Sign in with Google"}{preparing ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}</button>)}
                   {googlePortalLink && <p className="access-login-provider-note">You’ll continue on the school’s Magic Keys portal.</p>}
                   {googleError && <p className="access-login-error" role="alert">{googleError}</p>}
-                  {providers?.microsoft && <button className="access-login-provider" type="button" onClick={() => void handleMicrosoftSignIn()} disabled={submitting}><span className="access-login-microsoft-icon" aria-hidden="true"><i /><i /><i /><i /></span>Continue with Microsoft<ArrowRight aria-hidden="true" /></button>}
+                  <button className="access-login-provider access-login-microsoft" type="button" onClick={() => void handleMicrosoftSignIn()} disabled={submitting || !providers?.microsoft} aria-describedby={providers && !providers.microsoft ? "login-microsoft-availability" : undefined}><span className="access-login-microsoft-icon" aria-hidden="true"><i /><i /><i /><i /></span>Sign in with Microsoft<ArrowRight aria-hidden="true" /></button>
+                  {providers && !providers.microsoft && <p id="login-microsoft-availability" className="access-login-provider-note">Microsoft sign-in is awaiting your school’s connection.</p>}
                   {submitting && <p className="access-login-loading flex items-center justify-center gap-3" role="status"><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Completing sign-in…</p>}
-                </div>}
+                </div>
               </>}
 
               <div className="access-login-assurance"><ShieldCheck aria-hidden="true" /><span>Access for approved accounts only.<small>Your school. Protected.</small></span><Check aria-hidden="true" /></div>
               <button className="access-login-help-toggle flex items-center justify-center gap-2" type="button" aria-expanded={help} aria-controls={help ? "login-help" : undefined} onClick={() => setHelp(!help)}><HelpCircle aria-hidden="true" />Need help signing in?</button>
               {help && <div id="login-help" className="access-login-help" role="region" aria-label="Sign-in help"><strong>Your portal administrator can help.</strong><p>Use an account approved for this school. For a password reset or access request, contact your school’s portal administrator or RJL support. Your Google or Microsoft password is managed by that provider.</p></div>}
             </div>
-            <nav className="access-login-legal flex items-center justify-center gap-5" aria-label="Legal information"><Link href="/privacy">Privacy policy</Link><span aria-hidden="true">·</span><Link href="/terms">Terms of use</Link></nav>
+            <div className="login-panel-footer">
+              <nav className="access-login-legal flex items-center justify-center gap-5" aria-label="Legal information"><Link href="/privacy">Privacy policy</Link><span aria-hidden="true">·</span><Link href="/terms">Terms of use</Link></nav>
+              <a className="access-login-partner" href="https://rjlcommercialgroup.com" target="_blank" rel="noopener noreferrer" aria-label="RJL Commercial — installer and support">
+                {/* eslint-disable-next-line @next/next/no-img-element -- existing transparent installer logo */}
+                <img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial" width={900} height={210} />
+              </a>
+            </div>
           </section>
         </div>
 
