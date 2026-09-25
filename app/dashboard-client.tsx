@@ -173,6 +173,23 @@ const platformModules = [
   { key: "reporting", name: "Compliance reporting", description: "Export events, operator actions and scheduled access changes", icon: FileText },
 ] satisfies Array<{ key: ModuleKey; name: string; description: string; icon: typeof Fence; core?: boolean }>;
 
+function OperationsGauge({ title, count, total, caption }: { title: string; count: number; total: number; caption: string }) {
+  const percent = total > 0 ? Math.round(Math.min(total, Math.max(0, count)) / total * 100) : null;
+  const complete = percent === 100;
+  return <article className="operations-gauge bright-executive-glass">
+    <header><h3>{title}</h3><span className={`gauge-status ${complete ? "is-current" : "is-pending"}`}>{percent === null ? "Not configured" : complete ? "Confirmed" : "Awaiting feedback"}</span></header>
+    <div className="gauge-dial" role="img" aria-label={`${title}: ${percent === null ? "no active controllers configured" : `${count} of ${total} active controllers, ${percent}%`}`}>
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle className="gauge-bezel" cx="60" cy="60" r="55" />
+        <circle className="gauge-track" cx="60" cy="60" r="46" />
+        {percent !== null && percent > 0 && <circle className="gauge-fill" cx="60" cy="60" r="46" pathLength="100" strokeDasharray={`${percent} 100`} />}
+      </svg>
+      <div className="gauge-core" aria-hidden="true"><strong>{percent === null ? "—" : `${percent}%`}</strong><span>Verified</span></div>
+    </div>
+    <footer><strong>{count} / {total} controllers</strong><span>{caption}</span></footer>
+  </article>;
+}
+
 function initials(value: string) {
   const parts = value.trim().split(/\s+/).filter(Boolean);
   if (parts.length > 1) return `${parts[0][0]}${parts.at(-1)?.[0]}`.toUpperCase();
@@ -501,6 +518,12 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const credentialCount = activeGates.filter((gate) => runtimeFor(gate)?.credentialIssued).length;
   const scheduledGateCount = activeGates.filter((gate) => Object.values(schedules[gate.id]).some((plan) => plan.enabled)).length;
   const operationalReady = commissionedCount === activeGates.length && onlineCount === activeGates.length && safetyHealthyCount === activeGates.length;
+  const respondingGates = activeGates.filter((gate) => {
+    const runtime = runtimeFor(gate);
+    const seen = runtime?.lastSeen ? Date.parse(runtime.lastSeen) : NaN;
+    return runtime?.controllerState === "online" && Number.isFinite(seen) && currentTime - seen <= 90_000;
+  });
+  const verifiedSafetyCount = respondingGates.filter((gate) => runtimeFor(gate)?.safetyOk === true).length;
 
   const emergencyExpected = systemMode === "fire" ? "open" : "closed";
   const emergencyConfirmed = systemMode === "normal" ? 0 : activeGates.filter((gate) => {
@@ -857,6 +880,11 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
           {activeView === "dashboard" && (
             <>
               <GateConditionPanel gates={activeGates} runtime={gateRuntime} getPosition={getPosition} systemMode={systemMode} now={currentTime} onSelect={setSelectedGate} />
+              <section className="operations-gauge-grid" aria-label="Live controller gauges">
+                <OperationsGauge title="Controller connection" count={respondingGates.length} total={activeGates.length} caption="Heartbeats received within 90 seconds" />
+                <OperationsGauge title="Gate commissioning" count={commissionedCount} total={activeGates.length} caption="Active controllers commissioned" />
+                <OperationsGauge title="Safety feedback" count={verifiedSafetyCount} total={activeGates.length} caption="Online controllers reporting healthy inputs" />
+              </section>
               <section className="health-strip" aria-label="Platform and controller health">
                 <div className="health-lead"><span className="health-pulse"><i /></span><span><strong>Portal available</strong><small>Persistent control and audit service</small></span></div>
                 <div><Network /><span><strong>{onlineCount} / {activeGates.length}</strong><small>Controllers responding</small></span></div>
