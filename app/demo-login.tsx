@@ -8,7 +8,6 @@ import DashboardClient from "./dashboard-client";
 import SessionExitGuard from "./session-exit-guard";
 import OperatorHelpDock from "./operator-help-dock";
 import BrandLogo from "./brand-logo";
-import BrandArtwork from "./brand-artwork";
 import type { PortalSnapshot } from "@/lib/portal-model";
 import { GOOGLE_SIGN_IN_ORIGIN, GOOGLE_SIGN_IN_URL } from "@/lib/google-signin-origin";
 
@@ -239,7 +238,7 @@ export default function DemoLogin() {
   const socialAvailable = providers?.google || providers?.microsoft;
 
   return (
-    <main className="access-login access-login-split access-login-school-blue min-h-svh antialiased">
+    <main className="access-login min-h-svh antialiased">
       <div className="access-login-shell">
         <header className="access-login-header flex items-center justify-between gap-6">
           <Link href="/" className="access-login-brand" aria-label="Magic Keys home"><BrandLogo /></Link>
@@ -251,15 +250,33 @@ export default function DemoLogin() {
         </header>
 
         <div className="access-login-layout grid items-center">
-          <section className="access-login-brand-stage" aria-label="Magic Keys — secure access, safer schools"><BrandArtwork fillHeight /></section>
+          <section className="access-login-story" aria-labelledby="access-login-story-title">
+            <div className="access-login-intro">
+              <p className="access-login-eyebrow"><span aria-hidden="true" /> A smarter welcome.</p>
+              <h2 id="access-login-story-title">Secure access.<br /><span>Safer schools.</span></h2>
+              <p className="access-login-description">Gates, schedules and campus access.<br />One clear view. Wherever you are.</p>
+            </div>
+            <figure className="access-login-hardware">
+              <div className="access-login-orbit" aria-hidden="true" />
+              <div className="access-login-gates">
+                {[
+                  ["single-swing", "Single swing gate"],
+                  ["double-swing", "Double swing gate"],
+                  ["boom", "Boom gate"],
+                ].map(([type, label]) => (
+                  <div className="access-login-gate" key={type}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- local gate artwork */}
+                    <img src={`/gates/${type}-blue.webp`} alt={label} fetchPriority="high" />
+                    <span>{label}</span>
+                  </div>
+                ))}
+              </div>
+              <figcaption><span aria-hidden="true" /> Gate types · illustrative hardware</figcaption>
+            </figure>
+            <div className="access-login-story-footer flex items-center gap-3"><ShieldCheck aria-hidden="true" /><p>Designed around your school.<span>Built for the people who keep it moving.</span></p></div>
+          </section>
 
           <section className="access-login-panel" aria-labelledby="magic-login-title">
-            <div className="login-school-badge">
-              <BrandLogo />
-              {/* eslint-disable-next-line @next/next/no-img-element -- existing local installer artwork */}
-              <img className="login-school-installer" src="/rjl-commercial-logo-clear.png" alt="RJL Commercial" width={900} height={210} />
-              <span>BALWYN HIGH SCHOOL</span>
-            </div>
             <div className={`access-login-card${emailAvailable || authenticator ? " has-form" : ""}`}>
               <div className="access-login-lock flex items-center justify-center" aria-hidden="true"><LockKeyhole /></div>
               <p className="access-login-kicker">YOUR SCHOOL. YOUR ACCESS.</p>
@@ -309,7 +326,7 @@ export default function DemoLogin() {
 
         <footer className="access-login-footer flex items-center justify-between gap-6">
           <p>Magic Keys<span aria-hidden="true"> / </span><span>Protecting futures.</span></p>
-          <a className="access-login-partner flex items-center gap-3" href="https://rjlcommercialgroup.com" target="_blank" rel="noopener noreferrer" aria-label="RJL Commercial Fencing and Gates — installer and support"><span>TECHNOLOGY BY</span>
+          <a className="access-login-partner flex items-center gap-3" href="https://rjlcommercialgroup.com" target="_blank" rel="noopener noreferrer" aria-label="RJL Commercial Fencing and Gates — installer and support">
             {/* eslint-disable-next-line @next/next/no-img-element -- local transparent installer logo */}
             <img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial" width={900} height={210} />
           </a>
