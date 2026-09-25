@@ -204,7 +204,7 @@
 }
 .login-school-badge .magic-brand-logo {
   width: 100%; max-width: none; height: auto; padding: 0; border: 0;
-  background: transparent; border-radius: 0; filter: none !important; box-shadow: none;
+  background: transparent; border-radius: 0; box-shadow: none;
 }
 .login-school-badge > span { margin-top: 8px; font-size: 10px; line-height: 1.5; letter-spacing: .1em; font-weight: 700; color: #133653; text-align: center; }
 .access-login-school-blue .access-login-card {
@@ -217,7 +217,7 @@
 .access-login-school-blue .access-login-card::before { background: linear-gradient(90deg, transparent, #8cf7ff, transparent); }
 .access-login-school-blue .access-login-lock { display: none; }
 .access-login-school-blue .access-login-kicker { display: block; margin-bottom: 10px; color: #7defff; font-weight: 700; font-size: 10px; letter-spacing: .11em; }
-.access-login-school-blue .access-login-heading h1 { color: #ff6b00; font-size: clamp(27px, 2.2vw, 34px); font-weight: 700; line-height: 1.22; letter-spacing: -.025em; text-shadow: 0 2px 2px #051321, 0 0 18px #ff6b0033; }
+.access-login-school-blue .access-login-heading h1 { color: #ff7a00; font-size: clamp(27px, 2.2vw, 34px); font-weight: 700; line-height: 1.22; letter-spacing: -.025em; text-shadow: 0 2px 2px #051321, 0 0 18px #ff7a0033; }
 .access-login-school-blue .access-login-heading > p { max-width: none; margin: 10px 0 22px; font-size: 13px; line-height: 1.65; color: #d1f5ff; }
 .access-login-school-blue .access-login-form label { color: #fff; font-size: 12px; font-weight: 700; }
 .access-login-school-blue .access-login-input { min-height: 48px; background: #041323b3; border-color: #7dccff66; box-shadow: inset 0 2px 6px #0003; }
@@ -225,8 +225,8 @@
 .access-login-school-blue .access-login-input input { color: #fff; font-size: 14px; }
 .access-login-school-blue .access-login-input input::placeholder { color: #a6c8dc; font-size: 12px; }
 .access-login-school-blue .access-login-input:focus-within { border-color: #00e5ff; box-shadow: 0 0 0 3px #00e5ff26, 0 0 18px #00bfff1f; }
-.access-login-school-blue .access-login-submit { color: #081322; font-weight: 700; background: linear-gradient(135deg, #ffb24d, #ff7a00); border-color: #ffd28c; box-shadow: inset 0 1px #fff6, 0 6px 20px #ff6b002e; }
-.access-login-school-blue .access-login-submit:hover:not(:disabled) { background: linear-gradient(135deg, #ffc16d, #ff9122); box-shadow: 0 6px 26px #ff6b0059; }
+.access-login-school-blue .access-login-submit { color: #081322; font-weight: 700; background: linear-gradient(135deg, #ffb24d, #ff7a00); border-color: #ffd28c; box-shadow: inset 0 1px #fff6, 0 6px 20px #ff7a002e; }
+.access-login-school-blue .access-login-submit:hover:not(:disabled) { background: linear-gradient(135deg, #ffc16d, #ff9122); box-shadow: 0 6px 26px #ff7a0059; }
 .access-login-school-blue .access-login-submit:disabled { opacity: 1; background: #28445b; color: #c4d7e5; border-color: #6ca0c455; box-shadow: inset 0 1px #ffffff0d; }
 .access-login-school-blue .access-login-provider { color: #fff; background: linear-gradient(135deg, #185da16b, #0b2a436b); border-color: #7bd8ff70; font-size: 12px; }
 .access-login-school-blue .access-login-provider:hover:not(:disabled) { background: #14629b99; border-color: #00e5ff; box-shadow: 0 0 18px #00d2ff20; }
@@ -252,10 +252,10 @@
   background: url('/balwyn-crest-clear.png') center / contain no-repeat;
   opacity: .095; z-index: 1; pointer-events: none;
 }
-.access-login-brand-stage .magic-wide-wordmark { position: absolute; left: 6%; top: 50%; transform: translateY(-50%); width: 62%; height: auto; max-width: none; margin: 0; padding: 0; background: none; filter: none !important; border: 0; border-radius: 0; box-shadow: none; z-index: 2; }
+.access-login-brand-stage .magic-wide-wordmark { position: absolute; left: 6%; top: 50%; transform: translateY(-50%); width: 62%; height: auto; max-width: none; margin: 0; padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; z-index: 2; }
 .access-login-brand-stage .magic-wide-ai-head { position: absolute; right: 0; top: 0; height: 100%; width: 30%; max-width: none; opacity: 1; transform: none; z-index: 3; }
 .login-workspace-loading { min-height: 100svh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 32px; color: #d1f5ff; background: radial-gradient(ellipse at top, #004b93, #10141d 70%); font-family: var(--font-ui); text-align: center; }
-.login-workspace-loading h1 { color: #ff6b00; font-size: 28px; font-weight: 700; }
+.login-workspace-loading h1 { color: #ff7a00; font-size: 28px; font-weight: 700; }
 .login-workspace-loading > svg { color: #00e5ff; width: 32px; height: 32px; }
 @media (max-width: 800px) {
   .access-login-split .access-login-layout { display: flex; flex-direction: column; }

@@ -3,8 +3,23 @@ import BrandLogo from "./brand-logo";
 
 // Lay out the existing logo and AI artwork independently so neither is stretched
 // or confined to the old split-screen Balwyn background.
-export default function BrandArtwork({ className = "", fillHeight = false }: { className?: string; fillHeight?: boolean }) {
+//
+// tone="light" (default): the original artwork on white, as used on the public home page.
+// tone="dark": the sign-in stage. The AI head is drawn from
+// /magic-keys-ai-head-clear.png — the same artwork with its white background
+// removed — so it sits on the dark glass stage without a white box behind it.
+export default function BrandArtwork({ className = "", fillHeight = false, tone = "light" }: { className?: string; fillHeight?: boolean; tone?: "light" | "dark" }) {
   const aiHeadClipId = useId();
+
+  if (tone === "dark") {
+    return (
+      <div className={`magic-wide-artwork is-dark ${className}`}>
+        <BrandLogo className="magic-wide-wordmark" />
+        {/* eslint-disable-next-line @next/next/no-img-element -- decorative local artwork with transparency */}
+        <img className="magic-wide-ai-head" src="/magic-keys-ai-head-clear.png" width={463} height={984} alt="" aria-hidden="true" decoding="async" />
+      </div>
+    );
+  }
 
   return (
     <div className={`magic-wide-artwork ${className}`}>
@@ -20,4 +35,3 @@ export default function BrandArtwork({ className = "", fillHeight = false }: { c
     </div>
   );
 }
-

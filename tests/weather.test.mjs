@@ -27,3 +27,11 @@ test('malformed primary forecast falls back instead of returning empty success',
   let calls=0; const get=createWeatherService(async()=>{calls++; return Response.json({});});
   await assert.rejects(get(), /unavailable/); assert.equal(calls,2);
 });
+test('rain chance comes from the provider and is never invented', async () => {
+  const time = Date.parse('2026-09-24T22:00:00Z');
+  const withRain = { ...primary, daily: { ...primary.daily, precipitation_probability_max: [40] } };
+  let get = createWeatherService(async (url) => { assert.match(String(url), /precipitation_probability_max/); return Response.json(withRain); }, () => time);
+  assert.equal((await get()).current.rainChance, 40);
+  get = createWeatherService(async () => Response.json(primary), () => time);
+  assert.equal((await get()).current.rainChance, null);
+});

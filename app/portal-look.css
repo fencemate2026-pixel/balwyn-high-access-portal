@@ -116,7 +116,7 @@ body.hire-open #hire-nav-item .portal-nav-button {
    Premium pass (24 Sep 2026): square corners, hover lift, RJL orange accents,
    gate condition gauges, larger gate artwork on the dashboard.
    ============================================================================= */
-:root { --rjl-orange: #ff6a22; --rjl-orange-deep: #d9500f; --navy: #0b2a55; }
+:root { --rjl-orange: #ff7a00; --rjl-orange-deep: #d9500f; --navy: #0b2a55; }
 
 /* ---- Square corners everywhere in the signed-in portal ------------------------- */
 .control-portal *, .control-portal *::before, .control-portal *::after,
@@ -287,7 +287,7 @@ h2 {
   margin: 0 0 12px;
   padding: 9px 16px;
   background: #0b2a55;
-  border-bottom: 3px solid #ff6a22;
+  border-bottom: 3px solid #ff7a00;
   color: #ffffff;
   font-weight: 700;
   letter-spacing: .04em;

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw, X } from "lucide-react";
+import { GLASS_FOCUS, GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
 
 type Visit = { occurrence_id?: string; occurs_on?: string; starts_at?: string; ends_at?: string; full_name?: string; organisation?: string; schedule_name?: string; areas?: string[] | string; status?: string };
 const timezone = "Australia/Melbourne";
@@ -44,15 +45,40 @@ export default function CampusCalendar({ onManage, canBook }: { onManage: () => 
     return map;
   }, [visits]);
   const navigate = (date: string) => { setStart(date); setSelected(null); setVisits(null); setError(""); };
-  return <section className="campus-calendar min-w-0 rounded-2xl border border-border bg-card p-4 shadow-card" aria-label="Campus calendar">
-    <header className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><span className="flex items-center gap-2 text-xs font-semibold text-foreground"><CalendarDays className="size-4 text-accent-blue" /> Campus calendar</span><p className="m-0 mt-1 text-[11px] text-muted-foreground">{dateLabel(start, { day: "numeric", month: "short" })} – {dateLabel(days[6], { day: "numeric", month: "short", year: "numeric" })}<span className="ml-2 text-[9px] tracking-wider uppercase">Melbourne</span></p></div><div className="flex items-center gap-1.5"><button className="chrome-icon" onClick={() => navigate(shiftDate(start, -7))} aria-label="Previous calendar week"><ChevronLeft /></button><button className="chrome-button" onClick={() => navigate(weekStart(campusDate()))}>Today</button><button className="chrome-icon" onClick={() => navigate(shiftDate(start, 7))} aria-label="Next calendar week"><ChevronRight /></button><button className="chrome-button calendar-manage" onClick={onManage}>{canBook ? <Plus className="size-3.5" /> : <ArrowUpRight className="size-3.5" />}{canBook ? "New booking" : "View calendar"}</button></div></header>
-    <div className="overflow-x-auto pb-1"><div className="grid min-w-[490px] grid-cols-7 gap-2">{days.map((date) => {
+  const rangeLabel = `${dateLabel(start, { day: "numeric", month: "short" })} – ${dateLabel(days[6], { day: "numeric", month: "short", year: "numeric" })}, Melbourne`;
+  const countText = (entries: Visit[]) => visits === null ? (error ? "Unavailable" : "Loading…") : entries.length ? `${entries.length} booking${entries.length === 1 ? "" : "s"}` : "No bookings";
+  return <section className={`campus-glass-calendar ${GLASS_PANEL} flex min-w-0 flex-col gap-4 p-5`} aria-labelledby="campus-calendar-title">
+    <header className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 id="campus-calendar-title" className="m-0 flex items-center gap-2 text-base font-bold text-[#F5FBFF]"><CalendarDays className="size-4 text-[#00F0FF]" aria-hidden="true" /> Campus calendar</h2>
+        <p className="m-0 mt-1 text-sm text-[#B3CEDF]">{rangeLabel}</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <button type="button" className={glassButton()} onClick={() => navigate(shiftDate(start, -7))} aria-label="Previous calendar week"><ChevronLeft className="size-4" aria-hidden="true" /></button>
+        <button type="button" className={glassButton()} onClick={() => navigate(weekStart(campusDate()))}>Today</button>
+        <button type="button" className={glassButton()} onClick={() => navigate(shiftDate(start, 7))} aria-label="Next calendar week"><ChevronRight className="size-4" aria-hidden="true" /></button>
+        <button type="button" className={glassButton("orange")} onClick={onManage}>{canBook ? <Plus className="size-4" aria-hidden="true" /> : <ArrowUpRight className="size-4" aria-hidden="true" />}{canBook ? "New booking" : "View calendar"}</button>
+      </div>
+    </header>
+    {/* Seven fixed columns; scrolls sideways on narrow phones instead of wrapping. */}
+    <div className="-mx-1 flex flex-1 overflow-x-auto px-1 pb-1"><ol className="m-0 grid w-full min-w-[560px] list-none grid-cols-7 gap-2 p-0">{days.map((date) => {
       const entries = byDay.get(date) ?? [];
-      return <button type="button" key={date} className={`calendar-day relative min-h-24 rounded-xl border p-2.5 text-left transition ${date === today ? "is-today border-accent-blue/40 bg-accent-blue/10" : "border-border bg-background/35 hover:border-accent-blue/35 hover:bg-secondary"}`} aria-label={`${dateLabel(date, { weekday: "long", day: "numeric", month: "long" })}, ${visits === null ? error || "loading bookings" : `${entries.length} bookings`}`} aria-pressed={selected === date} onClick={() => setSelected(selected === date ? null : date)}>
-        <span className="block text-[9px] tracking-wider text-muted-foreground uppercase">{dateLabel(date, { weekday: "short" })}</span><strong className={`mt-1 block text-xl font-medium ${date === today ? "text-accent-blue" : "text-foreground"}`}>{Number(date.slice(-2))}</strong><span className="mt-2 block truncate text-[9px] text-muted-foreground">{visits === null ? error ? "Unavailable" : "Loading…" : entries.length ? `${entries.length} booking${entries.length === 1 ? "" : "s"}` : "No bookings"}</span>{entries.length > 0 && <span className="absolute top-3 right-2 size-1.5 rounded-full bg-accent-green shadow-glow-green" />}
-      </button>;
-    })}</div></div>
-    {error && <p className="m-0 mt-2 flex items-center justify-between text-xs text-status-warning" role="status">{error}<button className="chrome-icon" onClick={() => setRevision((value) => value + 1)} aria-label="Retry calendar"><RefreshCw /></button></p>}
-    {selected && <div className="mt-3 rounded-xl border border-border bg-background/40 p-3"><div className="mb-2 flex items-center justify-between text-xs"><strong>{dateLabel(selected, { weekday: "long", day: "numeric", month: "short" })}</strong><button className="chrome-icon" onClick={() => setSelected(null)} aria-label="Close selected day"><X /></button></div>{visits === null ? <p className="text-xs text-muted-foreground">{error || "Loading bookings…"}</p> : (byDay.get(selected) ?? []).length ? (byDay.get(selected) ?? []).map((visit, index) => <div key={visit.occurrence_id ?? index} className="mb-2 border-l-2 border-accent-blue pl-3 text-xs"><strong>{visit.organisation || visit.full_name || visit.schedule_name || "Hire booking"}</strong><span className="block text-muted-foreground">{clock(visit.starts_at)} – {clock(visit.ends_at)} · {visit.status || "Status pending"}</span></div>) : <p className="text-xs text-muted-foreground">No bookings recorded for this day.</p>}</div>}
+      const isToday = date === today;
+      const isSelected = selected === date;
+      const state = isToday
+        ? "border-[#FF7A00] bg-[#FF7A00]/15 shadow-[0_0_22px_rgba(255,122,0,0.60),inset_0_1px_0_rgba(255,255,255,0.18)]"
+        : isSelected ? "border-[#00F0FF] shadow-[0_0_14px_rgba(0,240,255,0.35)]" : "";
+      return <li key={date}><button type="button" className={`${GLASS_TILE} ${state} ${GLASS_FOCUS} relative flex h-full min-h-[112px] w-full flex-col items-start gap-1 p-3 text-left transition-colors hover:border-[rgba(0,240,255,0.45)]`}
+        aria-current={isToday ? "date" : undefined} aria-pressed={isSelected}
+        aria-label={`${dateLabel(date, { weekday: "long", day: "numeric", month: "long" })}, ${visits === null ? error || "loading bookings" : `${entries.length} bookings`}`}
+        onClick={() => setSelected(isSelected ? null : date)}>
+        <span className={`text-xs font-bold uppercase ${isToday ? "text-[#FF9A3D]" : "text-[#B3CEDF]"}`}>{dateLabel(date, { weekday: "short" })}</span>
+        <strong className={`text-2xl font-bold tabular-nums ${isToday ? "text-[#FF7A00]" : "text-[#F5FBFF]"}`}>{Number(date.slice(-2))}</strong>
+        <span className={`mt-auto text-xs leading-tight ${entries.length ? "text-[#00F0FF]" : "text-[#8FA9BD]"}`}>{countText(entries)}</span>
+        {entries.length > 0 && <span className="absolute top-3 right-3 size-2 rounded-full bg-[#22E07A] shadow-[0_0_8px_rgba(34,224,122,0.8)]" aria-hidden="true" />}
+      </button></li>;
+    })}</ol></div>
+    {error && <p className="m-0 flex items-center justify-between text-sm text-[#FFB020]" role="status">{error}<button type="button" className={glassButton()} onClick={() => setRevision((value) => value + 1)} aria-label="Retry calendar"><RefreshCw className="size-4" aria-hidden="true" /></button></p>}
+    {selected && <div className={`${GLASS_TILE} p-3`}><div className="mb-2 flex items-center justify-between text-sm text-[#F5FBFF]"><strong>{dateLabel(selected, { weekday: "long", day: "numeric", month: "short" })}</strong><button type="button" className={glassButton()} onClick={() => setSelected(null)} aria-label="Close selected day"><X className="size-4" aria-hidden="true" /></button></div>{visits === null ? <p className="m-0 text-sm text-[#B3CEDF]">{error || "Loading bookings…"}</p> : (byDay.get(selected) ?? []).length ? (byDay.get(selected) ?? []).map((visit, index) => <div key={visit.occurrence_id ?? index} className="mb-2 border-l-2 border-[#00F0FF] pl-3 text-sm text-[#F5FBFF]"><strong>{visit.organisation || visit.full_name || visit.schedule_name || "Hire booking"}</strong><span className="block text-[#B3CEDF]">{clock(visit.starts_at)} – {clock(visit.ends_at)} · {visit.status || "Status pending"}</span></div>) : <p className="m-0 text-sm text-[#B3CEDF]">No bookings recorded for this day.</p>}</div>}
   </section>;
 }

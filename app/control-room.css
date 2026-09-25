@@ -415,7 +415,7 @@ h1, h2, h3 { letter-spacing: -.025em; }
 .fh .fh-area-stadium { --area: #0090e7; }
 .fh .fh-area-gymnasium { --area: #8bc5ff; }
 .fh .fh-area-oval { --area: #00d25b; }
-.fh .fh-area-tennis { --area: #ffab00; }
+.fh .fh-area-tennis { --area: #e0b800; }
 .fh .fh-area-carpark { --area: #5ad3db; }
 .fh .fh-booking, .fh .fh-event { background: color-mix(in srgb, var(--area) 12%, var(--bg-card)); }
 .fh .fh-chip { background: #153024; color: #8ad8bb; font-weight: 500; }
@@ -478,19 +478,19 @@ h1, h2, h3 { letter-spacing: -.025em; }
 /* Corona reference palette: neutral charcoal surfaces with restrained colour accents. */
 :root, .dark {
   --accent-purple: #5fa3e8;
-  --accent-orange: #ffab00;
+  --accent-orange: #ff7a00;
   --glow-green: 0 0 12px #00d25b66, 0 0 28px #00d25b22;
   --glow-blue: 0 0 12px #0090e766, 0 0 28px #0090e722;
   --shadow-card: 0 5px 18px #0002;
   --chart-1: #0090e7; --chart-2: #00d25b; --chart-3: #ffab00; --chart-4: #5fa3e8; --chart-5: #fc424a;
 }
-.control-portal { --accent-orange: #ffab00; }
+.control-portal { --accent-orange: #ff7a00; }
 .portal-workspace, .campus-weather { background-image: none; }
 .portal-workspace { background-color: #000; }
 .workspace-header, .safety-bar, .campus-weather { background-color: #191c24; }
 
 .control-sidebar .portal-nav-button svg { color: #5fa3e8; }
-.control-sidebar [data-sidebar="menu-item"]:nth-child(4n+2) .portal-nav-button svg { color: #ffab00; }
+.control-sidebar [data-sidebar="menu-item"]:nth-child(4n+2) .portal-nav-button svg { color: #ff7a00; }
 .control-sidebar [data-sidebar="menu-item"]:nth-child(4n+3) .portal-nav-button svg { color: #fc424a; }
 .control-sidebar [data-sidebar="menu-item"]:nth-child(4n+4) .portal-nav-button svg { color: #0090e7; }
 .control-sidebar .portal-nav-button[data-active="true"] { box-shadow: inset 3px 0 #0090e7; }
@@ -501,10 +501,10 @@ h1, h2, h3 { letter-spacing: -.025em; }
 .control-portal .advanced-discovery { background: linear-gradient(105deg, #2d5e8f, #d33858); border-color: transparent; color: #fff; }
 .control-portal .advanced-discovery :is(h2,p,span,small) { color: #fff; }
 .control-portal .advanced-discovery button { border-color: #ffffff55; color: #fff; background: #ffffff12; }
-.control-portal .calendar-manage, .control-portal .schedule-button { color: #ffbf3d; background: #ffab0018; border-color: #ffab004d; }
-.gate-tabs-list [data-state="active"] { color: #ffab00; }
-.gate-tabs-list [data-state="active"]::after { background: #ffab00; }
-.control-portal .advanced-preview-tab-list [data-state="active"] { color: #ffbf3d; background: #ffab0018 !important; }
+.control-portal .calendar-manage, .control-portal .schedule-button { color: #ff9a3d; background: #ff7a0018; border-color: #ff7a004d; }
+.gate-tabs-list [data-state="active"] { color: #ff7a00; }
+.gate-tabs-list [data-state="active"]::after { background: #ff7a00; }
+.control-portal .advanced-preview-tab-list [data-state="active"] { color: #ff9a3d; background: #ff7a0018 !important; }
 .workspace-brand-partner { border-color: #2c2e33; }
 
 
@@ -536,7 +536,7 @@ h1, h2, h3 { letter-spacing: -.025em; }
 .control-portal .advanced-discovery { margin-top: 24px; padding: 24px; border-radius: 6px; background: linear-gradient(105deg, #2b68a6, #df385e); }
 .control-portal .campus-calendar header > div > span { font-size: 16px; font-weight: 400; }
 .control-portal .calendar-manage,
-.control-portal .schedule-button { color: #17191f; background: #ffab00; border-color: #ffab00; font-weight: 600; }
+.control-portal .schedule-button { color: #17191f; background: #ff7a00; border-color: #ff7a00; font-weight: 600; }
 .control-portal .calendar-manage:hover,
 .control-portal .schedule-button:hover { background: #ffbd36; border-color: #ffbd36; }
 .control-portal .calendar-day.is-today { background: #249df426; border-color: #249df4; }
@@ -573,7 +573,7 @@ h1, h2, h3 { letter-spacing: -.025em; }
   --bg-card-raised: #17456966; --bg-card-hover: #19618e70;
   --text-primary: #ffffff; --text-secondary: #d1f5ff; --text-muted: #b3cedf;
   --border-subtle: #00f0ff38; --border: #00f0ff38; --input: #81d9ff52;
-  --accent-blue: #00f0ff; --accent-purple: #007bff; --accent-orange: #ff6b00;
+  --accent-blue: #00f0ff; --accent-purple: #007bff; --accent-orange: #ff7a00;
   --accent-green: #34d399; --status-warning: #ffbd59; --status-error: #ff6b78;
   --state-open: #34d399; --state-closed: #ff6b78;
   --background: #10141d; --foreground: #ffffff; --card: #10162259; --card-foreground: #ffffff;
@@ -856,9 +856,9 @@ body:has(.control-portal) .operator-help-panel button:disabled { opacity: .5; bo
 /* Consistent deep-orange hierarchy across every dashboard heading. */
 .control-portal :is(h1, h2),
 body:has(.control-portal) :is([data-slot="sheet-content"], [data-slot="dialog-content"], [data-slot="alert-dialog-content"]) :is(h1, h2) {
-  color: #ff6b00 !important;
+  color: #ff7a00 !important;
   font-weight: 700 !important;
-  text-shadow: 0 1px 2px #050c16, 0 0 14px #ff6b0033;
+  text-shadow: 0 1px 2px #050c16, 0 0 14px #ff7a0033;
 }
 .control-portal .campus-calendar header > div > span { color: #ff8b38; font-weight: 700; }
 
@@ -867,7 +867,7 @@ body:has(.control-portal) :is([data-slot="sheet-content"], [data-slot="dialog-co
   background: linear-gradient(135deg, #ffffff14, #9bcaff08 48%, #06122138);
   border: 1px solid #c7e6ff55;
   border-top-color: #f4fbff73;
-  border-left: 3px solid #ff6b00;
+  border-left: 3px solid #ff7a00;
   border-radius: 14px;
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
@@ -875,6 +875,6 @@ body:has(.control-portal) :is([data-slot="sheet-content"], [data-slot="dialog-co
 }
 .control-portal :is(.panel-heading, .view-panel-heading, .section-heading) > svg {
   color: #ff8b38;
-  filter: drop-shadow(0 0 5px #ff6b0059);
+  filter: drop-shadow(0 0 5px #ff7a0059);
 }
 .control-portal :is(.panel-heading, .view-panel-heading, .section-heading) small { color: #d1f5ff; }

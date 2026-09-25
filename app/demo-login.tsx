@@ -96,6 +96,9 @@ export default function DemoLogin() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
+  const helpRef = useRef<HTMLDivElement>(null);
+  // Bring the help text into view once, when it opens; typing afterwards is never interrupted.
+  useEffect(() => { if (help) helpRef.current?.focus(); }, [help]);
   const signInBusyRef = useRef(false);
   const restoreSessionRef = useRef(true);
 
@@ -188,7 +191,7 @@ export default function DemoLogin() {
       if (width < 180) return;
       lastWidth = width;
       googleButtonRef.current.replaceChildren();
-      window.google.accounts.id.renderButton(googleButtonRef.current, { state: googleConfig.state, type: "standard", theme: "filled_blue", size: "large", text: "signin_with", shape: "rectangular", logo_alignment: "left", width });
+      window.google.accounts.id.renderButton(googleButtonRef.current, { state: googleConfig.state, type: "standard", theme: "filled_black", size: "large", text: "signin_with", shape: "rectangular", logo_alignment: "left", width });
     };
     const observer = new ResizeObserver(() => {
       const width = Math.min(400, Math.floor(googleButtonRef.current?.clientWidth ?? 0));
@@ -276,7 +279,7 @@ export default function DemoLogin() {
         </header>
 
         <div className="access-login-layout grid items-center">
-          <section className="access-login-brand-stage" aria-label="Magic Keys — secure access, safer schools"><BrandArtwork fillHeight /></section>
+          <section className="access-login-brand-stage" aria-label="Magic Keys — secure access, safer schools"><BrandArtwork fillHeight tone="dark" /></section>
 
           <section className="access-login-panel" aria-labelledby="magic-login-title">
             <div className="login-school-badge">
@@ -304,28 +307,28 @@ export default function DemoLogin() {
                   <div className="access-login-label-row flex items-center justify-between gap-3"><label htmlFor="login-password">Password</label><button className="access-login-text-button" type="button" aria-expanded={help} aria-controls={help ? "login-help" : undefined} onClick={() => setHelp(!help)}>Forgot password?</button></div>
                   <div className="access-login-input"><LockKeyhole aria-hidden="true" /><input id="login-password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} maxLength={1024} required placeholder="Enter your password" /><button type="button" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}</button></div>
                   <button className="access-login-submit" type="submit" disabled={submitting || !emailAvailable} aria-describedby={providers && !emailAvailable ? "login-email-availability" : undefined}>{submitting ? <><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Signing in…</> : <>Sign in<ArrowRight aria-hidden="true" /></>}</button>
-                  {providers && !emailAvailable && <p id="login-email-availability" className="access-login-provider-note">Email sign-in is awaiting account setup. Please use Google or contact your administrator.</p>}
+                  {providers && !emailAvailable && <p id="login-email-availability" className="access-login-provider-note">Email sign-in opens once your administrator has created your account and you have set your password from the setup link.</p>}
                 </>}
               </form>
 
+              {help && <div id="login-help" className="access-login-help" role="region" aria-label="Sign-in help" tabIndex={-1} ref={helpRef}><strong>Forgotten your password?</strong><p>Ask your school’s portal administrator for a new setup link. It lets you choose a new password and stops the old one working. Google and Microsoft passwords are managed by those providers.</p></div>}
               {error && <p className="access-login-error" role="alert">{error}</p>}
               {!authenticator && <>
                 {!providers && !error && <p className="access-login-loading flex items-center justify-center gap-3" role="status"><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Loading sign-in options…</p>}
                 {!providers && error && <button type="button" className="access-login-provider" onClick={() => window.location.reload()}>Reload sign-in options<ArrowRight aria-hidden="true" /></button>}
-                <div className="access-login-divider"><span>or use your school account</span></div>
+                {(providers?.google || providers?.microsoft) && <div className="access-login-divider"><span>or use your school account</span></div>}
                 <div className="access-login-providers" aria-busy={preparing || submitting}>
                   {providers?.google && (googlePortalLink ? <a className="access-login-provider access-login-google-link" href={GOOGLE_SIGN_IN_URL} target="_top"><GoogleMark />Continue with Google<ArrowRight aria-hidden="true" /></a> : googleConfig ? <div ref={googleButtonRef} className="access-login-google" aria-label="Sign in with Google" /> : <button className="access-login-provider" type="button" disabled={preparing || submitting} onClick={() => void refreshGoogleSignIn()}><GoogleMark />{preparing ? "Loading Google…" : "Sign in with Google"}{preparing ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}</button>)}
                   {googlePortalLink && <p className="access-login-provider-note">You’ll continue on the school’s Magic Keys portal.</p>}
                   {googleError && <p className="access-login-error" role="alert">{googleError}</p>}
-                  <button className="access-login-provider access-login-microsoft" type="button" onClick={() => void handleMicrosoftSignIn()} disabled={submitting || !providers?.microsoft} aria-describedby={providers && !providers.microsoft ? "login-microsoft-availability" : undefined}><span className="access-login-microsoft-icon" aria-hidden="true"><i /><i /><i /><i /></span>Sign in with Microsoft<ArrowRight aria-hidden="true" /></button>
-                  {providers && !providers.microsoft && <p id="login-microsoft-availability" className="access-login-provider-note">Microsoft sign-in is awaiting your school’s connection.</p>}
+                  {providers?.microsoft && <button className="access-login-provider access-login-microsoft" type="button" onClick={() => void handleMicrosoftSignIn()} disabled={submitting}><span className="access-login-microsoft-icon" aria-hidden="true"><i /><i /><i /><i /></span>Sign in with Microsoft<ArrowRight aria-hidden="true" /></button>}
                   {submitting && <p className="access-login-loading flex items-center justify-center gap-3" role="status"><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Completing sign-in…</p>}
                 </div>
               </>}
 
               <div className="access-login-assurance"><ShieldCheck aria-hidden="true" /><span>Access for approved accounts only.<small>Your school. Protected.</small></span><Check aria-hidden="true" /></div>
               <button className="access-login-help-toggle flex items-center justify-center gap-2" type="button" aria-expanded={help} aria-controls={help ? "login-help" : undefined} onClick={() => setHelp(!help)}><HelpCircle aria-hidden="true" />Need help signing in?</button>
-              {help && <div id="login-help" className="access-login-help" role="region" aria-label="Sign-in help"><strong>Your portal administrator can help.</strong><p>Use an account approved for this school. For a password reset or access request, contact your school’s portal administrator or RJL support. Your Google or Microsoft password is managed by that provider.</p></div>}
+              
             </div>
             <div className="login-panel-footer">
               <nav className="access-login-legal flex items-center justify-center gap-5" aria-label="Legal information"><Link href="/privacy">Privacy policy</Link><span aria-hidden="true">·</span><Link href="/terms">Terms of use</Link></nav>

@@ -45,7 +45,7 @@ export default function GateTile({ gate, position, motion, ariaLabel }: { gate: 
     return () => { disposed = true; observer.disconnect(); scene.current?.dispose(); scene.current = null; };
   }, [gate.kind]);
   const tone = position === "inactive" ? "off" : position === "closed" ? "stop" : position === "open" ? "run" : "issue";
-  return <span className={`gate-tile gate-model access-icon gate-state-${tone} is-${position} ${gate.kind}${ready ? " is-rendered" : ""}`} role="img" aria-label={ariaLabel ?? `${formatGateTileAriaLabel(gate.name, position)}. ${detail}`}>
+  return <span className={`gate-tile gate-model access-icon gate-state-${tone} is-${position} ${gate.kind}${ready ? " is-rendered" : ""}`} role="img" aria-label={ariaLabel ?? (detail === stateText(position).detail ? formatGateTileAriaLabel(gate.name, position) : `${formatGateTileAriaLabel(gate.name, position)}. ${detail}`)}>
     <span className="gate-model-fallback" aria-hidden="true"><img src={`/gates/${gate.kind === "boom" ? "boom" : gate.kind}-blue.webp`} alt="" /><span>Hardware illustration · {detail}</span></span>
     <span className="gate-model-canvas" ref={host} aria-hidden="true" />
     <span className="gate-led-indicator" aria-hidden="true"><i /><span>{detail}</span></span>

@@ -14,10 +14,10 @@ function icon(code: number) {
 type Day = { date: string; icon: string; label: string; max: number | null; min: number | null };
 export type Weather = {
   source: string; updatedAt: string; stale: boolean;
-  current: { temp: number | null; icon: string; label: string; wind: number | null; humidity: number | null };
+  current: { temp: number | null; icon: string; label: string; wind: number | null; humidity: number | null; /** Today's highest hourly chance of rain, %. null when the provider does not supply it. */ rainChance: number | null };
   days: Day[];
 };
-type Meteo = { current?: Record<string, number>; daily?: { time?: string[]; weather_code?: number[]; temperature_2m_max?: number[]; temperature_2m_min?: number[] } };
+type Meteo = { current?: Record<string, number>; daily?: { time?: string[]; weather_code?: number[]; temperature_2m_max?: number[]; temperature_2m_min?: number[]; precipitation_probability_max?: number[] } };
 type Point = { time: string; data: { instant: { details: Record<string, number> }; next_1_hours?: { summary: { symbol_code: string } }; next_6_hours?: { summary: { symbol_code: string } }; next_12_hours?: { summary: { symbol_code: string } } } };
 function metIcon(point: Point) {
   const symbol = (point.data.next_1_hours ?? point.data.next_6_hours ?? point.data.next_12_hours)?.summary.symbol_code ?? "cloudy";
@@ -33,14 +33,14 @@ export function createWeatherService(fetcher: typeof fetch = fetch, now = Date.n
   async function refresh(): Promise<Weather> {
     try {
       const url = new URL("https://api.open-meteo.com/v1/forecast");
-      url.search = new URLSearchParams({ ...LOCATION, current: "temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m", daily: "weather_code,temperature_2m_max,temperature_2m_min", forecast_days: "7" }).toString();
+      url.search = new URLSearchParams({ ...LOCATION, current: "temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m", daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max", forecast_days: "7" }).toString();
       const response = await fetcher(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
       if (!response.ok) throw new Error("Primary forecast unavailable");
       const body = await response.json() as Meteo;
       if (finite(body.current?.temperature_2m) === null || !body.daily?.time?.length) throw new Error("Incomplete forecast");
       const kind = icon(body.current?.weather_code ?? 3);
       const result: Weather = { source: "Open-Meteo", updatedAt: new Date(now()).toISOString(), stale: false,
-        current: { temp: finite(body.current?.temperature_2m), icon: kind, label: labels[kind], wind: finite(body.current?.wind_speed_10m), humidity: finite(body.current?.relative_humidity_2m) },
+        current: { temp: finite(body.current?.temperature_2m), icon: kind, label: labels[kind], wind: finite(body.current?.wind_speed_10m), humidity: finite(body.current?.relative_humidity_2m), rainChance: finite(body.daily?.precipitation_probability_max?.[0]) },
         days: body.daily.time.map((date, i) => { const kind = icon(body.daily?.weather_code?.[i] ?? 3); return { date, icon: kind, label: labels[kind], max: finite(body.daily?.temperature_2m_max?.[i]), min: finite(body.daily?.temperature_2m_min?.[i]) }; }),
       };
       expires = now() + TTL;
@@ -61,7 +61,7 @@ export function createWeatherService(fetcher: typeof fetch = fetch, now = Date.n
       }
       expires = Math.max(now() + TTL, Date.parse(response.headers.get("expires") ?? "") || 0);
       return { source: "MET Norway", updatedAt: new Date(now()).toISOString(), stale: false,
-        current: { temp: finite(details.air_temperature), icon: kind, label: labels[kind], wind: finite(details.wind_speed) === null ? null : details.wind_speed * 3.6, humidity: finite(details.relative_humidity) },
+        current: { temp: finite(details.air_temperature), icon: kind, label: labels[kind], wind: finite(details.wind_speed) === null ? null : details.wind_speed * 3.6, humidity: finite(details.relative_humidity), rainChance: null },
         days: [...groups].slice(0, 7).map(([date, samples]) => { const kind = metIcon(samples[Math.floor(samples.length / 2)]); const temps = samples.map(p => p.data.instant.details.air_temperature); return { date, icon: kind, label: `${labels[kind]} · range across remaining forecast hours`, max: Math.max(...temps), min: Math.min(...temps) }; }),
       };
     }

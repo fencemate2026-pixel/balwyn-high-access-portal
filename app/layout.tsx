@@ -3,6 +3,8 @@ import "./globals.css";
 import "./login-fix.css";
 import "./facility-hire.css";
 import "./control-room.css";
+// Last: the Bright Glass layer (tokens, sign-in stage, glass panels). Keep this import at the end.
+import "./bright-glass.css";
 import EmergencyVoiceGuard from "./emergency-voice-guard";
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#0b131e" };

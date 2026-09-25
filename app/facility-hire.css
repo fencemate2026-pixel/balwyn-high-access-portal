@@ -125,10 +125,10 @@
 .fh-booking, .fh-event { --area: #1f4f99; border-left-color: var(--area) !important; }
 .fh-booking { background: color-mix(in srgb, var(--area) 8%, #ffffff); }
 .fh-event { background: color-mix(in srgb, var(--area) 12%, #ffffff); }
-.fh-area-stadium { --area: #ff6a22; }
+.fh-area-stadium { --area: #ff7a00; }
 .fh-area-gymnasium { --area: #1f4f99; }
 .fh-area-oval { --area: #1d8a47; }
-.fh-area-tennis { --area: #7b3fc4; }
+.fh-area-tennis { --area: #e0b800; }
 .fh-area-carpark { --area: #0f8b8d; }
 .fh-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: .8rem; color: #3a4760; }
 .fh-legend span { display: inline-flex; align-items: center; gap: 6px; }
