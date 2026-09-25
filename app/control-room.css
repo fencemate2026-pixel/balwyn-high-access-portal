@@ -560,7 +560,11 @@ h1, h2, h3 { letter-spacing: -.025em; }
 }
 /* High-luminance glass: electric blue, charcoal, cyan and orange. */
 :root, .dark { --font-ui: "Univers Extended", "Univers", Arial, sans-serif; --font-display: var(--font-ui); }
-.control-portal, .operator-help-dock { font-family: var(--font-ui); }
+.control-portal, .operator-help-dock {
+  --font-ui: "Univers Extended", "Univers", Arial, sans-serif;
+  --font-display: var(--font-ui);
+  font-family: var(--font-ui);
+}
 .control-portal {
   color-scheme: dark;
   --bg-page: #10141d; --bg-sidebar: #090b11; --bg-card: #10162259;
