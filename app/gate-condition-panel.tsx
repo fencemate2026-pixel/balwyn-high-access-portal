@@ -1,7 +1,8 @@
 "use client";
 
-import { Activity, ArrowUpRight, DoorOpen, ShieldCheck, Thermometer, Radio, MousePointer2, RotateCcw } from "lucide-react";
+import { Activity, ArrowUpRight, ShieldCheck, Thermometer, Radio, MousePointer2, RotateCcw } from "lucide-react";
 import GateTile from "./gate-tile";
+import { gateMotion } from "@/lib/gate-motion";
 import type { Gate, GateRuntime, GateVisualState, SystemMode } from "@/lib/portal-model";
 
 type Tone = "green" | "amber" | "red";
@@ -14,20 +15,21 @@ export function controllerHealth(runtime: GateRuntime | undefined, position: Gat
   return { tone: "green", label: "Controller online" };
 }
 
-export default function GateConditionPanel({ gates, runtime, getPosition, now, temperatureC = {}, onSelect }: {
+export default function GateConditionPanel({ gates, runtime, getPosition, monitoring = true, now, temperatureC = {}, onSelect }: {
   gates: Gate[]; runtime: Record<string, GateRuntime | undefined>; getPosition: (gate: Gate) => GateVisualState;
-  systemMode: SystemMode; now: number; temperatureC?: Record<string, number | undefined>; onSelect?: (gate: Gate) => void;
+  systemMode: SystemMode; monitoring?: boolean; now: number; temperatureC?: Record<string, number | undefined>; onSelect?: (gate: Gate) => void;
 }) {
   return <section className="gate-condition mb-6" aria-label="Gate condition">
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div><p className="mb-1 text-[10px] font-semibold tracking-[.18em] text-muted-foreground uppercase">Access infrastructure</p><h2 className="m-0 text-lg text-foreground">Active gate controls</h2></div>
       <span className="flex items-center gap-2 text-xs text-muted-foreground"><Radio className="size-3.5" /> {gates.length} installed access points</span>
     </div>
-    <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+    <div className="gate-condition-grid">
       {gates.map((gate, index) => {
         const run = runtime[gate.id];
         const position = getPosition(gate);
         const health = controllerHealth(run, position, now);
+        const motion = gateMotion(gate, run, monitoring, now);
         const time = run?.lastSeen ? Date.parse(run.lastSeen) : NaN;
         const age = Number.isFinite(time) ? Math.max(0, Math.round((now - time) / 1000)) : null;
         const temp = temperatureC[gate.id];
@@ -38,7 +40,7 @@ export default function GateConditionPanel({ gates, runtime, getPosition, now, t
             <span className={`telemetry-badge tone-${health.tone}`}><i className="signal-dot" />{health.label}</span>
           </header>
           <div className="hardware-stage relative mx-3 mt-2">
-            <GateTile gate={gate} position={position} />
+            <GateTile gate={gate} position={position} motion={motion} interactive />
             <span className="hardware-view-label"><span className="size-1.5 rounded-full bg-accent-blue" /> 3D hardware view</span>
             <div className="quick-gate-controls" aria-label={`${gate.name} quick controls`}>
               <button type="button" className={`quick-state-button quick-open ${position === "open" ? "is-current" : ""}`} onClick={() => onSelect?.(gate)}><span>OPEN</span></button>
@@ -46,8 +48,8 @@ export default function GateConditionPanel({ gates, runtime, getPosition, now, t
             </div>
             <aside className={`gate-current-state state-${position}`}>
               <small>CURRENT STATE</small>
-              <strong><i />{position === "open" ? "OPEN" : position === "closed" ? "CLOSED" : position === "moving" ? "MOVING" : "UNKNOWN"}</strong>
-              <span>Position</span><b>{position === "open" ? "90° (Open)" : position === "closed" ? "0° (Closed)" : "Awaiting feedback"}</b>
+              <strong><i aria-hidden="true" /><span>{position === "open" ? "OPEN" : position === "closed" ? "CLOSED" : position === "moving" ? "MOVING" : "UNKNOWN"}</span></strong>
+              <span>Position</span><b>{motion.label}</b>
               <span>Health</span><b>{health.label}</b>
             </aside>
             <div className="orbit-help"><span><MousePointer2 /> Drag to rotate</span><span>Wheel to zoom</span><span>Right-drag to pan</span><span><RotateCcw /> Double-click reset</span></div>
