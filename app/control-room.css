@@ -669,3 +669,56 @@ h1, h2, h3 { letter-spacing: -.025em; }
 @media (max-width: 767px) {
   .control-portal .workspace-content :is(.panel-heading, .view-panel-heading, .section-heading) { padding: 14px; }
 }
+
+/* Dimensional surfaces: raised edges, directional light and defined shadows. */
+.control-portal .portal-workspace { flex: 1 1 0%; width: 0; min-width: 0; max-width: 100%; }
+.control-portal .workspace-content { background: radial-gradient(ellipse at 10% 0, #deedff, transparent 55%), linear-gradient(135deg, #f4f8ff, #edf3fd 60%, #fff6ed); }
+.control-portal .workspace-header {
+  background: linear-gradient(115deg, #fff0db 0%, #ffcb94 48%, #ffe6c8 100%);
+  border-bottom: 1px solid #d49b60;
+  box-shadow: inset 0 2px 0 #fff8, inset 0 -2px 0 #e5af7955, 0 5px 18px #0c1d3929;
+  z-index: 2;
+}
+.control-portal .workspace-header .header-operator strong { color: #34251b; }
+.control-portal .workspace-header .location-logo img { filter: brightness(0) saturate(100%); opacity: .8; }
+.control-portal .workspace-header :is(small, .header-operator small) { color: #62472e; }
+.control-portal .workspace-brand-partner img { filter: drop-shadow(0 3px 2px #7a451b35); }
+.control-portal .campus-context { background: linear-gradient(120deg, #151d2c, #202c41 60%, #181c2c); }
+.control-portal .campus-context :is(.campus-calendar, .campus-weather) {
+  background: radial-gradient(ellipse at 8% 0, #4776bf30, transparent 60%), linear-gradient(140deg, #2c3649, #1b2332);
+  border-color: #52627c; border-top-color: #7b8fae; border-radius: 16px;
+  box-shadow: inset 0 1px 0 #d0e4ff3b, inset 0 -2px 0 #0d15265c, 0 9px 18px #050c1a5c;
+}
+.control-portal .campus-calendar .calendar-day {
+  background: linear-gradient(145deg, #28384e, #111b2c); border-color: #405571;
+  box-shadow: inset 0 1px 0 #b6d8ff29, inset 0 -2px 0 #080f1a80, 0 4px 8px #030a1533;
+}
+.control-portal .campus-calendar .calendar-day > strong { font-size: 22px; text-shadow: 0 0 12px #3bea9130; }
+.control-portal .campus-calendar .calendar-day.is-today { background: linear-gradient(145deg, #5b4529, #302617); border-color: #ffb64a; box-shadow: inset 0 1px 0 #ffe5a977, 0 0 18px #ffac3222, 0 4px 10px #080d1d66; }
+.control-portal .campus-weather .weather-current strong { text-shadow: 0 2px 0 #171c2b, 0 0 18px #ffb65038; font-size: 38px; }
+.control-portal .workspace-content :is(.hardware-card, .summary-card, .panel, .view-panel, .access-card, .settings-card, .identity-card, .permissions-card) {
+  background: linear-gradient(145deg, #fff 15%, #f9fcff 75%, #edf4ff);
+  border: 1px solid #bdcfe8; border-top: 2px solid #fff; border-bottom: 3px solid #b5c9e5; border-radius: 16px;
+  box-shadow: inset 0 1px 0 #fff, 0 5px 0 #ccdaed70, 0 14px 26px #1f508425;
+}
+.control-portal .workspace-content .hardware-card header { background: linear-gradient(105deg, #e3f0ff, #fff 65%, #fff1df); border-bottom: 1px solid #c5d9f3; }
+.control-portal .workspace-content .hardware-card header strong { color: #005dcc; font-weight: 700; font-size: 16px; }
+.control-portal .workspace-content .hardware-stage { background: radial-gradient(ellipse at 50% 35%, #fff 0%, #e8f4ff 38%, #bcd8f7 100%); box-shadow: inset 0 7px 18px #2967ae12, inset 0 -2px 0 #fff; }
+.control-portal .workspace-content .hardware-card footer { background: linear-gradient(#fff, #edf4ff); border-top-color: #c2d6f1; }
+.control-portal .workspace-content .hardware-card:hover { border-color: #79adee; box-shadow: inset 0 1px 0 #fff, 0 5px 0 #acc9eb55, 0 16px 30px #1f508433; }
+.control-portal .workspace-content :is(.panel-heading, .view-panel-heading, .section-heading) {
+  background: linear-gradient(115deg, #d4e9ff, #f8fcff 52%, #ffe7cb);
+  border-top-color: #fff; border-bottom: 2px solid #b4cbea;
+  box-shadow: inset 0 2px 0 #ffffffd9, 0 4px 0 #c9daee80, 0 8px 18px #26568812;
+}
+.control-portal .workspace-content :is(h2, h3) { font-weight: 700; color: #005dcc; text-shadow: 0 1px 0 #fff; }
+.control-portal .workspace-content h2 { font-size: 21px; }
+.control-portal .workspace-content .advanced-discovery :is(h2,h3) { color: #fff; text-shadow: 0 1px 1px #451746; }
+.control-portal .workspace-content :is(.metric-block p, .metric-block > span, .workspace-context > span, .summary-card small) { font-size: 13px; }
+.control-portal :is(.calendar-manage, .schedule-button) { background: linear-gradient(#ffc650, #ffa20e); color: #342105; border: 1px solid #df8b0e; box-shadow: inset 0 1px 0 #fff7, 0 3px 0 #935806, 0 5px 10px #0002; }
+.control-portal .fh .fh-primary, .operator-help-panel form button { background: linear-gradient(#358eff, #075dc9); color: #fff; border: 1px solid #0855ac; box-shadow: inset 0 1px 0 #ffffff66, 0 3px 0 #05458e, 0 5px 12px #075dc92b; }
+.control-portal .control-sidebar .portal-nav-button[data-active="true"] { background: linear-gradient(110deg, #174878, #172437) !important; border-color: #427dbb; box-shadow: inset 3px 0 #3cadff, inset 0 1px 0 #6cb3ff44, 0 5px 12px #0003; }
+@media (max-width: 767px) {
+  .control-portal .workspace-header { gap: 12px; }
+  .control-portal .workspace-content h2 { font-size: 19px; }
+}
