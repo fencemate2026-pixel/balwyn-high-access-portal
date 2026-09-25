@@ -882,7 +882,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
           {activeView === "dashboard" && (
             <>
-              <GateConditionPanel gates={activeGates} runtime={gateRuntime} getPosition={getPosition} systemMode={systemMode} now={currentTime} onSelect={setSelectedGate} />
+              <GateConditionPanel gates={activeGates} runtime={gateRuntime} getPosition={getPosition} monitoring={positionMonitoring} systemMode={systemMode} now={currentTime} onSelect={setSelectedGate} />
               <section className="operations-gauge-grid" aria-label="Live controller gauges">
                 <OperationsGauge title="Controller connection" count={respondingGates.length} total={activeGates.length} caption="Heartbeats received within 90 seconds" />
                 <OperationsGauge title="Gate commissioning" count={commissionedCount} total={activeGates.length} caption="Active controllers commissioned" />
