@@ -9,7 +9,7 @@ export type GateScene = { update: (position: GateVisualState) => void; setVisibl
  * Geometry is illustrative, not an installation drawing or sensor feed. */
 export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: GateVisualState, onLost: () => void): GateScene {
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x0b131e, 0);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
