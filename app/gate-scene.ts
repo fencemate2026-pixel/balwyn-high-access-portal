@@ -1,13 +1,13 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
-import type { Gate, GateVisualState } from "@/lib/portal-model";
+import type { Gate, GatePosition, GateVisualState } from "@/lib/portal-model";
 
-export type GateScene = { update: (position: GateVisualState) => void; setVisible: (visible: boolean) => void; dispose: () => void };
+export type GateScene = { update: (position: GateVisualState, target: GatePosition | null) => void; setVisible: (visible: boolean) => void; dispose: () => void };
 
-/** Decorative hardware model. Only verified position changes move the leaf.
- * Geometry is illustrative, not an installation drawing or sensor feed. */
-export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: GateVisualState, onLost: () => void): GateScene {
+/** The leaf previews a labelled command; LEDs use verified position only.
+ * Geometry and travel duration are illustrative, not a sensor feed. */
+export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: GateVisualState, initialTarget: GatePosition | null, onLost: () => void): GateScene {
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x0b131e, 0);
@@ -108,20 +108,27 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
   let disposed = false;
   let dirtyFrames = 2;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const angleFor = () => position === "open" ? (boom ? -Math.PI / 2.1 : -Math.PI / 2.5) : 0;
-  let angle = angleFor();
+  const openAngle = boom ? -Math.PI / 2.1 : -Math.PI / 2.5;
+  const angleFor = (target: GatePosition) => target === "open" ? openAngle : 0;
+  // Unknown feedback holds the current illustration instead of falsely closing.
+  let angle = initial === "open" || initial === "closed" ? angleFor(initial) : openAngle / 2;
+  let targetAngle = initialTarget ? angleFor(initialTarget) : angle;
+  let lastFrame = 0;
   const orient = () => leaves.forEach((leaf, index) => { if (boom) leaf.rotation.z = angle; else leaf.rotation.y = angle * (index ? -1 : 1); });
-  const update = (next: GateVisualState) => {
+  const update = (next: GateVisualState, target: GatePosition | null) => {
     position = next;
-    const colour = next === "open" ? 0x42e8a4 : next === "closed" ? 0xff727f : next === "inactive" ? 0x566477 : 0xf5bd64;
+    targetAngle = target ? angleFor(target) : angle;
+    const colour = next === "open" ? 0x00ed78 : next === "closed" ? 0xff343e : next === "inactive" ? 0x566477 : 0xffb020;
     statusMaterials.forEach((material) => { material.color.setHex(colour); material.emissive.setHex(colour); material.emissiveIntensity = next === "inactive" ? 0 : .8; });
     model.visible = true; dirtyFrames = 3;
     wake();
   };
   const frame = (time: number) => {
     if (!visible || document.hidden || disposed) { renderer.setAnimationLoop(null); return; }
-    const target = angleFor();
-    angle = reduced.matches ? target : THREE.MathUtils.lerp(angle, target, .075);
+    const target = targetAngle;
+    const elapsed = lastFrame ? Math.min((time - lastFrame) / 1000, .1) : 1 / 60;
+    lastFrame = time;
+    angle = reduced.matches ? target : THREE.MathUtils.damp(angle, target, 3.2, elapsed);
     if (Math.abs(target - angle) < .001) angle = target;
     const flashing = position !== "inactive" && !reduced.matches;
     // One gentle pulse per second; only status feedback changes its colour.
@@ -142,7 +149,7 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
   const lost = (event: Event) => { event.preventDefault(); renderer.setAnimationLoop(null); onLost(); };
   renderer.domElement.addEventListener("webglcontextlost", lost);
   document.addEventListener("visibilitychange", visibility);
-  host.appendChild(renderer.domElement); update(initial); resize();
+  host.appendChild(renderer.domElement); update(initial, initialTarget); resize();
   return {
     update,
     setVisible(value) { visible = value; dirtyFrames = 2; if (value) wake(); else renderer.setAnimationLoop(null); },
