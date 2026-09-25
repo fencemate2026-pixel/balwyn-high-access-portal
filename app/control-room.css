@@ -878,3 +878,28 @@ body:has(.control-portal) :is([data-slot="sheet-content"], [data-slot="dialog-co
   filter: drop-shadow(0 0 5px #ff7a0059);
 }
 .control-portal :is(.panel-heading, .view-panel-heading, .section-heading) small { color: #d1f5ff; }
+
+/* Approved interactive 3D gate-card treatment */
+.hardware-stage { height: 430px; overflow: hidden; border: 1px solid #00a8ff66; border-radius: 14px; background: radial-gradient(ellipse at 52% 45%, #0757a8 0%, #063568 48%, #071b31 100%) !important; box-shadow: inset 0 0 35px #00a8ff1f, 0 0 18px #009cff1c; }
+.gate-model-canvas { inset: 0 22% 48px 18%; }
+.gate-model-canvas canvas { cursor: grab; }
+.gate-model-canvas canvas:active { cursor: grabbing; }
+.hardware-view-label { position:absolute; left:16px; top:15px; z-index:4; display:flex; align-items:center; gap:7px; padding:9px 12px; border-radius:10px; background:#061a31d9; color:#fff; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; box-shadow:0 0 18px #009cff20; }
+.quick-gate-controls { position:absolute; z-index:5; left:16px; top:112px; display:grid; gap:16px; width:132px; }
+.quick-state-button { height:58px; border-radius:14px; border:2px solid currentColor; font-size:21px; font-weight:900; color:#fff; letter-spacing:-.02em; opacity:.58; transition:transform .16s,opacity .16s,box-shadow .16s,filter .16s; }
+.quick-state-button:hover { transform:translateY(-1px) scale(1.025); opacity:1; }
+.quick-state-button.quick-open { background:#12bd00; border-color:#59ff48; box-shadow:0 0 8px #4cff45, inset 0 0 16px #67ff4233; }
+.quick-state-button.quick-closed { background:#ed0b08; border-color:#ff5550; box-shadow:0 0 8px #ff302c, inset 0 0 16px #ff716033; }
+.quick-state-button.is-current { opacity:1; filter:saturate(1.25) brightness(1.15); box-shadow:0 0 10px currentColor,0 0 27px currentColor,inset 0 0 17px #ffffff2b; }
+.gate-current-state { position:absolute; z-index:5; right:16px; top:16px; width:150px; min-height:202px; padding:16px; border:1px solid #00b7ff; border-radius:12px; background:#061b32e8; box-shadow:inset 0 0 22px #008cff17,0 0 18px #00a8ff1c; display:grid; grid-template-columns:1fr; }
+.gate-current-state small { color:#8fb4d4; font-size:10px; padding-bottom:10px; border-bottom:1px solid #18a8ed66; }
+.gate-current-state strong { display:flex; align-items:center; gap:9px; margin:11px 0; color:#fff; font-size:20px; }
+.gate-current-state strong i { width:20px; height:20px; border-radius:50%; background:#ff2424; box-shadow:0 0 18px #ff2424; }
+.gate-current-state.state-open strong i { background:#14e500; box-shadow:0 0 18px #14e500; }
+.gate-current-state.state-moving strong i,.gate-current-state.state-unknown strong i { background:#ffb020; box-shadow:0 0 18px #ffb020; }
+.gate-current-state span { color:#8fb4d4; font-size:10px; margin-top:7px; }
+.gate-current-state b { color:#f6fbff; font-size:11px; font-weight:600; }
+.orbit-help { position:absolute; z-index:5; left:16px; right:16px; bottom:12px; height:42px; display:flex; align-items:center; justify-content:space-around; gap:10px; border:1px solid #00a8ff8c; border-radius:10px; background:#06182ed9; color:#b8d6ee; font-size:10px; backdrop-filter:blur(10px); }
+.orbit-help span { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+.orbit-help svg { width:14px; height:14px; color:#50c9ff; }
+@media (max-width:900px){ .hardware-stage{height:400px}.gate-model-canvas{inset:70px 8px 55px 8px}.quick-gate-controls{top:auto;bottom:64px;width:112px;gap:8px}.quick-state-button{height:44px;font-size:16px}.gate-current-state{width:130px;min-height:165px}.orbit-help span:nth-child(2),.orbit-help span:nth-child(3){display:none} }
