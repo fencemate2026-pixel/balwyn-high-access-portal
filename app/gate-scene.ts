@@ -2,12 +2,13 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { Gate, GatePosition, GateVisualState } from "@/lib/portal-model";
+import { createGateOrbit } from "./gate-orbit";
 
 export type GateScene = { update: (position: GateVisualState, target: GatePosition | null) => void; setVisible: (visible: boolean) => void; dispose: () => void };
 
 /** The leaf previews a labelled command; LEDs use verified position only.
  * Geometry and travel duration are illustrative, not a sensor feed. */
-export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: GateVisualState, initialTarget: GatePosition | null, onLost: () => void): GateScene {
+export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: GateVisualState, initialTarget: GatePosition | null, onLost: () => void, interactive = false): GateScene {
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x0b131e, 0);
@@ -139,6 +140,7 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
     if (!flashing && angle === target && --dirtyFrames <= 0) renderer.setAnimationLoop(null);
   };
   function wake() { if (visible && !document.hidden && !disposed) renderer.setAnimationLoop(frame); }
+  const orbit = interactive ? createGateOrbit(camera, renderer.domElement, () => { dirtyFrames = 3; wake(); }) : null;
   const resize = () => {
     const width = host.clientWidth, height = host.clientHeight;
     if (!width || !height) return;
@@ -155,6 +157,7 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
     setVisible(value) { visible = value; dirtyFrames = 2; if (value) wake(); else renderer.setAnimationLoop(null); },
     dispose() {
       disposed = true; observer.disconnect(); renderer.setAnimationLoop(null);
+      orbit?.dispose();
       document.removeEventListener("visibilitychange", visibility);
       renderer.domElement.removeEventListener("webglcontextlost", lost);
       const materials = new Set<THREE.Material>();
