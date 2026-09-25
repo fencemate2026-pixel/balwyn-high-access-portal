@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, ArrowUpRight, DoorOpen, ShieldCheck, Thermometer, Radio } from "lucide-react";
+import { Activity, ArrowUpRight, DoorOpen, ShieldCheck, Thermometer, Radio, MousePointer2, RotateCcw } from "lucide-react";
 import GateTile from "./gate-tile";
 import type { Gate, GateRuntime, GateVisualState, SystemMode } from "@/lib/portal-model";
 
@@ -39,8 +39,18 @@ export default function GateConditionPanel({ gates, runtime, getPosition, now, t
           </header>
           <div className="hardware-stage relative mx-3 mt-2">
             <GateTile gate={gate} position={position} />
-            <span className="absolute top-3 left-3 flex items-center gap-1.5 text-[9px] tracking-[.13em] text-muted-foreground uppercase"><span className="size-1 rounded-full bg-accent-blue" /> 3D hardware view</span>
-            <span className={`position-caption tone-${position === "open" ? "green" : position === "closed" ? "blue" : "amber"}`}><DoorOpen className="size-3.5" />{position === "open" ? "Confirmed open" : position === "closed" ? "Confirmed closed" : position === "moving" ? "Moving · keep clear" : "Position unconfirmed"}</span>
+            <span className="hardware-view-label"><span className="size-1.5 rounded-full bg-accent-blue" /> 3D hardware view</span>
+            <div className="quick-gate-controls" aria-label={`${gate.name} quick controls`}>
+              <button type="button" className={`quick-state-button quick-open ${position === "open" ? "is-current" : ""}`} onClick={() => onSelect?.(gate)}><span>OPEN</span></button>
+              <button type="button" className={`quick-state-button quick-closed ${position === "closed" ? "is-current" : ""}`} onClick={() => onSelect?.(gate)}><span>CLOSED</span></button>
+            </div>
+            <aside className={`gate-current-state state-${position}`}>
+              <small>CURRENT STATE</small>
+              <strong><i />{position === "open" ? "OPEN" : position === "closed" ? "CLOSED" : position === "moving" ? "MOVING" : "UNKNOWN"}</strong>
+              <span>Position</span><b>{position === "open" ? "90° (Open)" : position === "closed" ? "0° (Closed)" : "Awaiting feedback"}</b>
+              <span>Health</span><b>{health.label}</b>
+            </aside>
+            <div className="orbit-help"><span><MousePointer2 /> Drag to rotate</span><span>Wheel to zoom</span><span>Right-drag to pan</span><span><RotateCcw /> Double-click reset</span></div>
           </div>
           <div className="grid grid-cols-3 divide-x divide-border border-y border-border bg-background/40 py-4">
             <div className="metric-block px-4"><span><Thermometer /> Temperature</span><strong>{hasTemperature ? temp.toFixed(1) : "—"}{hasTemperature && <small>°C</small>}</strong><p>{hasTemperature ? "Controller sensor" : "No sensor fitted"}</p></div>
