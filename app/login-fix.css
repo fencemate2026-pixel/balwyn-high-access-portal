@@ -249,7 +249,7 @@
 .access-login-school-blue .access-login-card { margin: 28px auto 0; }
 .access-login-school-blue .login-school-badge .magic-brand-logo,
 .access-login-school-blue .access-login-brand-stage .magic-wide-wordmark { filter: none !important; }
-.access-login-school-blue .access-login-brand-stage .magic-wide-wordmark { left: 6%; width: 66%; }
+.access-login-school-blue .access-login-brand-stage .magic-wide-wordmark { left: 6%; width: 62%; }
 .access-login-school-blue .access-login-heading h1 { font-size: clamp(22px, 1.7vw, 27px); font-weight: 700; letter-spacing: -.025em; }
 .access-login-school-blue .access-login-google { min-width: 0; max-width: 100%; overflow: hidden; }
 @media (max-width: 800px) {
