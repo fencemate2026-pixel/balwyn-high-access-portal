@@ -346,3 +346,181 @@
   .control-portal .quick-gate-controls { width: 96px !important; bottom: 58px !important; top: auto !important; }
   .control-portal .quick-state-button { height: 40px !important; font-size: 13px !important; }
 }
+
+
+/* Approved dashboard reference lock — keep operational page visually aligned to supplied target. */
+.control-portal .workspace-content[data-view="dashboard"] {
+  padding: 14px 18px 22px !important;
+  background: #fff !important;
+}
+.control-portal .workspace-content[data-view="dashboard"] .gate-condition {
+  margin: 0 !important;
+}
+.control-portal .workspace-content[data-view="dashboard"] .gate-condition > div:first-child {
+  min-height: 48px;
+  margin: 0 0 10px !important;
+  padding: 0 14px;
+  border-color: #dbe7f0;
+  box-shadow: 0 4px 14px rgba(17,55,87,.045);
+}
+.control-portal .workspace-content[data-view="dashboard"] .gate-condition-grid {
+  gap: 14px !important;
+}
+.control-portal .workspace-content[data-view="dashboard"] .hardware-card {
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+.control-portal .workspace-content[data-view="dashboard"] .hardware-card > header {
+  min-height: 56px;
+  padding: 10px 14px !important;
+  background: #fff !important;
+  border-bottom: 1px solid #e4edf4;
+}
+.control-portal .workspace-content[data-view="dashboard"] .hardware-stage {
+  height: 310px !important;
+  border-radius: 0 !important;
+  border-width: 0 0 1px !important;
+}
+.control-portal .workspace-content[data-view="dashboard"] .gate-model-canvas {
+  inset: 0 18% 42px 15% !important;
+  z-index: 2;
+  pointer-events: auto;
+}
+.control-portal .workspace-content[data-view="dashboard"] .gate-model-fallback,
+.control-portal .workspace-content[data-view="dashboard"] .gate-led-indicator {
+  pointer-events: none;
+}
+.control-portal .workspace-content[data-view="dashboard"] .gate-model-canvas canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+.control-portal .workspace-content[data-view="dashboard"] .gate-model-canvas canvas:active { cursor: grabbing; }
+.control-portal .workspace-content[data-view="dashboard"] .quick-gate-controls {
+  left: 14px !important;
+  top: 96px !important;
+  width: 104px !important;
+}
+.control-portal .workspace-content[data-view="dashboard"] .gate-current-state {
+  right: 14px !important;
+  top: 14px !important;
+}
+.control-portal .workspace-content[data-view="dashboard"] .orbit-help {
+  left: 14px !important;
+  right: 14px !important;
+  bottom: 10px !important;
+}
+
+
+/* Compact top dashboard modules to keep more operational content above the fold. */
+@media (min-width: 901px) {
+  .control-portal .campus-context {
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+    gap: 12px !important;
+  }
+  .control-portal .campus-calendar,
+  .control-portal .campus-weather {
+    min-height: 0 !important;
+    height: 238px !important;
+    padding: 12px 14px !important;
+    overflow: hidden;
+  }
+  .control-portal .campus-calendar header,
+  .control-portal .campus-weather header {
+    margin-bottom: 8px !important;
+  }
+  .control-portal .campus-calendar h2,
+  .control-portal .campus-weather h2 {
+    font-size: 16px !important;
+    line-height: 1.15 !important;
+  }
+  .control-portal .campus-calendar .calendar-week {
+    min-height: 112px !important;
+  }
+  .control-portal .campus-calendar .calendar-day {
+    min-height: 106px !important;
+    padding: 8px !important;
+  }
+  .control-portal .campus-weather .weather-current {
+    min-height: 66px !important;
+  }
+  .control-portal .campus-weather .weather-forecast {
+    gap: 6px !important;
+  }
+  .control-portal .campus-weather .weather-day {
+    min-height: 58px !important;
+    padding: 5px !important;
+  }
+}
+
+/* Three controller gauges share one compact box below the gate cards. */
+.control-portal .compact-controller-health {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #d8e5ef;
+  border-radius: 11px;
+  box-shadow: 0 5px 16px rgba(17,55,87,.055);
+}
+.control-portal .compact-controller-health .operations-gauge {
+  min-height: 112px !important;
+  padding: 8px 14px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  display: grid;
+  grid-template-columns: 1fr 72px;
+  grid-template-rows: auto 1fr;
+  align-items: center;
+}
+.control-portal .compact-controller-health .operations-gauge + .operations-gauge {
+  border-left: 1px solid #dbe7f0 !important;
+}
+.control-portal .compact-controller-health .operations-gauge header {
+  grid-column: 1;
+  align-self: start;
+}
+.control-portal .compact-controller-health .operations-gauge header h3 {
+  font-size: 12px !important;
+  color: #24455f !important;
+}
+.control-portal .compact-controller-health .gauge-status {
+  font-size: 9px !important;
+  padding: 2px 6px !important;
+}
+.control-portal .compact-controller-health .gauge-dial {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  width: 66px !important;
+  height: 66px !important;
+}
+.control-portal .compact-controller-health .gauge-core strong { font-size: 15px !important; }
+.control-portal .compact-controller-health .gauge-core span { font-size: 7px !important; }
+.control-portal .compact-controller-health .operations-gauge footer {
+  grid-column: 1;
+  padding: 0 !important;
+  border: 0 !important;
+}
+.control-portal .compact-controller-health .operations-gauge footer strong {
+  font-size: 11px !important;
+  color: #163a5f !important;
+}
+.control-portal .compact-controller-health .operations-gauge footer span {
+  font-size: 9px !important;
+  color: #6a7f91 !important;
+}
+@media (max-width: 900px) {
+  .control-portal .compact-controller-health { grid-template-columns: 1fr; }
+  .control-portal .compact-controller-health .operations-gauge + .operations-gauge {
+    border-left: 0 !important;
+    border-top: 1px solid #dbe7f0 !important;
+  }
+}

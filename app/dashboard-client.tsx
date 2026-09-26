@@ -883,27 +883,10 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             <>
               <div className="sr-only" aria-label="Portal context">Portal sync · {portalTimeLabel(serverTime)} · Timezone · Australia/Melbourne · Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</div>
               <GateConditionPanel gates={activeGates} runtime={gateRuntime} getPosition={getPosition} monitoring={positionMonitoring} systemMode={systemMode} now={currentTime} canOperate={canOperate} busy={Boolean(busyAction)} onSelect={setSelectedGate} onCommand={(gate, position) => setPendingGateCommand({ gate, position })} />
-              <section className="operations-gauge-grid" aria-label="Live controller gauges">
-                <OperationsGauge title="Controller connection" count={respondingGates.length} total={activeGates.length} caption="Heartbeats received within 90 seconds" />
-                <OperationsGauge title="Gate commissioning" count={commissionedCount} total={activeGates.length} caption="Active controllers commissioned" />
-                <OperationsGauge title="Safety feedback" count={verifiedSafetyCount} total={activeGates.length} caption="Online controllers reporting healthy inputs" />
-              </section>
-              <section className="health-strip" aria-label="Platform and controller health">
-                <div className="health-lead"><span className="health-pulse"><i /></span><span><strong>Portal available</strong><small>Persistent control and audit service</small></span></div>
-                <div><Network /><span><strong>{onlineCount} / {activeGates.length}</strong><small>Controllers responding</small></span></div>
-                <div><ShieldCheck /><span><strong>{safetyHealthyCount} / {activeGates.length}</strong><small>Current safety inputs healthy</small></span></div>
-                <div><Workflow /><span><strong>{automations.filter((rule) => rule.enabled).length} enabled</strong><small>Stored policy records</small></span></div>
-                <div><ClipboardList /><span><strong>Logging</strong><small>Operator audit trail</small></span></div>
-              </section>
-              <section className="summary-grid">
-                <article className="summary-card primary-summary"><span>Active gates</span><strong>{activeGates.length}</strong><small>Tony Frizza Stadium Entry · Side Entry</small></article>
-                <article className="summary-card"><span>Physically open</span><strong className="open-number">{positionMonitoring ? openCount : "—"}</strong><small>{positionMonitoring ? `${unknownCount} positions not confirmed` : "Position monitoring paused"}</small></article>
-                <article className="summary-card"><span>Physically secured</span><strong>{positionMonitoring ? closedCount : "—"}</strong><small>{positionMonitoring ? "Confirmed by independent inputs" : "Position monitoring paused"}</small></article>
-                <article className="summary-card"><span>System state</span><strong className={`mode-word ${systemMode}`}>{systemMode === "normal" ? "Normal" : systemMode === "fire" ? "Fire" : "Lockdown"}</strong><small>{systemMode === "normal" ? "Standard priority · commissioning status shown" : "Priority commands require confirmation"}</small></article>
-              </section>
-              <section className="dashboard-panels">
-                <article className="panel next-schedule-panel"><div className="panel-heading"><div><h2>Gate schedules</h2><small>Approved operating records</small></div><CalendarDays /></div><div className="schedule-highlight"><Clock3 /><div><strong>{scheduledGateCount ? `${scheduledGateCount} gates configured` : "No schedules approved"}</strong><small>{scheduledGateCount ? "Review enabled days and times" : "Automatic schedule operation is not enabled"}</small></div></div><Button className="schedule-button" onClick={() => setActiveView("schedule")}>Manage schedules <ChevronRight /></Button></article>
-                <article className="panel overview-activity"><div className="panel-heading"><div><h2>Recent activity</h2><small>Verified operator and controller events</small></div><Button variant="ghost" onClick={() => setActiveView("activity")}>View log <ChevronRight /></Button></div>{activity.length ? activity.slice(0, 3).map((record) => <div className="overview-event" key={record.id}><Activity /><div><strong>{record.action}</strong><small>{record.actorName} · {activityTime(record.createdAt)}</small></div></div>) : <div className="overview-empty"><ClipboardList /><strong>Ready for the first event</strong><span>Gate and operator activity will appear here.</span></div>}</article>
+              <section className="compact-controller-health" aria-label="Controller verification">
+                <OperationsGauge title="Controller connection" count={respondingGates.length} total={activeGates.length} caption="Recent heartbeat" />
+                <OperationsGauge title="Gate commissioning" count={commissionedCount} total={activeGates.length} caption="Commissioned" />
+                <OperationsGauge title="Safety feedback" count={verifiedSafetyCount} total={activeGates.length} caption="Healthy inputs" />
               </section>
               {!advancedFeaturesEnabled && <section className="advanced-discovery"><span className="advanced-eyebrow"><LockKeyhole /> Discover Magic Keys Advanced</span><h2>See what’s possible beyond gate access.</h2><p>Explore camera zones, an emergency-response example and the messages a connected classroom could display.</p><div className="advanced-discovery-actions"><Button variant="outline" onClick={() => setActiveView("guidance")}><MapPin /> Explore emergency guidance</Button><Button variant="outline" onClick={() => setActiveView("cctv")}><Camera /> Explore CCTV & zones</Button><Button onClick={() => setUpgradeOpen(true)}>Discuss your school’s upgrade <ChevronRight /></Button></div></section>}
             </>
