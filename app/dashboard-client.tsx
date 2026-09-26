@@ -883,6 +883,11 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             <>
               <div className="sr-only" aria-label="Portal context">Portal sync · {portalTimeLabel(serverTime)} · Timezone · Australia/Melbourne · Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</div>
               <GateConditionPanel gates={activeGates} runtime={gateRuntime} getPosition={getPosition} monitoring={positionMonitoring} systemMode={systemMode} now={currentTime} canOperate={canOperate} busy={Boolean(busyAction)} onSelect={setSelectedGate} onCommand={(gate, position) => setPendingGateCommand({ gate, position })} />
+              <section className="compact-controller-health" aria-label="Controller verification">
+                <OperationsGauge title="Controller connection" count={respondingGates.length} total={activeGates.length} caption="Recent heartbeat" />
+                <OperationsGauge title="Gate commissioning" count={commissionedCount} total={activeGates.length} caption="Commissioned" />
+                <OperationsGauge title="Safety feedback" count={verifiedSafetyCount} total={activeGates.length} caption="Healthy inputs" />
+              </section>
               {!advancedFeaturesEnabled && <section className="advanced-discovery"><span className="advanced-eyebrow"><LockKeyhole /> Discover Magic Keys Advanced</span><h2>See what’s possible beyond gate access.</h2><p>Explore camera zones, an emergency-response example and the messages a connected classroom could display.</p><div className="advanced-discovery-actions"><Button variant="outline" onClick={() => setActiveView("guidance")}><MapPin /> Explore emergency guidance</Button><Button variant="outline" onClick={() => setActiveView("cctv")}><Camera /> Explore CCTV & zones</Button><Button onClick={() => setUpgradeOpen(true)}>Discuss your school’s upgrade <ChevronRight /></Button></div></section>}
             </>
           )}
