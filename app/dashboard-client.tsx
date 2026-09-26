@@ -839,12 +839,12 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   return (
     <SidebarProvider className={`control-portal mode-${systemMode}`} style={{ "--sidebar-width": "15.5rem" } as React.CSSProperties}>
       <Sidebar collapsible="offcanvas" className="control-sidebar">
-        <SidebarHeader className="portal-sidebar-header"><div className="magic-sidebar-brand"><BrandLogo /><span>Balwyn High School</span></div></SidebarHeader>
+        <SidebarHeader className="portal-sidebar-header"><div className="magic-sidebar-brand"><BrandLogo /></div></SidebarHeader>
         <SidebarSeparator />
         <SidebarContent>
           <SidebarGroup><SidebarGroupLabel>Operations</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("hire", CalendarDays)}{navItem("schedule", CalendarClock)}{navItem("dashboard", LayoutDashboard)}{navItem("cctv", Camera)}{navItem("guidance", MapPin)}{navItem("automation", Workflow, String(automations.filter((rule) => rule.enabled).length))}{navItem("safety", ShieldCheck)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
           <SidebarGroup><SidebarGroupLabel>Administration</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("access", Users)}{navItem("activity", ClipboardList, activity.length ? String(activity.length) : undefined)}{navItem("settings", Settings2)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
-          <div className="sidebar-system-card"><span><Wifi /> System connection</span><strong><i /> Portal online</strong><small>{activeGates.length} active · {gates.length - activeGates.length} inactive</small><small>{onlineCount} of {activeGates.length} active gate controllers online</small><small>{commissionedCount} commissioned · {credentialCount} credentials issued</small><small className="voice-status"><Volume2 /> Gate voice · {voiceAnnouncements ? "On" : "Off"}</small></div>
+          <div className="sidebar-system-card"><span><Wifi /> System connection</span><strong><i /> Portal online</strong><small>{activeGates.length} active · {gates.length - activeGates.length} inactive</small><small>{onlineCount} of {activeGates.length} active gate controllers online</small><small>{commissionedCount} commissioned · {credentialCount} credentials issued</small><small className="voice-status"><Volume2 /> Gate voice · {voiceAnnouncements ? "On" : "Off"}</small></div><div className="sidebar-rjl-brand"><img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial Fencing and Gates" /></div>
         </SidebarContent>
         <SidebarSeparator />
         <SidebarFooter className="operator-footer"><Avatar size="lg"><AvatarImage src={profileImage} alt={`${user.displayName} profile`} /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><div className="operator-footer-copy"><strong>{displayName}</strong><span>{user.email}</span><small>{roleLabel}</small></div>{onSignOut ? <button type="button" className="operator-sign-out" onClick={onSignOut} aria-label="Sign out of Magic Keys"><LogOut /></button> : <a href={signOutHref} target="_top" aria-label="Sign out of Magic Keys"><LogOut /></a>}</SidebarFooter>
@@ -852,8 +852,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
       <SidebarInset className="portal-workspace">
         <header className="workspace-header">
-          <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="location-logo"><img src="/balwyn-crest-clear.png" alt="Balwyn High School crest" /></span><div><small>Managed site</small><strong>Balwyn High School</strong></div></div>
-          <div className="workspace-brand-partner"><img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial Fencing and Gates" width={900} height={210} /></div>
+          <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="workspace-school-brand"><img src="/balwyn-high-school-logo.webp" alt="Balwyn High School" /></span></div>
           <div className="workspace-header-right"><div className={`system-status-cluster ${operationalReady ? "is-ready" : "is-attention"}`}><i className="signal-dot" /><span><small>Controller status</small><strong>{operationalReady ? "All systems ready" : "Commissioning"}</strong></span><b>{onlineCount}/{activeGates.length}</b></div><span className="connection-pill"><i /> Encrypted connection</span><button className="notification-button" aria-label="View system alerts" onClick={() => onlineCount === activeGates.length ? toast.success("All controllers online", { description: "Physical gate feedback is available for every access point." }) : toast.warning(`${activeGates.length - onlineCount} active gate controllers are not online`, { description: `${commissionedCount} have completed a verified heartbeat; ${credentialCount} credentials have been issued.` })}><Bell /></button><div className="header-operator"><Avatar><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><span><strong>{displayName}</strong><small>{roleLabel}</small></span></div></div>
         </header>
 
@@ -872,9 +871,9 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
 
         <div className="workspace-content" data-view={activeView}>
-          <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span><div className="workspace-context" aria-label="Portal context"><span>Portal sync · {portalTimeLabel(serverTime)}</span><span>Timezone · Australia/Melbourne</span><span>Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</span></div></div><div className="workspace-title-meta"><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>
+          {activeView !== "dashboard" && <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span><div className="workspace-context" aria-label="Portal context"><span>Portal sync · {portalTimeLabel(serverTime)}</span><span>Timezone · Australia/Melbourne</span><span>Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</span></div></div><div className="workspace-title-meta"><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>}
           {activeView === "dashboard" && (
-            <div className="desk-service-row">
+            <div className="desk-service-row is-dashboard-utility">
               <button type="button" onClick={() => { setActiveView("activity"); toast.message("Fault report", { description: "Use the activity log to record the gate, time and fault. Controllers stay amber until a verified heartbeat exists." }); }}>Report a fault</button>
               <span className="service-chip">Next scheduled service<small>Countdown starts after commissioning</small></span>
             </div>
@@ -882,7 +881,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
           {activeView === "dashboard" && (
             <>
-              <GateConditionPanel gates={activeGates} runtime={gateRuntime} getPosition={getPosition} monitoring={positionMonitoring} systemMode={systemMode} now={currentTime} onSelect={setSelectedGate} />
+              <div className="sr-only" aria-label="Portal context">Portal sync · {portalTimeLabel(serverTime)} · Timezone · Australia/Melbourne · Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</div>
+              <GateConditionPanel gates={activeGates} runtime={gateRuntime} getPosition={getPosition} monitoring={positionMonitoring} systemMode={systemMode} now={currentTime} canOperate={canOperate} busy={Boolean(busyAction)} onSelect={setSelectedGate} onCommand={(gate, position) => setPendingGateCommand({ gate, position })} />
               <section className="operations-gauge-grid" aria-label="Live controller gauges">
                 <OperationsGauge title="Controller connection" count={respondingGates.length} total={activeGates.length} caption="Heartbeats received within 90 seconds" />
                 <OperationsGauge title="Gate commissioning" count={commissionedCount} total={activeGates.length} caption="Active controllers commissioned" />
