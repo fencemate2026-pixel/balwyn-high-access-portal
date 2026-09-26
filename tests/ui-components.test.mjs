@@ -133,7 +133,7 @@ test("renders dashboard gate cards with portal sync and heartbeat context", asyn
   assert.doesNotMatch(html, /START LOCKDOWN/);
   // SSR retains approved fallback artwork; the 3D model is client-only and state driven.
   assert.match(html, /class=\"gate-tile gate-model access-icon gate-state-run is-open single-swing is-interactive\"/);
-  assert.match(html, /class=\"gate-tile gate-model access-icon gate-state-stop is-closed single-swing\"/);
+  assert.match(html, /class=\"gate-tile gate-model access-icon gate-state-stop is-closed single-swing is-interactive\"/);
   assert.match(html, /src=\"\/gates\/single-swing-blue.webp\"/);
   assert.doesNotMatch(html, /single-gate-image|double-gate-image/);
 });
