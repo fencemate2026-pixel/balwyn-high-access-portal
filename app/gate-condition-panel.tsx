@@ -15,9 +15,10 @@ export function controllerHealth(runtime: GateRuntime | undefined, position: Gat
   return { tone: "green", label: "Controller online" };
 }
 
-export default function GateConditionPanel({ gates, runtime, getPosition, monitoring = true, now, temperatureC = {}, onSelect }: {
+export default function GateConditionPanel({ gates, runtime, getPosition, systemMode, monitoring = true, now, temperatureC = {}, canOperate = false, busy = false, onSelect, onCommand }: {
   gates: Gate[]; runtime: Record<string, GateRuntime | undefined>; getPosition: (gate: Gate) => GateVisualState;
-  systemMode: SystemMode; monitoring?: boolean; now: number; temperatureC?: Record<string, number | undefined>; onSelect?: (gate: Gate) => void;
+  systemMode: SystemMode; monitoring?: boolean; now: number; temperatureC?: Record<string, number | undefined>;
+  canOperate?: boolean; busy?: boolean; onSelect?: (gate: Gate) => void; onCommand?: (gate: Gate, position: "open" | "closed") => void;
 }) {
   return <section className="gate-condition mb-6" aria-label="Gate condition">
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -34,6 +35,8 @@ export default function GateConditionPanel({ gates, runtime, getPosition, monito
         const age = Number.isFinite(time) ? Math.max(0, Math.round((now - time) / 1000)) : null;
         const temp = temperatureC[gate.id];
         const hasTemperature = typeof temp === "number" && Number.isFinite(temp);
+        const commandInFlight = ["queued", "dispatched"].includes(run?.lastCommandState ?? "idle");
+        const canCommand = Boolean(onCommand && canOperate && systemMode === "normal" && run?.commissioned && run.controllerState === "online" && run.safetyOk === true && !commandInFlight && !busy);
         return <article key={gate.id} className="hardware-card group overflow-hidden rounded-2xl border border-border bg-card shadow-card">
           <header className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5">
             <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl border border-border bg-secondary text-xs text-muted-foreground">0{index + 1}</span><div><h3 className="m-0 text-sm font-semibold text-foreground">{gate.name}</h3><p className="m-0 mt-1 text-[11px] text-muted-foreground">{gate.id} <span className="px-1.5">/</span> {gate.type}</p></div></div>
@@ -43,8 +46,8 @@ export default function GateConditionPanel({ gates, runtime, getPosition, monito
             <GateTile gate={gate} position={position} motion={motion} interactive />
             <span className="hardware-view-label"><span className="size-1.5 rounded-full bg-accent-blue" /> 3D hardware view</span>
             <div className="quick-gate-controls" aria-label={`${gate.name} quick controls`}>
-              <button type="button" className={`quick-state-button quick-open ${position === "open" ? "is-current" : ""}`} onClick={() => onSelect?.(gate)}><span>OPEN</span></button>
-              <button type="button" className={`quick-state-button quick-closed ${position === "closed" ? "is-current" : ""}`} onClick={() => onSelect?.(gate)}><span>CLOSED</span></button>
+              <button type="button" className={`quick-state-button quick-open ${position === "open" ? "is-current" : ""}`} disabled={!canCommand} aria-label={`Review open command for ${gate.name}`} onClick={() => onCommand?.(gate, "open")}><span>OPEN</span></button>
+              <button type="button" className={`quick-state-button quick-closed ${position === "closed" ? "is-current" : ""}`} disabled={!canCommand} aria-label={`Review close command for ${gate.name}`} onClick={() => onCommand?.(gate, "closed")}><span>CLOSED</span></button>
             </div>
             <aside className={`gate-current-state state-${position}`}>
               <small>CURRENT STATE</small>
