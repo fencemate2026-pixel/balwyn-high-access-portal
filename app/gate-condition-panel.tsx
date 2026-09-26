@@ -47,7 +47,7 @@ export default function GateConditionPanel({ gates, runtime, getPosition, system
             <span className="hardware-view-label"><span className="size-1.5 rounded-full bg-accent-blue" /> 3D hardware view</span>
             <div className="quick-gate-controls" aria-label={`${gate.name} quick controls`}>
               <button type="button" className={`quick-state-button quick-open ${position === "open" ? "is-current" : ""}`} disabled={!canCommand} aria-label={`Review open command for ${gate.name}`} onClick={() => onCommand?.(gate, "open")}><span>OPEN</span></button>
-              <button type="button" className={`quick-state-button quick-closed ${position === "closed" ? "is-current" : ""}`} disabled={!canCommand} aria-label={`Review close command for ${gate.name}`} onClick={() => onCommand?.(gate, "closed")}><span>CLOSED</span></button>
+              <button type="button" className={`quick-state-button quick-closed ${position === "closed" ? "is-current" : ""}`} disabled={!canCommand} aria-label={`Review close command for ${gate.name}`} onClick={() => onCommand?.(gate, "closed")}><span>CLOSE</span></button>
             </div>
             <aside className={`gate-current-state state-${position}`}>
               <small>CURRENT STATE</small>

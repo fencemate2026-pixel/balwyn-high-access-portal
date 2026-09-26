@@ -79,7 +79,7 @@ export async function POST(request: Request) {
       await saveGateSchedule(String(body.gateId ?? ""), body.week as WeekPlan, auth.user);
     } else if (action === "add_automation") {
       if (auth.user.role !== "administrator") throw new Error("Administrator approval is required to add automation rules.");
-      await addAutomationRule({ name: String(body.name ?? ""), trigger: String(body.trigger ?? ""), action: String(body.ruleAction ?? "") }, auth.user);
+      await addAutomationRule({ name: String(body.name ?? ""), kind: body.kind === "gate_window" ? "gate_window" : "note", trigger: String(body.trigger ?? ""), action: String(body.ruleAction ?? ""), config: body.config }, auth.user);
     } else if (action === "toggle_automation") {
       if (auth.user.role !== "administrator") throw new Error("Administrator approval is required to change automation rules.");
       const id = Number(body.id);

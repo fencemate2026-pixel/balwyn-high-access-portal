@@ -1,5 +1,6 @@
 import { getSql } from "@/db";
-import { requireOperator } from "@/lib/portal-auth";
+import { assertSameOrigin, requireOperator } from "@/lib/portal-auth";
+import { defaultGatesForArea, GATES, isGateActive } from "@/lib/portal-model";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,16 @@ export async function GET(request: Request) {
   }
 }
 
+// Booking save: one database transaction (the portal DB function wraps a batch
+// in BEGIN…COMMIT under a single advisory lock), so a booking is either saved
+// completely — client, booking, space, occurrence, gate links, comment and
+// activity-log entry — or not at all. Two bookings for the same space at
+// overlapping times are refused with 409, race-free because the clash test runs
+// inside the same locked transaction as the insert.
+const MAX_GATES = 4;
+
 export async function POST(request: Request) {
+  if (!assertSameOrigin(request)) return json({ error: "Request rejected." }, 403);
   const auth = await requireOperator(request, "operator");
   if (!auth.user) return auth.response;
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
@@ -90,65 +100,78 @@ export async function POST(request: Request) {
   const comment = String(body?.comment ?? "").trim();
   const depositLeft = Boolean(body?.depositLeft);
   const depositAmount = Number(body?.depositAmount ?? 0);
+  // Gates open automatically for the booked space (HIRE_AREA_GATES). Staff may
+  // send an explicit list instead, including [] to open no gate for this booking.
+  const gateIds = Array.isArray(body?.gateIds) ? [...new Set(body.gateIds.map(String))] : defaultGatesForArea(String(body?.area ?? "").trim());
+  const leadMinutes = body?.leadMinutes === undefined ? 15 : Number(body.leadMinutes);
+  const lagMinutes = body?.lagMinutes === undefined ? 15 : Number(body.lagMinutes);
   if (fullName.length < 1 || fullName.length > 120) return json({ error: "Enter the client's full name." }, 400);
   if (email && !validEmail(email)) return json({ error: "Enter a valid email address." }, 400);
   if (phone && (phone.length < 6 || phone.length > 40)) return json({ error: "Enter a valid phone number." }, 400);
   if (!AREAS.has(area)) return json({ error: "Choose a hire space." }, 400);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(visitDate)) return json({ error: "Choose the hire date." }, 400);
+  if (!ISO_DATE.test(visitDate)) return json({ error: "Choose the hire date." }, 400);
   if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) return json({ error: "Enter start and end times." }, 400);
   if (endTime <= startTime) return json({ error: "End time must be after start time." }, 400);
   if (depositLeft && !(depositAmount > 0)) return json({ error: "Enter the deposit amount." }, 400);
+  if (comment.length > 4000) return json({ error: "The comment is too long." }, 400);
+  if (gateIds.length > MAX_GATES || gateIds.some((id) => !isGateActive(id))) return json({ error: "Choose only active gates to open for this booking." }, 400);
+  for (const minutes of [leadMinutes, lagMinutes]) {
+    if (!Number.isInteger(minutes) || minutes < 0 || minutes > 120) return json({ error: "Gate lead-in and run-out must be 0 to 120 minutes." }, 400);
+  }
 
   const d1 = getSql();
+  const newClientId = crypto.randomUUID();
+  const bookingId = crypto.randomUUID();
+  const start = `${startTime}:00`;
+  const end = `${endTime}:00`;
+  // The clash condition every write depends on: another live occurrence in the same space overlapping this one.
+  const noClash = `NOT EXISTS (
+      SELECT 1 FROM hire_booking_occurrences o
+        JOIN hire_bookings b ON b.id = o.booking_id
+        JOIN hire_booking_areas a ON a.booking_id = b.id
+       WHERE a.area_key = ? AND o.cancelled = false AND b.status IN ('enquiry', 'confirmed')
+         AND o.starts_at < ((?::date + ?::time) AT TIME ZONE 'Australia/Melbourne')
+         AND o.ends_at   > ((?::date + ?::time) AT TIME ZONE 'Australia/Melbourne'))`;
+  const clashParams = [area, visitDate, end, visitDate, start];
+  const clientId = `COALESCE((SELECT id FROM hire_clients WHERE ?::text IS NOT NULL AND lower(email) = lower(?) AND archived = false LIMIT 1), ?::uuid)`;
+  const bookingExists = "EXISTS (SELECT 1 FROM hire_bookings WHERE id = ?::uuid)";
+  const gateNames = gateIds.map((id) => GATES.find((gate) => gate.id === id)?.name ?? id).join(", ");
+
+  const statements = [
+    // 1. Client: reuse by email, else create — only if the slot is free.
+    d1.prepare(`INSERT INTO hire_clients (id, full_name, email, phone, created_by)
+                SELECT ?::uuid, ?, ?, ?, ? WHERE ${noClash}
+                  AND NOT EXISTS (SELECT 1 FROM hire_clients WHERE ?::text IS NOT NULL AND lower(email) = lower(?) AND archived = false)`)
+      .bind(newClientId, fullName, email, phone, auth.user.email, ...clashParams, email, email),
+    d1.prepare(`UPDATE hire_clients SET full_name = ?, phone = COALESCE(?, phone), updated_at = now()
+                 WHERE ?::text IS NOT NULL AND lower(email) = lower(?) AND archived = false AND ${noClash}`)
+      .bind(fullName, phone, email, email, ...clashParams),
+    // 2. Booking (the row everything else hangs off).
+    d1.prepare(`INSERT INTO hire_bookings (id, client_id, name, recurrence, booking_date, start_time, end_time, status, deposit_status, deposit_amount, created_by)
+                SELECT ?::uuid, ${clientId}, ?, 'one_off', ?::date, ?::time, ?::time, 'confirmed', ?::balwyn_portal.hire_deposit, ?, ? WHERE ${noClash}`)
+      .bind(bookingId, email, email, newClientId, `${fullName} — ${visitDate}`, visitDate, start, end,
+        depositLeft ? "held" : "not_required", depositLeft ? depositAmount : 0, auth.user.email, ...clashParams),
+    d1.prepare(`INSERT INTO hire_booking_areas (booking_id, area_key) SELECT ?::uuid, ? WHERE ${bookingExists}`).bind(bookingId, area, bookingId),
+    d1.prepare(`INSERT INTO hire_booking_occurrences (booking_id, occurs_on, starts_at, ends_at)
+                SELECT ?::uuid, ?::date, ((?::date + ?::time) AT TIME ZONE 'Australia/Melbourne'), ((?::date + ?::time) AT TIME ZONE 'Australia/Melbourne')
+                 WHERE ${bookingExists}`).bind(bookingId, visitDate, visitDate, start, visitDate, end, bookingId),
+    ...gateIds.map((gateId) => d1.prepare(
+      `INSERT INTO hire_booking_gates (booking_id, gate_id, lead_minutes, lag_minutes, created_by) SELECT ?::uuid, ?, ?, ?, ? WHERE ${bookingExists}`,
+    ).bind(bookingId, gateId, leadMinutes, lagMinutes, auth.user.email, bookingId)),
+    ...(comment ? [d1.prepare(
+      `INSERT INTO hire_comments (client_id, booking_id, body, author) SELECT b.client_id, b.id, ?, ? FROM hire_bookings b WHERE b.id = ?::uuid`,
+    ).bind(comment, auth.user.email, bookingId)] : []),
+    d1.prepare(`INSERT INTO activity_log (action, detail, category, actor_name, actor_role) SELECT ?, ?, 'hire', ?, ? WHERE ${bookingExists}`).bind(
+      "Facility hire booked",
+      `${fullName}, ${visitDate} ${startTime}–${endTime}${gateIds.length ? `. Gate held open: ${gateNames} (${leadMinutes} min before, ${lagMinutes} min after)` : ""}.`,
+      auth.user.displayName, auth.user.role, bookingId),
+    d1.prepare("SELECT id, client_id FROM hire_bookings WHERE id = ?::uuid").bind(bookingId),
+  ];
   try {
-    let client = email
-      ? await d1.prepare("SELECT id FROM hire_clients WHERE lower(email) = lower(?) AND archived = false").bind(email).first<{ id: string }>()
-      : null;
-    if (!client) {
-      client = await d1.prepare(
-        "INSERT INTO hire_clients (full_name, email, phone, created_by) VALUES (?, ?, ?, ?) RETURNING id",
-      ).bind(fullName, email, phone, auth.user.email).first<{ id: string }>();
-    } else {
-      await d1.prepare("UPDATE hire_clients SET full_name = ?, phone = COALESCE(?, phone), updated_at = now() WHERE id = ?")
-        .bind(fullName, phone, client.id).run();
-    }
-    if (!client?.id) return json({ error: "The client record could not be saved." }, 500);
-
-    const booking = await d1.prepare(
-      `INSERT INTO hire_bookings (
-        client_id, name, recurrence, booking_date, start_time, end_time, status,
-        deposit_status, deposit_amount, created_by
-      ) VALUES (?, ?, 'one_off', ?::date, ?::time, ?::time, 'confirmed', ?, ?, ?) RETURNING id`,
-    ).bind(
-      client.id,
-      `${fullName} — ${visitDate}`,
-      visitDate,
-      `${startTime}:00`,
-      `${endTime}:00`,
-      depositLeft ? "held" : "not_required",
-      depositLeft ? depositAmount : 0,
-      auth.user.email,
-    ).first<{ id: string }>();
-    if (!booking?.id) return json({ error: "The booking could not be saved." }, 500);
-
-    await d1.prepare("INSERT INTO hire_booking_areas (booking_id, area_key) VALUES (?, ?)").bind(booking.id, area).run();
-    await d1.prepare(
-      `INSERT INTO hire_booking_occurrences (booking_id, occurs_on, starts_at, ends_at)
-       VALUES (
-         ?,
-         ?::date,
-         ((?::date + ?::time) AT TIME ZONE 'Australia/Melbourne'),
-         ((?::date + ?::time) AT TIME ZONE 'Australia/Melbourne')
-       )`,
-    ).bind(booking.id, visitDate, visitDate, `${startTime}:00`, visitDate, `${endTime}:00`).run();
-
-    if (comment) {
-      await d1.prepare(
-        "INSERT INTO hire_comments (client_id, booking_id, body, author) VALUES (?, ?, ?, ?)",
-      ).bind(client.id, booking.id, comment, auth.user.email).run();
-    }
-
-    return json({ ok: true, clientId: client.id, bookingId: booking.id });
+    const results = await d1.batch<{ id: string; client_id: string }>(statements);
+    const saved = results[results.length - 1]?.results[0];
+    if (!saved) return json({ error: "That space is already booked at an overlapping time. Choose another time or space." }, 409);
+    return json({ ok: true, clientId: saved.client_id, bookingId: saved.id, gateIds });
   } catch (reason) {
     return json({ error: reason instanceof Error ? reason.message : "Hire record could not be saved." }, 500);
   }

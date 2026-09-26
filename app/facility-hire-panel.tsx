@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Users } from "lucide-react";
+import { ACTIVE_GATES, defaultGatesForArea } from "@/lib/portal-model";
 
 
 type HireArea = { key: string; label: string; active?: boolean };
@@ -141,6 +142,10 @@ export default function FacilityHirePanel({ canBook = true }: { canBook?: boolea
   const [depositLeft, setDepositLeft] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
   const [comment, setComment] = useState("");
+  // Optional: hold gates open for the booking (runs through lib/gate-windows.ts, shows on the School scheduler).
+  const [gateIds, setGateIds] = useState<string[]>(() => defaultGatesForArea("tony-frizza-stadium"));
+  const [leadMinutes, setLeadMinutes] = useState("15");
+  const [lagMinutes, setLagMinutes] = useState("15");
 
   // Month grid: 6 weeks starting on the Monday on/before the 1st.
   const gridStart = mondayOf(monthCursor);
@@ -207,14 +212,16 @@ export default function FacilityHirePanel({ canBook = true }: { canBook?: boolea
         body: JSON.stringify({
           fullName, email, phone, area, date, startTime, endTime,
           depositLeft, depositAmount: depositLeft ? Number(depositAmount) : 0, comment,
+          gateIds, leadMinutes: Number(leadMinutes), lagMinutes: Number(lagMinutes),
         }),
       });
       const body = await response.json() as { error?: string };
       if (!response.ok) throw new Error(body.error || "The hire record could not be saved.");
-      setNotice(`Saved: ${fullName}, ${longDate(date)}, ${startTime}–${endTime}.`);
+      setNotice(`Saved: ${fullName}, ${longDate(date)}, ${startTime}–${endTime}${gateIds.length ? ". Gate opening added to the scheduler" : ""}.`);
       setComment("");
       await load();
       window.dispatchEvent(new Event("campus-bookings-updated"));
+      window.dispatchEvent(new Event("gate-windows-updated"));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The hire record could not be saved.");
     } finally {
@@ -282,7 +289,7 @@ export default function FacilityHirePanel({ canBook = true }: { canBook?: boolea
             <label>Full name<input value={fullName} onChange={(event) => setFullName(event.target.value)} required maxLength={120} autoComplete="off" /></label>
             <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="off" /></label>
             <label>Phone<input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="off" /></label>
-            <label>Space<select value={area} onChange={(event) => setArea(event.target.value)}>{(data?.areas ?? []).filter((item) => item.active !== false).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
+            <label>Space<select value={area} onChange={(event) => { setArea(event.target.value); setGateIds(defaultGatesForArea(event.target.value)); }}>{(data?.areas ?? []).filter((item) => item.active !== false).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
             <label>Date<input type="date" value={date} onChange={(event) => { setDate(event.target.value); if (event.target.value) setSelectedDay(event.target.value); }} required /></label>
             <div className="fh-times">
               <label>Start<input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} required /></label>
@@ -290,6 +297,15 @@ export default function FacilityHirePanel({ canBook = true }: { canBook?: boolea
             </div>
             <label className="fh-check"><input type="checkbox" checked={depositLeft} onChange={(event) => setDepositLeft(event.target.checked)} /> Deposit received</label>
             {depositLeft && <label>Deposit amount (AUD)<input type="number" min="0.01" step="0.01" value={depositAmount} onChange={(event) => setDepositAmount(event.target.value)} required /></label>}
+            <fieldset className="fh-wide fh-gates">
+              <legend>Gates opened automatically for this booking</legend>
+              <div className="fh-gate-options">{ACTIVE_GATES.map((gate) => <label key={gate.id} className="fh-check"><input type="checkbox" checked={gateIds.includes(gate.id)} onChange={(event) => setGateIds((current) => event.target.checked ? [...current, gate.id] : current.filter((id) => id !== gate.id))} /> {gate.name}</label>)}</div>
+              {gateIds.length > 0 && <div className="fh-times">
+                <label>Open before (min)<input type="number" min={0} max={120} step={5} value={leadMinutes} onChange={(event) => setLeadMinutes(event.target.value)} required /></label>
+                <label>Close after (min)<input type="number" min={0} max={120} step={5} value={lagMinutes} onChange={(event) => setLagMinutes(event.target.value)} required /></label>
+              </div>}
+              <small className="fh-gate-note">{gateIds.length ? "Ticked gates open automatically before the booking starts and are released after it ends, then close on their own. They only move if the controller is commissioned and the safety input is healthy. Fire / evacuation overrides this." : "No gate will open for this booking. Tick a gate to open it automatically."}</small>
+            </fieldset>
             <label className="fh-wide">Comments<textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Access notes, condition on arrival, damage noted" maxLength={4000} /></label>
             <button type="submit" className="fh-3d fh-primary fh-wide" disabled={saving}>{saving ? "Saving…" : "Save client and booking"}</button>
           </form>

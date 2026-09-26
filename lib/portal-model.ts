@@ -36,6 +36,10 @@ export type AutomationRule = {
   trigger: string;
   action: string;
   enabled: boolean;
+  /** "note" rules are stored text and never run; "gate_window" rules drive gates via lib/gate-windows.ts. */
+  kind: "note" | "gate_window";
+  /** JSON config for executable kinds, otherwise null. */
+  config: string | null;
 };
 
 export type GateRuntime = {
@@ -109,6 +113,29 @@ export const GATES: Gate[] = [
 ];
 
 export const ACTIVE_GATES = GATES.filter((gate) => gate.active);
+
+/**
+ * Which gates open automatically for a facility-hire booking of each space.
+ * A booking of a mapped space holds these gates open from the lead-in before
+ * the start until the run-out after the end, then releases them (the operator
+ * then auto-closes). Staff can untick a gate on the booking form.
+ *
+ * Only the Tony Frizza Stadium mapping is set: its entry gate is named for it.
+ * The other spaces are deliberately empty until RJL/the school confirm which
+ * gate hirers of that space use. An empty list means no gate moves.
+ */
+export const HIRE_AREA_GATES: Record<string, string[]> = {
+  "tony-frizza-stadium": ["TF-ENTRY"],
+  "oval": [],
+  "tennis-courts": [],
+  "gymnasium": [],
+  "car-park": [],
+};
+
+/** Default gates for a hire space: mapped AND currently active. */
+export function defaultGatesForArea(area: string): string[] {
+  return (HIRE_AREA_GATES[area] ?? []).filter((id) => ACTIVE_GATES.some((gate) => gate.id === id));
+}
 
 export function isGateActive(gateId: string): boolean {
   return ACTIVE_GATES.some((gate) => gate.id === gateId);

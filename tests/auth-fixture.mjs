@@ -12,6 +12,9 @@ export async function databaseFixture(t) {
       file_size_limit bigint, allowed_mime_types text[]);`);
   await pg.exec(readFileSync(new URL("../supabase/migrations/20260920062504_balwyn_portal_netlify.sql", import.meta.url), "utf8"));
   await pg.exec(readFileSync(new URL("../supabase/migrations/20260924120000_portal_accounts.sql", import.meta.url), "utf8"));
+  // Hire tables and the linked gate automation migration: the controller engine reads both.
+  await pg.exec(readFileSync(new URL("../supabase/migrations/20260921103400_hire_bookings_balwyn_portal.sql", import.meta.url), "utf8"));
+  await pg.exec(readFileSync(new URL("../supabase/migrations/20260926090000_linked_gate_automation.sql", import.meta.url), "utf8"));
   await pg.exec("SET ROLE balwyn_app; SET search_path = balwyn_portal, pg_catalog;");
   const statement = (sql, values = []) => ({
     sql: postgresPlaceholders(sql), values,
