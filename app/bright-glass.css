@@ -524,3 +524,39 @@
     border-top: 1px solid #dbe7f0 !important;
   }
 }
+
+
+/* Login reference correction: white right canvas and genuinely centred Magic Keys mark. */
+.access-login-school-blue .access-login-brand-stage,
+.access-login-school-blue .access-login-brand-stage .magic-wide-artwork,
+.access-login-school-blue .access-login-brand-stage .magic-wide-artwork.is-dark {
+  background: #ffffff !important;
+}
+.access-login-school-blue .access-login-brand-stage .magic-wide-artwork.is-dark::before {
+  display: none !important;
+  content: none !important;
+}
+.access-login-school-blue .access-login-brand-stage .magic-wide-artwork.is-dark::after {
+  inset: 8% 24% 8% 8% !important;
+  opacity: .055 !important;
+  filter: none !important;
+}
+.access-login-school-blue .access-login-brand-stage .magic-wide-wordmark {
+  left: 43% !important;
+  top: 50% !important;
+  width: min(46%, 720px) !important;
+  transform: translate(-50%, -50%) !important;
+  filter: none !important;
+  z-index: 4 !important;
+}
+.access-login-school-blue .access-login-brand-stage .magic-wide-ai-head {
+  right: 0 !important;
+  top: 0 !important;
+  width: 29% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center right !important;
+  opacity: 1 !important;
+  filter: none !important;
+  z-index: 3 !important;
+}
