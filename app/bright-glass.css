@@ -560,3 +560,37 @@
   filter: none !important;
   z-index: 3 !important;
 }
+
+
+/* Approved 26 Sep: colour-only change for previously grey operational surfaces. */
+.control-portal .campus-context .calendar-day:not([aria-current="date"]),
+.control-portal .campus-context .weather-day,
+.control-portal .workspace-content[data-view="dashboard"] .hardware-stage,
+.control-portal .workspace-content[data-view="dashboard"] .hardware-card,
+.control-portal .workspace-content[data-view="dashboard"] .gate-current-state,
+.control-portal .workspace-content[data-view="dashboard"] .orbit-help {
+  background: linear-gradient(180deg, #123e66 0%, #092d4d 100%) !important;
+  color: #f5fbff !important;
+}
+.control-portal .campus-context .calendar-day:not([aria-current="date"]) :is(span,strong,small,p),
+.control-portal .campus-context .weather-day :is(span,strong,small,p),
+.control-portal .workspace-content[data-view="dashboard"] .hardware-card :is(h3,strong,p,small,span,b),
+.control-portal .workspace-content[data-view="dashboard"] .gate-current-state :is(strong,small,span,b),
+.control-portal .workspace-content[data-view="dashboard"] .orbit-help {
+  color: #f5fbff !important;
+}
+.control-portal .workspace-content[data-view="dashboard"] .hardware-card > header {
+  background: #123e66 !important;
+}
+.control-portal .workspace-content[data-view="dashboard"] .hardware-card > header p,
+.control-portal .workspace-content[data-view="dashboard"] .hardware-card footer,
+.control-portal .workspace-content[data-view="dashboard"] .metric-block span,
+.control-portal .workspace-content[data-view="dashboard"] .metric-block p {
+  color: #c7dced !important;
+}
+.control-portal .workspace-content[data-view="dashboard"] .gate-current-state {
+  border-color: #2c709d !important;
+}
+.control-portal .workspace-content[data-view="dashboard"] .orbit-help {
+  border-color: #2b6288 !important;
+}
