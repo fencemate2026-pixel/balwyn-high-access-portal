@@ -6,6 +6,8 @@ const aliases: Record<string, string> = {
   gates: 'gate', doors: 'door', cameras: 'camera', schedules: 'schedule',
   pulses: 'pulse', seconds: 'second', six: '6', sixsecond: '6',
   photos: 'photo', picture: 'photo', avatar: 'photo', feeds: 'feed',
+  staff: 'user', users: 'user', operator: 'user', account: 'user',
+  add: 'add', create: 'add', invite: 'add',
 };
 function terms(text: string) {
   return [...new Set((text.toLowerCase().replace(/six-second/g, '6 second').match(/[a-z0-9_]+/g) ?? []).filter(t => !stop.has(t)).map(t => aliases[t] ?? t))];
