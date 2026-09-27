@@ -279,11 +279,11 @@ export default function DemoLogin() {
         </header>
 
         <div className="access-login-layout grid items-center">
-          <section className="access-login-brand-stage" aria-label="Magic Keys — secure access, safer schools"><BrandArtwork fillHeight tone="dark" /></section>
+          <section className="access-login-brand-stage" aria-label="Magic Keys — secure access, safer schools"><BrandArtwork fillHeight /></section>
 
           <section className="access-login-panel" aria-labelledby="magic-login-title">
             <div className="login-school-badge">
-              <BrandLogo />
+              <BrandLogo tone="dark" />
               <span>BALWYN HIGH SCHOOL</span>
             </div>
             <div className="access-login-card has-form">

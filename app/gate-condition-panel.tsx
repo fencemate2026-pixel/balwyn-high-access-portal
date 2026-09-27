@@ -39,7 +39,7 @@ export default function GateConditionPanel({ gates, runtime, getPosition, system
         const canCommand = Boolean(onCommand && canOperate && systemMode === "normal" && run?.commissioned && run.controllerState === "online" && run.safetyOk === true && !commandInFlight && !busy);
         return <article key={gate.id} className="hardware-card group overflow-hidden rounded-2xl border border-border bg-card shadow-card">
           <header className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5">
-            <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl border border-border bg-secondary text-xs text-muted-foreground">0{index + 1}</span><div><h3 className="m-0 text-sm font-semibold text-foreground">{gate.name}</h3><p className="m-0 mt-1 text-[11px] text-muted-foreground">{gate.id} <span className="px-1.5">/</span> {gate.type}</p></div></div>
+            <div className="flex items-center gap-3"><span className="gate-ordinal grid size-9 place-items-center rounded-none border border-[#FF7A00] bg-[#FF7A00] text-xs font-bold text-white" aria-hidden="true">0{index + 1}</span><div><h3 className="m-0 text-sm font-semibold text-foreground">{gate.name}</h3><p className="m-0 mt-1 text-[11px] text-muted-foreground">{gate.id} <span className="px-1.5">/</span> {gate.type}</p></div></div>
             <span className={`telemetry-badge tone-${health.tone}`}><i className="signal-dot" />{health.label}</span>
           </header>
           <div className="hardware-stage relative mx-3 mt-2">
@@ -47,7 +47,7 @@ export default function GateConditionPanel({ gates, runtime, getPosition, system
             <span className="hardware-view-label"><span className="size-1.5 rounded-full bg-accent-blue" /> 3D hardware view</span>
             <div className="quick-gate-controls" aria-label={`${gate.name} quick controls`}>
               <button type="button" className={`quick-state-button quick-open ${position === "open" ? "is-current" : ""}`} disabled={!canCommand} aria-label={`Review open command for ${gate.name}`} onClick={() => onCommand?.(gate, "open")}><span>OPEN</span></button>
-              <button type="button" className={`quick-state-button quick-closed ${position === "closed" ? "is-current" : ""}`} disabled={!canCommand} aria-label={`Review close command for ${gate.name}`} onClick={() => onCommand?.(gate, "closed")}><span>CLOSED</span></button>
+              <button type="button" className={`quick-state-button quick-closed ${position === "closed" ? "is-current" : ""}`} disabled={!canCommand} aria-label={`Review close command for ${gate.name}`} onClick={() => onCommand?.(gate, "closed")}><span>CLOSE</span></button>
             </div>
             <aside className={`gate-current-state state-${position}`}>
               <small>CURRENT STATE</small>

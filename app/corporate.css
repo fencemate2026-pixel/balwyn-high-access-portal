@@ -1,0 +1,305 @@
+/*
+ * Magic Keys — corporate workspace layer (26 Sep 2026). Imported LAST.
+ *
+ * Direction: navy rail + navy header, light neutral canvas, white cards,
+ * orange for headings and the primary action, blue for secondary actions.
+ * Square corners, one 8-px spacing grid, one heading style, one tab style.
+ *
+ * Why this file exists: earlier layers styled every workspace panel as dark
+ * translucent glass (control-room.css). On the white workspace that glass
+ * rendered as grey, washed-out blocks. This layer returns every workspace
+ * surface to a solid white card. No purple (build gate: check-no-purple).
+ */
+.control-portal {
+  --cw-canvas: #f3f6fa;
+  --cw-card: #ffffff;
+  --cw-card-soft: #f7f9fc;
+  --cw-border: #d8e3ec;
+  --cw-border-strong: #bfd0de;
+  --cw-text: #0f2a44;
+  --cw-text-2: #4e6479;
+  --cw-text-3: #6b7f92;
+  --cw-navy: #062846;
+  --cw-blue: #0b6bcb;
+  --cw-blue-soft: #e8f1fb;
+  --cw-orange: #ff7a00;
+  --cw-orange-soft: #fff4e8;
+  --cw-green: #16a34a;
+  --cw-red: #dc2626;
+  --cw-amber: #b45309;
+  --cw-shadow: 0 1px 2px rgba(15, 42, 68, .06), 0 8px 24px rgba(15, 42, 68, .06);
+  --cw-gap: 24px;
+  --cw-pad: 24px;
+}
+
+/* ------------------------------------------------------------------ canvas */
+.control-portal .portal-workspace,
+.control-portal .workspace-content,
+.control-portal .campus-context { background: var(--cw-canvas) !important; }
+.control-portal .workspace-content { padding: 0 var(--cw-pad) 48px !important; color: var(--cw-text); }
+.control-portal .campus-context { padding: var(--cw-pad) var(--cw-pad) 0 !important; gap: var(--cw-gap) !important; }
+.control-portal .safety-bar { margin: var(--cw-gap) var(--cw-pad) !important; border: 1px solid var(--cw-border) !important; box-shadow: var(--cw-shadow) !important; padding: 14px 20px !important; }
+
+/* Workspace text is dark on light: undo the light-on-glass colours. */
+.control-portal .workspace-content,
+.control-portal .workspace-content :is(p, li, label, td, dd, dt, legend) { color: var(--cw-text); }
+.control-portal .workspace-content :is(small, .text-muted-foreground) { color: var(--cw-text-2); }
+
+/* ---------------------------------------------------------------- headings */
+.control-portal .workspace-content :is(h1, h2, h3),
+.control-portal .campus-context :is(h1, h2, h3) { text-shadow: none !important; letter-spacing: -.01em; }
+.control-portal :is(.workspace-content, .campus-context) h2 { color: var(--cw-orange) !important; font-size: 18px !important; line-height: 1.3 !important; font-weight: 700 !important; }
+.control-portal .workspace-content h3 { color: var(--cw-text) !important; font-size: 15px; font-weight: 700; }
+.control-portal .workspace-title-row { padding: var(--cw-pad) 0 16px !important; margin: 0 !important; }
+.control-portal .workspace-title-row h1 { color: var(--cw-orange) !important; font-size: 24px !important; font-weight: 700 !important; text-shadow: none !important; }
+.control-portal .workspace-title-row p,
+.control-portal .workspace-context,
+.control-portal .workspace-context * { color: var(--cw-text-2) !important; }
+.control-portal :is(.panel-heading, .view-panel-heading, .section-heading) {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin: 0 0 20px !important; padding: 0 0 16px !important;
+  background: none !important; border: 0 !important; border-bottom: 1px solid var(--cw-border) !important; border-radius: 0 !important; box-shadow: none !important;
+}
+.control-portal :is(.panel-heading, .view-panel-heading, .section-heading) small { color: var(--cw-text-2) !important; display: block; margin-top: 4px; font-size: 13px; }
+
+/* ------------------------------------------------------------------- cards */
+.control-portal :is(.panel, .view-panel, .hardware-card, .summary-card, .access-card, .settings-card, .identity-card, .permissions-card,
+  .activity-panel, .schedule-workspace, .controller-commissioning, .automation-builder, .automation-rules, .profile-editor,
+  .module-marketplace, .admin-settings-locked, .advanced-showcase-header, .advanced-example, .advanced-camera-example, .plan-upgrade-gate,
+  .cctv-camera-console, .cctv-zone-console, .guidance-distribution-panel, .guidance-input-panel, .cctv-verification-panel, .cctv-action-panel,
+  .fh-panel, .accounts-manager, .next-schedule-panel, .overview-activity, .remote-open-panel, .bright-executive-glass) {
+  background: var(--cw-card) !important; color: var(--cw-text) !important;
+  border: 1px solid var(--cw-border) !important; border-radius: 0 !important;
+  box-shadow: var(--cw-shadow) !important;
+  backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  padding: var(--cw-pad) !important;
+}
+/* Nested surfaces (rows, cells, inner forms) are soft grey, not cards. */
+.control-portal :is(.automation-form, .rule-card, .rule-row, .fh-day, .fh-cell, .fh-detail, .settings-row, .module-card, .identity-profile, .activity-row) {
+  background: var(--cw-card-soft) !important; color: var(--cw-text) !important;
+  border: 1px solid var(--cw-border) !important; border-radius: 0 !important; box-shadow: none !important;
+  backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+}
+/* Even vertical rhythm between stacked cards in every view. */
+.control-portal .workspace-content > :is(section, article, div):not(.workspace-title-row) + :is(section, article, div) { margin-top: var(--cw-gap); }
+.control-portal :is(.summary-grid, .dashboard-panels, .access-grid, .settings-layout, .identity-layout, .automation-workspace, .schedule-workspace, .hire-workspace) { gap: var(--cw-gap) !important; }
+
+/* ------------------------------------------------------------ form controls */
+.control-portal .workspace-content :is(input:not([type=checkbox]):not([type=radio]), select, textarea, [data-slot=input], [data-slot=native-select]) {
+  background: #ffffff !important; color: var(--cw-text) !important;
+  border: 1px solid var(--cw-border-strong) !important; border-radius: 0 !important; box-shadow: none !important;
+  min-height: 40px;
+}
+.control-portal .workspace-content :is(input, select, textarea):focus-visible { outline: 2px solid var(--cw-blue) !important; outline-offset: 1px; border-color: var(--cw-blue) !important; }
+.control-portal .workspace-content :is(input, textarea)::placeholder { color: #8a9bab !important; }
+.control-portal .workspace-content label > span:first-child { color: var(--cw-text-2); font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+
+/* ------------------------------------------------------------------ buttons */
+.control-portal .workspace-content [data-slot=button] { border-radius: 0 !important; min-height: 40px; font-weight: 600; box-shadow: none !important; text-shadow: none !important; }
+.control-portal .workspace-content [data-slot=button][data-variant=default],
+.control-portal .workspace-content [data-slot=button]:not([data-variant]) { background: var(--cw-blue) !important; color: #fff !important; border: 1px solid var(--cw-blue) !important; }
+.control-portal .workspace-content [data-slot=button][data-variant=default]:hover:not(:disabled) { background: #0957a6 !important; }
+.control-portal .workspace-content [data-slot=button][data-variant=outline] { background: #fff !important; color: var(--cw-text) !important; border: 1px solid var(--cw-border-strong) !important; }
+.control-portal .workspace-content [data-slot=button][data-variant=outline]:hover:not(:disabled) { border-color: var(--cw-blue) !important; color: var(--cw-blue) !important; }
+.control-portal .workspace-content [data-slot=button]:disabled { opacity: .5; }
+.control-portal .workspace-content [data-slot=badge] { border-radius: 0 !important; background: var(--cw-card-soft) !important; color: var(--cw-text-2) !important; border: 1px solid var(--cw-border) !important; text-shadow: none !important; }
+
+/* --------------------------------------------------------------------- tabs
+ * One segmented style everywhere: equal-width tabs on a light track, the
+ * active tab is white with an orange underline. 40 px tall, even padding. */
+.control-portal [role="tablist"] {
+  display: flex !important; align-items: stretch !important; gap: 4px !important;
+  padding: 4px !important; background: #e9eff5 !important; border: 1px solid var(--cw-border) !important; border-radius: 0 !important;
+  box-shadow: none !important; width: 100%;
+}
+.control-portal [role="tablist"] > [role="tab"] {
+  flex: 1 1 0 !important; min-width: 0 !important; min-height: 40px !important; padding: 8px 14px !important;
+  display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 8px;
+  background: transparent !important; color: var(--cw-text-2) !important; border: 0 !important; border-radius: 0 !important;
+  font-size: 13px !important; font-weight: 600 !important; text-shadow: none !important; box-shadow: none !important;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.control-portal [role="tablist"] > [role="tab"]:hover { color: var(--cw-text) !important; background: rgba(255,255,255,.6) !important; }
+.control-portal [role="tablist"] > [role="tab"][data-state="active"],
+.control-portal [role="tablist"] > [role="tab"][aria-selected="true"] {
+  background: #ffffff !important; color: var(--cw-text) !important;
+  box-shadow: inset 0 -3px 0 var(--cw-orange), 0 1px 2px rgba(15,42,68,.12) !important;
+}
+.control-portal [role="tablist"] > [role="tab"]::after { display: none !important; }
+
+/* ------------------------------------------------- sidebar navigation tabs */
+.control-portal .control-sidebar [data-slot="sidebar-inner"],
+.control-portal .control-sidebar [data-sidebar="sidebar"] { background: var(--cw-navy) !important; }
+.control-portal .portal-sidebar-header { padding: 20px 16px 12px !important; border-bottom: 1px solid rgba(255,255,255,.08); }
+.control-portal .magic-sidebar-brand { display: flex; justify-content: center; }
+.control-portal .magic-sidebar-brand .magic-brand-logo { width: 176px !important; height: auto !important; filter: none !important; }
+.control-portal .control-sidebar [data-sidebar="group"] { padding: 12px 12px 4px !important; }
+.control-portal .control-sidebar [data-sidebar="group-label"] { height: 28px !important; padding: 0 12px !important; margin-bottom: 4px; color: #8fb0cf !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: .12em !important; text-transform: uppercase; }
+.control-portal .control-sidebar [data-sidebar="menu"] { gap: 4px !important; }
+.control-portal .control-sidebar .portal-nav-button {
+  height: 44px !important; min-height: 44px !important; padding: 0 12px !important; gap: 12px !important;
+  border-radius: 0 !important; border: 1px solid transparent !important; box-shadow: none !important; text-shadow: none !important;
+  color: #d5e2ef !important; background: transparent !important; font-size: 14px !important; font-weight: 500 !important;
+}
+.control-portal .control-sidebar .portal-nav-button svg { width: 18px !important; height: 18px !important; color: #8fb0cf !important; flex: 0 0 18px; }
+.control-portal .control-sidebar .portal-nav-button:hover { background: rgba(255,255,255,.06) !important; color: #ffffff !important; }
+.control-portal .control-sidebar .portal-nav-button[data-active="true"] {
+  background: rgba(255,122,0,.12) !important; color: #ffffff !important; font-weight: 600 !important;
+  border-color: rgba(255,122,0,.35) !important; box-shadow: inset 3px 0 0 var(--cw-orange) !important;
+}
+.control-portal .control-sidebar .portal-nav-button[data-active="true"] svg { color: var(--cw-orange) !important; }
+.control-portal .control-sidebar [data-sidebar="menu-badge"] { right: 10px !important; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 0 !important; background: rgba(255,255,255,.1) !important; color: #ffffff !important; font-size: 11px; }
+.control-portal :is(.sidebar-system-card, .operator-footer) { background: rgba(255,255,255,.04) !important; border: 1px solid rgba(255,255,255,.08) !important; border-radius: 0 !important; box-shadow: none !important; }
+.control-portal .sidebar-system-card { margin: 12px !important; padding: 14px !important; }
+
+/* -------------------------------------------------------------------- header */
+.control-portal .workspace-header { min-height: 72px; padding: 0 var(--cw-pad) !important; background: linear-gradient(90deg, #0d3a63 0%, var(--cw-navy) 100%) !important; box-shadow: 0 2px 8px rgba(0,0,0,.18) !important; backdrop-filter: none !important; }
+.control-portal .workspace-school-brand { width: auto !important; height: 48px !important; }
+.control-portal .workspace-school-brand img { width: auto !important; height: 48px !important; filter: brightness(0) invert(1) !important; }
+
+/* ------------------------------------------------------------ dashboard gate cards */
+.control-portal .gate-current-state { border-radius: 0 !important; width: 150px !important; }
+.control-portal .gate-current-state strong { font-size: 18px !important; line-height: 1.2 !important; word-break: normal !important; overflow-wrap: normal !important; }
+.control-portal .quick-state-button { border-radius: 0 !important; font-weight: 700 !important; letter-spacing: .04em !important; }
+.control-portal .quick-state-button:disabled { opacity: .55 !important; filter: grayscale(.35) !important; }
+.control-portal .hardware-card { padding: 0 !important; }
+.control-portal .hardware-card > header { padding: 16px 20px !important; }
+
+/* -------------------------------------------------------------- automation */
+.control-portal .automation-form-typed { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px !important; align-items: end; padding: 20px !important; }
+.control-portal .automation-form-typed > label { display: grid; gap: 6px; }
+.control-portal .automation-form-typed > button { grid-column: 1 / -1; justify-self: start; }
+.control-portal .automation-days { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; }
+.control-portal .automation-days legend { width: 100%; margin-bottom: 6px; color: var(--cw-text-2); font-size: 12px; font-weight: 600; }
+.control-portal .automation-days label { display: inline-flex; align-items: center; gap: 6px; min-width: 64px; height: 36px; padding: 0 12px; border: 1px solid var(--cw-border-strong); background: #fff; cursor: pointer; font-size: 13px; font-weight: 600; }
+.control-portal .automation-days label.is-on { border-color: var(--cw-orange); background: var(--cw-orange-soft); color: #9a4a00; }
+.control-portal .automation-days input { accent-color: var(--cw-orange); }
+.control-portal .rule-kind-note { margin-left: 8px; padding: 1px 6px; border: 1px solid var(--cw-border); background: #fff; color: var(--cw-text-3); font-size: 11px; font-weight: 600; }
+@media (max-width: 1100px) { .control-portal .automation-form-typed { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 700px) { .control-portal .automation-form-typed { grid-template-columns: 1fr; } }
+
+/* ----------------------------------------------------------- facility hire */
+.control-portal .fh-gates { display: grid; gap: 10px; margin: 0; padding: 14px; border: 1px solid var(--cw-border); background: var(--cw-card-soft); }
+.control-portal .fh-gates legend { padding: 0 4px; font-weight: 700; color: var(--cw-text); }
+.control-portal .fh-gates legend small { font-weight: 500; color: var(--cw-text-3); }
+.control-portal .fh-gate-options { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.control-portal .fh-gate-note { color: var(--cw-text-3) !important; font-size: 12px; }
+
+/* --------------------------------------------------------- accounts / admin */
+.control-portal .accounts-manager { margin-top: var(--cw-gap); }
+.control-portal .accounts-locked { background: var(--cw-card-soft) !important; border: 1px solid var(--cw-border) !important; }
+.control-portal .accounts-locked p, .control-portal .accounts-table td, .control-portal .accounts-table th { color: var(--cw-text) !important; }
+.control-portal .accounts-table td small { color: var(--cw-text-3) !important; }
+.control-portal .accounts-table th { border-bottom-color: var(--cw-border) !important; }
+.control-portal .accounts-table td { border-bottom-color: #e8eef4 !important; }
+.control-portal .accounts-link code { background: var(--cw-card-soft) !important; color: var(--cw-blue) !important; border-color: var(--cw-border) !important; }
+.control-portal .admin-settings-locked { max-width: 560px; margin-inline: auto; text-align: left; }
+
+/* ------------------------------------------------ scheduler + weather row */
+@media (min-width: 1100px) {
+  .control-portal .campus-context { grid-template-columns: minmax(0, 2fr) minmax(420px, 1fr) !important; align-items: stretch !important; }
+}
+.control-portal .campus-context .campus-glass-weather { align-self: stretch !important; }
+.control-portal .campus-context .mk-card { padding: 20px 24px !important; }
+.control-portal .campus-context :is(.mk-tile, .mk-card) :is(span, small, p) { text-shadow: none !important; }
+/* The legacy 12 px override squeezed tile text; keep the component's own sizes. */
+.control-portal .campus-context .mk-tile .text-xs { font-size: 12px !important; }
+.control-portal .campus-context .mk-tile .text-2xl { font-size: 24px !important; }
+
+/* ------------------------------------------------------------- fire command
+ * Unmistakably red, never washed out; solid red while fire mode is live. */
+.control-portal .safety-command.fire {
+  min-height: 48px !important; padding: 8px 18px 8px 14px !important; gap: 12px !important;
+  background: #ffffff !important; color: #b91c1c !important; border: 2px solid var(--cw-red) !important; border-radius: 0 !important; box-shadow: none !important; opacity: 1 !important;
+}
+.control-portal .safety-command.fire .safety-command-icon { color: var(--cw-red) !important; }
+.control-portal .safety-command.fire strong { color: #b91c1c !important; font-size: 13px !important; letter-spacing: .06em !important; }
+.control-portal .safety-command.fire em { color: #7f1d1d !important; font-size: 12px !important; }
+.control-portal .safety-command.fire:hover:not(:disabled) { background: #fef2f2 !important; }
+.control-portal .safety-command.fire.is-live { background: var(--cw-red) !important; color: #fff !important; }
+.control-portal .safety-command.fire.is-live :is(strong, em, .safety-command-icon) { color: #fff !important; }
+.control-portal .safety-command.fire:disabled { border-color: #fca5a5 !important; }
+.control-portal .safety-bar :is(strong) { color: var(--cw-text) !important; }
+.control-portal .safety-bar :is(small, span) { color: var(--cw-text-2); }
+
+/* ------------------------------------------------------ facility hire page */
+.control-portal .fh .fh-range { color: var(--cw-text) !important; font-size: 18px !important; }
+.control-portal .fh :is(.fh-legend, .fh-empty, .fh-month-title) { color: var(--cw-text-2) !important; }
+.control-portal .fh .fh-legend i { width: 10px !important; height: 10px !important; border-radius: 0 !important; }
+.control-portal .fh .fh-3d {
+  min-height: 40px; padding: 0 14px; border-radius: 0 !important; transform: none !important;
+  background: #ffffff !important; color: var(--cw-text) !important; border: 1px solid var(--cw-border-strong) !important; box-shadow: none !important;
+}
+.control-portal .fh .fh-3d:hover:not(:disabled) { border-color: var(--cw-blue) !important; color: var(--cw-blue) !important; background: #ffffff !important; }
+.control-portal .fh .fh-3d.fh-primary { background: var(--cw-orange) !important; color: #ffffff !important; border-color: var(--cw-orange) !important; }
+.control-portal .fh .fh-3d.fh-primary:hover:not(:disabled) { background: #e96f00 !important; color: #ffffff !important; }
+.control-portal .fh .fh-3d:disabled { opacity: .5; }
+.control-portal .fh .fh-day { padding: 12px !important; min-height: 150px; }
+.control-portal .fh .fh-day.is-today { border: 2px solid var(--cw-orange) !important; background: var(--cw-orange-soft) !important; }
+.control-portal .fh-form { gap: 16px !important; }
+.control-portal .fh-form label { display: grid; gap: 6px; color: var(--cw-text-2) !important; font-size: 12px; font-weight: 600; }
+
+/* --------------------------------------------------------------- sidebar */
+.control-portal .control-sidebar .portal-nav-button > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.control-portal .control-sidebar [data-sidebar="menu-item"]:has([data-sidebar="menu-badge"]) .portal-nav-button,
+.control-portal .control-sidebar [data-sidebar="menu-item"]:has(.nav-lock) .portal-nav-button { padding-right: 40px !important; }
+.control-portal .campus-context .mk-gauge-value { font-size: 14px !important; }
+.control-portal .campus-context .mk-gauge-label { font-size: 11px !important; white-space: nowrap; }
+.control-portal .campus-context .mk-chip { font-size: 11px !important; line-height: 16px !important; letter-spacing: 0 !important; }
+.control-portal .campus-context .mk-tile { letter-spacing: 0; }
+/* One consistent gap between the safety bar and the page below it. */
+.control-portal .safety-bar + * { margin-top: 0 !important; }
+.control-portal .workspace-content > :first-child { margin-top: 0 !important; }
+
+/* ------------------------------------------------------------ gate schedules
+ * The weekly timeline was a dark panel with light text; on the corporate
+ * canvas it is a light chart: grey tracks, green open bars, dark labels. */
+.control-portal .schedule-graph {
+  background: var(--cw-card-soft) !important; color: var(--cw-text) !important;
+  border: 1px solid var(--cw-border) !important; border-radius: 0 !important; box-shadow: none !important; padding: 20px !important;
+}
+.control-portal .schedule-graph :is(h2, h3) { color: var(--cw-text) !important; }
+.control-portal .schedule-graph :is(p, small, span) { color: var(--cw-text-2) !important; }
+.control-portal .timeline-legend, .control-portal .timeline-axis, .control-portal .timeline-day > strong { color: var(--cw-text-2) !important; }
+.control-portal .timeline-track {
+  background-color: #ffffff !important; border: 1px solid var(--cw-border) !important; border-radius: 0 !important;
+  background-image: repeating-linear-gradient(90deg, transparent 0 calc(25% - 1px), #e6ecf2 calc(25% - 1px) 25%) !important;
+}
+.control-portal .timeline-bar { border-radius: 0 !important; background: var(--cw-green) !important; color: #ffffff !important; box-shadow: none !important; }
+.control-portal .timeline-bar * { color: #ffffff !important; }
+.control-portal .timeline-legend i { border-radius: 0 !important; background: var(--cw-green) !important; box-shadow: none !important; }
+.control-portal :is(.schedule-context, .schedule-highlight) { background: var(--cw-card-soft) !important; border: 1px solid var(--cw-border) !important; border-radius: 0 !important; box-shadow: none !important; }
+.control-portal .schedule-toolbar { border-bottom: 1px solid var(--cw-border) !important; padding-bottom: 20px !important; margin-bottom: 20px !important; }
+/* Small gate thumbnails: the position label is for the full card, not a 90-px icon. */
+.control-portal .schedule-context .gate-led-indicator > span,
+.control-portal .schedule-context .gate-model-fallback > span { display: none !important; }
+
+/* -------------------------------------------------------------- automation
+ * Builder on top, rule list below: both full width, one even rhythm. */
+.control-portal .automation-workspace { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: var(--cw-gap) !important; }
+
+/* Header crest a touch larger so it reads at a glance. */
+.control-portal .workspace-school-brand, .control-portal .workspace-school-brand img { height: 56px !important; }
+
+/* Native checkboxes and time fields: legible on white, never black squares or clipped times. */
+.control-portal .workspace-content input[type="checkbox"] {
+  appearance: auto !important; -webkit-appearance: checkbox !important; width: 18px !important; height: 18px !important; min-height: 0 !important;
+  background: #ffffff !important; border: 0 !important; box-shadow: none !important; accent-color: var(--cw-orange);
+}
+.control-portal .workspace-content input:is([type="time"], [type="date"]) { font-size: 14px !important; letter-spacing: 0 !important; padding-inline: 10px !important; min-width: 0; }
+.control-portal :is(.workspace-content, .campus-context) { color-scheme: light; }
+.control-portal .workspace-content input:is([type="time"], [type="date"]) { font-size: 13px !important; padding-inline: 8px !important; }
+
+/* ------------------------------------------------------ brand + legal pages
+ * The 2026 logo artwork is 300 x 110 px: never show it wider than ~340 px, or
+ * it goes soft. Legal pages are dark: no white box behind the logo, light text. */
+.access-login-brand-stage .magic-wide-wordmark { width: min(340px, 40%) !important; }
+.legal-brand img, .legal-brand > .magic-brand-logo { background: transparent !important; padding: 0 !important; border-radius: 0 !important; filter: none !important; width: 180px !important; height: auto !important; }
+.legal-brand, .legal-brand strong { color: #f5fbff !important; }
+.legal-brand small, .legal-back { color: #9fc0da !important; }
+
+/* Status pill readable on white. */
+.control-portal .workspace-title-row .concept-badge { color: #9a4a00 !important; background: #fff4e8 !important; border-color: #ffb870 !important; }
+
+/* The floating "Ask Magic Keys" button must never cover the last card on a page. */
+.control-portal .workspace-content { padding-bottom: 112px !important; }

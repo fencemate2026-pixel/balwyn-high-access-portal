@@ -1,0 +1,66 @@
+"""HTTPS client for the portal's controller protocol (outbound only: no port is
+opened on the Pi, so no tunnel or port-forward is needed).
+
+  POST /api/controller/commands          heartbeat + fetch next command
+  POST /api/controller/commands/{id}/ack report the outcome of a command
+
+Contract read from app/api/controller/commands/route.ts and
+app/api/controller/commands/[id]/ack/route.ts in this repository.
+"""
+
+from __future__ import annotations
+
+import json
+import ssl
+import urllib.error
+import urllib.request
+from typing import Any, Dict, List, Optional
+
+from . import __version__
+
+
+class PortalError(Exception):
+    def __init__(self, message: str, status: Optional[int] = None) -> None:
+        super().__init__(message)
+        self.status = status
+
+
+class PortalClient:
+    def __init__(self, base_url: str, gate_id: str, token: str, ca_file: Optional[str] = None, timeout_s: float = 8.0) -> None:
+        self.base = base_url
+        self.gate_id = gate_id
+        self._token = token
+        self._timeout = timeout_s
+        self._ssl = ssl.create_default_context(cafile=ca_file) if base_url.startswith("https://") else None
+
+    def _post(self, path: str, body: Dict[str, Any]) -> Dict[str, Any]:
+        data = json.dumps(body).encode("utf-8")
+        request = urllib.request.Request(self.base + path, data=data, method="POST", headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self._token}",
+            "User-Agent": f"balwyn-gate-controller/{__version__}",
+        })
+        try:
+            with urllib.request.urlopen(request, timeout=self._timeout, context=self._ssl) as response:
+                return json.loads(response.read(65536).decode("utf-8") or "{}")
+        except urllib.error.HTTPError as error:
+            # Never log the token; the portal's error text is short and safe.
+            try:
+                message = json.loads(error.read(4096).decode("utf-8")).get("error", "")
+            except (ValueError, OSError):
+                message = ""
+            raise PortalError(message or f"HTTP {error.code}", error.code) from None
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
+            raise PortalError(f"portal unreachable: {type(error).__name__}") from None
+
+    def poll(self, position: str, safety_ok: bool, faults: List[str], schedule_control: bool) -> Dict[str, Any]:
+        return self._post("/api/controller/commands", {
+            "gateId": self.gate_id, "position": position, "safetyOk": safety_ok,
+            "faults": faults[:8], "softwareVersion": f"balwyn-gate-controller {__version__}",
+            "scheduleControl": schedule_control,
+        })
+
+    def ack(self, command_id: int, state: str, position: str, safety_ok: bool, detail: str) -> None:
+        self._post(f"/api/controller/commands/{int(command_id)}/ack", {
+            "gateId": self.gate_id, "state": state, "position": position, "safetyOk": safety_ok, "detail": detail[:500],
+        })

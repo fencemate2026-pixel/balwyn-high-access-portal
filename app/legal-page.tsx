@@ -10,7 +10,7 @@ export default function LegalPage({ eyebrow, title, summary, sections }: { eyebr
     <main className="legal-shell">
       <header className="legal-topbar">
         <Link href="/" className="legal-brand" aria-label="Return to Magic Keys sign in">
-          <BrandLogo />
+          <BrandLogo tone="dark" />
           <span><small>Balwyn High School</small><strong>Secure operations portal</strong></span>
         </Link>
         <Link href="/" className="legal-back"><ArrowLeft /> Home</Link>

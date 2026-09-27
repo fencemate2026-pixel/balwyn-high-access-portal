@@ -30,6 +30,18 @@ import {
 } from "@/lib/portal-model";
 import { heartbeatCompletesCommissioning, validateControllerAcknowledgement } from "@/lib/controller-safety";
 import { assertPlanAllowsModules, getPortalPlan, planAllowsModule } from "@/lib/portal-plan";
+import {
+  addDays,
+  melbourneDate,
+  melbourneToUtc,
+  parseGateWindowConfig,
+  resolveDirective,
+  windowsForDate,
+  type BookingLink,
+  type GateWindow,
+  type RuleKind,
+  type StoredRule,
+} from "@/lib/gate-windows";
 
 function nowIso() {
   return new Date().toISOString();
@@ -168,7 +180,7 @@ export async function getPortalSnapshot(user: PortalUser, seededCheckDone = fals
       actorName: row.actorName,
       createdAt: row.createdAt,
     })),
-    automations: ruleRows.map((row) => ({ id: row.id, name: row.name, trigger: row.trigger, action: row.action, enabled: row.enabled })),
+    automations: ruleRows.map((row) => ({ id: row.id, name: row.name, trigger: row.trigger, action: row.action, enabled: row.enabled, kind: row.kind === "gate_window" ? "gate_window" : "note", config: row.config ?? null })),
     settings: {
       positionMonitoring: setting?.positionMonitoring ?? true,
       faultAlerts: setting?.faultAlerts ?? true,
@@ -264,13 +276,35 @@ export async function saveGateSchedule(gateId: string, week: WeekPlan, user: Por
   await recordActivity(user, "Gate schedule updated", `${gate.name}'s weekly operating schedule was saved.`, "schedule");
 }
 
-export async function addAutomationRule(rule: Omit<AutomationRule, "id" | "enabled">, user: PortalUser) {
-  const name = rule.name.trim().slice(0, 80);
-  const trigger = rule.trigger.trim().slice(0, 160);
-  const action = rule.action.trim().slice(0, 160);
-  if (!name || !trigger || !action) throw new Error("Name, trigger and action are required.");
-  await getDb().insert(automationRules).values({ name, trigger, action, enabled: true, updatedBy: user.displayName });
-  await recordActivity(user, "Automation rule added", `${user.displayName} created "${name}".`, "automation");
+/**
+ * Add an automation rule.
+ *  kind "gate_window": validated by parseGateWindowConfig; runs through the same
+ *    engine as schedules and appears on the calendar.
+ *  kind "note": free text, stored for the record, never executed.
+ */
+export async function addAutomationRule(
+  rule: { name: string; kind?: RuleKind; trigger?: string; action?: string; config?: unknown },
+  user: PortalUser,
+) {
+  const name = String(rule.name ?? "").trim().slice(0, 80);
+  if (!name) throw new Error("Name the automation rule.");
+  const kind: RuleKind = rule.kind === "gate_window" ? "gate_window" : "note";
+  if (kind === "gate_window") {
+    const config = parseGateWindowConfig(rule.config);
+    const gate = GATES.find((candidate) => candidate.id === config.gateId)!;
+    const when = config.date ? `On ${config.date}` : `Every ${config.days!.join(", ")}`;
+    await getDb().insert(automationRules).values({
+      name, kind, config: JSON.stringify(config), enabled: true, updatedBy: user.displayName,
+      trigger: `${when}, ${config.open}–${config.close} (Melbourne time)`.slice(0, 160),
+      action: `Hold ${gate.name} open, then release`.slice(0, 160),
+    });
+  } else {
+    const trigger = String(rule.trigger ?? "").trim().slice(0, 160);
+    const action = String(rule.action ?? "").trim().slice(0, 160);
+    if (!trigger || !action) throw new Error("Name, trigger and action are required.");
+    await getDb().insert(automationRules).values({ name, kind, config: null, trigger, action, enabled: true, updatedBy: user.displayName });
+  }
+  await recordActivity(user, "Automation rule added", `${user.displayName} created "${name}"${kind === "note" ? " (note only, not automated)" : ""}.`, "automation");
 }
 
 export async function setAutomationRuleState(id: number, enabled: boolean, user: PortalUser) {
@@ -391,29 +425,110 @@ export async function getNextControllerCommand(gateId: string) {
   return { id: command.id, command: command.command as GatePosition, source: command.source, expiresAt: command.expiresAt, correlationId: command.correlationId };
 }
 
-async function getControllerScheduleDirective(gateId: string): Promise<{ target: GatePosition; key: string } | null> {
+/**
+ * Every gate window touching the given Melbourne dates, from all three sources.
+ * Used by the controller engine (today) and the calendar feed (a date range),
+ * so both always agree.
+ */
+export async function loadGateWindows(fromDate: string, toDate: string): Promise<GateWindow[]> {
+  const db = getDb();
+  const d1 = getSql();
+  const [scheduleRows, ruleRows] = await Promise.all([
+    db.select().from(schedules),
+    db.select().from(automationRules),
+  ]);
+  const scheduleMap = Object.fromEntries(GATES.map((gate) => [gate.id, makeWeekPlan(gate)])) as Record<string, WeekPlan>;
+  for (const row of scheduleRows) {
+    if (!isGateActive(row.gateId) || !scheduleMap[row.gateId] || !DAYS.includes(row.day as DayKey)) continue;
+    scheduleMap[row.gateId][row.day as DayKey] = { enabled: row.enabled, open: row.openTime, close: row.closeTime };
+  }
+  const rules: StoredRule[] = ruleRows.map((row) => ({ id: row.id, name: row.name, kind: row.kind, config: row.config ?? null, enabled: row.enabled }));
+  // Bookings from the day before (a run-out can cross midnight) to the day after.
+  const from = melbourneToUtc(addDays(fromDate, -1), "00:00").toISOString();
+  const to = melbourneToUtc(addDays(toDate, 2), "00:00").toISOString();
+  const links = await d1.prepare(
+    `SELECT g.booking_id, g.gate_id, g.lead_minutes, g.lag_minutes, o.starts_at, o.ends_at, b.name
+       FROM hire_booking_gates g
+       JOIN hire_bookings b ON b.id = g.booking_id
+       JOIN hire_booking_occurrences o ON o.booking_id = b.id
+      WHERE o.cancelled = false AND b.status IN ('confirmed', 'completed')
+        AND o.ends_at > ?::timestamptz AND o.starts_at < ?::timestamptz
+      ORDER BY o.starts_at
+      LIMIT 2000`,
+  ).bind(from, to).all<{ booking_id: string; gate_id: string; lead_minutes: number; lag_minutes: number; starts_at: string; ends_at: string; name: string }>();
+  const bookings: BookingLink[] = links.results.map((row) => ({
+    bookingId: String(row.booking_id), gateId: String(row.gate_id), label: `Hire: ${row.name}`,
+    startsAt: new Date(row.starts_at).toISOString(), endsAt: new Date(row.ends_at).toISOString(),
+    leadMinutes: Number(row.lead_minutes), lagMinutes: Number(row.lag_minutes),
+  }));
+  const windows: GateWindow[] = [];
+  const seen = new Set<string>();
+  for (let date = fromDate; date <= toDate; date = addDays(date, 1)) {
+    for (const window of windowsForDate(date, scheduleMap, rules, bookings)) {
+      const id = `${window.ref}@${window.start}`;
+      if (seen.has(id)) continue; // a booking crossing midnight touches two dates
+      seen.add(id);
+      windows.push(window);
+    }
+  }
+  return windows;
+}
+
+async function getControllerScheduleDirective(gateId: string) {
   if (!isGateActive(gateId)) return null;
   const db = getDb();
   const modes = await db.select({ mode: systemState.mode }).from(systemState).where(eq(systemState.id, 1)).limit(1);
+  // Emergency priority: no automation of any kind while fire mode (or any non-normal mode) is set.
   if ((modes[0]?.mode ?? "normal") !== "normal") return null;
-  const parts = new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Melbourne",
-    weekday: "long",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(new Date());
-  const day = parts.find((part) => part.type === "weekday")?.value;
-  const hour = parts.find((part) => part.type === "hour")?.value;
-  const minute = parts.find((part) => part.type === "minute")?.value;
-  if (!day || !hour || !minute) return null;
-  const rows = await db.select().from(schedules).where(and(eq(schedules.gateId, gateId), eq(schedules.day, day))).limit(1);
-  const plan = rows[0];
-  if (!plan?.enabled) return null;
-  const current = `${hour}:${minute}`;
-  const target = current >= plan.openTime && current < plan.closeTime ? "open" : "closed";
-  const localDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-  return { target, key: `schedule-${gateId}-${localDate}-${target}-${plan.updatedAt.replace(/[^0-9]/g, "")}` };
+  const now = new Date();
+  const today = melbourneDate(now);
+  // Yesterday is included so a booking run-out that crosses midnight is still honoured.
+  const windows = (await loadGateWindows(addDays(today, -1), today)).filter((window) => Date.parse(window.end) > melbourneToUtc(today, "00:00").getTime());
+  return resolveDirective(gateId, windows, now);
+}
+
+/** Re-open limits for one hold window (see reopenCorrelationId). */
+export const REOPEN_COOLDOWN_MS = 60_000;
+export const REOPEN_MAX_PER_WINDOW = 3;
+
+/**
+ * Decide whether an OPEN for the current window should be sent again.
+ *
+ * The window's first OPEN uses directive.key. If the gate is later reported
+ * CLOSED while the window is still running (the Pi restarted and dropped its
+ * hold, the hold was released after a network outage, or a safety trip
+ * released it), the same key cannot be reused, so a re-open is issued as
+ * key:r1, key:r2, … Guards, all required:
+ *   - the gate reports "closed" (a definite reed reading, never unknown/moving);
+ *   - every earlier command for this window has finished;
+ *   - no manual or fire command was sent for this gate after the window's
+ *     first OPEN — staff pressing CLOSE ends automation for that window;
+ *   - at least REOPEN_COOLDOWN_MS since the last one finished;
+ *   - at most REOPEN_MAX_PER_WINDOW re-opens, so a gate that keeps failing
+ *     (obstruction, fault) is not hammered.
+ * Returns the correlation id to use, or null.
+ */
+async function reopenCorrelationId(gateId: string, key: string): Promise<string | null> {
+  const d1 = getSql();
+  const family = await d1.prepare(
+    `SELECT id, correlation_id, state, acknowledged_at FROM command_queue
+      WHERE gate_id = ? AND (correlation_id = ?::text OR left(correlation_id, length(?::text) + 2) = ?::text || ':r')
+      ORDER BY id DESC LIMIT 20`,
+  ).bind(gateId, key, key, key).all<{ id: number; correlation_id: string; state: string; acknowledged_at: string | null }>();
+  const rows = family.results;
+  if (!rows.length) return key; // first OPEN of this window
+  if (rows.some((row) => row.state === "queued" || row.state === "dispatched")) return null;
+  const reopens = rows.length - 1;
+  if (reopens >= REOPEN_MAX_PER_WINDOW) return null;
+  const last = rows[0];
+  const finishedAt = last.acknowledged_at ? Date.parse(last.acknowledged_at) : NaN;
+  if (!Number.isFinite(finishedAt) || Date.now() - finishedAt < REOPEN_COOLDOWN_MS) return null;
+  const firstId = Math.min(...rows.map((row) => Number(row.id)));
+  const override = await d1.prepare(
+    "SELECT 1 AS hit FROM command_queue WHERE gate_id = ? AND id > ? AND source IN ('manual', 'emergency') LIMIT 1",
+  ).bind(gateId, firstId).first<{ hit: number }>();
+  if (override) return null;
+  return `${key}:r${reopens + 1}`;
 }
 
 export async function getOrCreateScheduledControllerCommand(gateId: string) {
@@ -423,14 +538,26 @@ export async function getOrCreateScheduledControllerCommand(gateId: string) {
   const gateRows = await db.select().from(gateStates).where(eq(gateStates.gateId, gateId)).limit(1);
   const gate = gateRows[0];
   if (!gate || gate.reportedPosition === directive.target) return null;
+  // Re-opening is only ever considered on a definite CLOSED reading.
+  let correlationId = directive.key;
+  let reopening = false;
+  if (directive.target === "open") {
+    const candidate = await reopenCorrelationId(gateId, directive.key);
+    if (!candidate) return getNextControllerCommand(gateId);
+    if (candidate !== directive.key) {
+      if (gate.reportedPosition !== "closed") return getNextControllerCommand(gateId);
+      correlationId = candidate;
+      reopening = true;
+    }
+  }
   const expiry = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   const inserted = await db.insert(commandQueue).values({
-    correlationId: directive.key,
+    correlationId,
     gateId,
     command: directive.target,
     source: "schedule",
     state: "queued",
-    requestedBy: "Approved schedule",
+    requestedBy: "Approved automation",
     expiresAt: expiry,
   }).onConflictDoNothing().returning({ id: commandQueue.id });
   if (inserted[0]) {
@@ -443,8 +570,10 @@ export async function getOrCreateScheduledControllerCommand(gateId: string) {
     }).where(eq(gateStates.gateId, gateId));
     const gateConfig = GATES.find((candidate) => candidate.id === gateId);
     await db.insert(activityLog).values({
-      action: "Scheduled relay command queued",
-      detail: `${gateConfig?.name ?? gateId}: ${directive.target} requested by the approved Melbourne-time schedule.`,
+      action: reopening ? "Scheduled relay command re-sent" : "Scheduled relay command queued",
+      detail: reopening
+        ? `${gateConfig?.name ?? gateId}: reported closed during ${directive.reason}, so open was requested again (attempt ${correlationId.split(":r").pop()} of ${REOPEN_MAX_PER_WINDOW}).`
+        : `${gateConfig?.name ?? gateId}: ${directive.target} requested by ${directive.reason} (Melbourne time).`,
       category: "schedule",
       actorName: "Magic Keys schedule",
       actorRole: "system",

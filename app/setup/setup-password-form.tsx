@@ -52,7 +52,7 @@ export default function SetupPasswordForm() {
   return (
     <main className="access-login access-login-school-blue mk-setup min-h-svh antialiased">
       <section className="access-login-panel mk-setup-panel" aria-labelledby="setup-title">
-        <div className="login-school-badge"><BrandLogo /><span>BALWYN HIGH SCHOOL</span></div>
+        <div className="login-school-badge"><BrandLogo tone="dark" /><span>BALWYN HIGH SCHOOL</span></div>
         <div className="access-login-card has-form">
           <p className="access-login-kicker">CAMPUS ACCESS PORTAL</p>
           {doneEmail ? <>

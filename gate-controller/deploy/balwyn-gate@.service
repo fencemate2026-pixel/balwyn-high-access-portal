@@ -1,0 +1,51 @@
+# One instance per gate:  systemctl enable --now balwyn-gate@TF-ENTRY
+# Settings: /etc/balwyn-gate/%i.env    Credential: /etc/balwyn-gate/%i.token (root:root, mode 600)
+# State + audit log: /var/lib/balwyn-gate/%i/
+[Unit]
+Description=Balwyn gate controller for %i (Magic Keys portal)
+After=network-online.target dev-gpiochip0.device
+Wants=network-online.target
+Requires=dev-gpiochip0.device
+StartLimitIntervalSec=120
+StartLimitBurst=10
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=balwyn-gate
+Group=gpio
+WorkingDirectory=/opt/balwyn-gate-controller
+EnvironmentFile=/etc/balwyn-gate/%i.env
+Environment=PYTHONUNBUFFERED=1
+# The credential file stays root-only; systemd hands the service a private copy.
+LoadCredential=token:/etc/balwyn-gate/%i.token
+Environment=CONTROLLER_TOKEN_FILE=%d/token
+StateDirectory=balwyn-gate/%i
+StateDirectoryMode=0700
+ExecStartPre=/usr/bin/python3 -m balwyn_gate_controller check-config
+ExecStart=/usr/bin/python3 -m balwyn_gate_controller run
+# systemd restarts the controller if its main loop stops reporting for 15 s.
+# The relay is released on every stop and is claimed OFF on every start.
+WatchdogSec=15
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=5
+
+# Hardening: no privileges, read-only system, only the GPIO chip as a device.
+NoNewPrivileges=true
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+DevicePolicy=closed
+DeviceAllow=/dev/gpiochip0 rw
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

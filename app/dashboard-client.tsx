@@ -317,8 +317,13 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const [enabledModules, setEnabledModules] = useState<Set<ModuleKey>>(() => new Set(initialData.settings.enabledModules));
   const [automations, setAutomations] = useState<AutomationRule[]>(initialData.automations);
   const [automationName, setAutomationName] = useState("");
-  const [automationTrigger, setAutomationTrigger] = useState("At a scheduled time");
-  const [automationAction, setAutomationAction] = useState("Notify authorised operators");
+  // Typed automation builder: "Hold a gate open for a time window" (see lib/gate-windows.ts).
+  const [automationGate, setAutomationGate] = useState(activeGates[0]?.id ?? "");
+  const [automationRepeat, setAutomationRepeat] = useState<"weekly" | "once">("weekly");
+  const [automationDays, setAutomationDays] = useState<DayKey[]>(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]);
+  const [automationDate, setAutomationDate] = useState("");
+  const [automationOpen, setAutomationOpen] = useState("07:30");
+  const [automationClose, setAutomationClose] = useState("08:45");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [clearingEmergency, setClearingEmergency] = useState(false);
   const [pendingEmergency, setPendingEmergency] = useState<"lockdown" | "fire" | "clear" | null>(null);
@@ -417,6 +422,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       if (!response.ok || !result.snapshot) throw new Error(result.error || "The operation could not be completed.");
       mutationEpochRef.current += 1;
       applySnapshot(result.snapshot);
+      if (["save_schedule", "add_automation", "toggle_automation", "delete_automation"].includes(String(payload.action))) window.dispatchEvent(new Event("gate-windows-updated"));
       if (result.controllerCredential) setControllerCredential(result.controllerCredential);
       return result;
     } finally {
@@ -722,7 +728,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       return;
     }
     try {
-      await postPortal({ action: "add_automation", name, trigger: automationTrigger, ruleAction: automationAction }, "add-automation");
+      const config = { gateId: automationGate, open: automationOpen, close: automationClose, ...(automationRepeat === "once" ? { date: automationDate } : { days: automationDays }) };
+      await postPortal({ action: "add_automation", name, kind: "gate_window", config }, "add-automation");
       setAutomationName("");
       toast.success("Automation rule saved", { description: name });
     } catch (reason) {
@@ -839,7 +846,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   return (
     <SidebarProvider className={`control-portal mode-${systemMode}`} style={{ "--sidebar-width": "15.5rem" } as React.CSSProperties}>
       <Sidebar collapsible="offcanvas" className="control-sidebar">
-        <SidebarHeader className="portal-sidebar-header"><div className="magic-sidebar-brand"><BrandLogo /></div></SidebarHeader>
+        <SidebarHeader className="portal-sidebar-header"><div className="magic-sidebar-brand"><BrandLogo tone="dark" /></div></SidebarHeader>
         <SidebarSeparator />
         <SidebarContent>
           <SidebarGroup><SidebarGroupLabel>Operations</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("hire", CalendarDays)}{navItem("schedule", CalendarClock)}{navItem("dashboard", LayoutDashboard)}{navItem("cctv", Camera)}{navItem("guidance", MapPin)}{navItem("automation", Workflow, String(automations.filter((rule) => rule.enabled).length))}{navItem("safety", ShieldCheck)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
@@ -852,7 +859,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
       <SidebarInset className="portal-workspace">
         <header className="workspace-header">
-          <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="workspace-school-brand"><img src="/balwyn-high-school-logo.webp" alt="Balwyn High School" /></span></div>
+          <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="workspace-school-brand"><img src="/balwyn-high-school-logo-clear.png" alt="Balwyn High School" /></span></div>
           <div className="workspace-header-right"><div className={`system-status-cluster ${operationalReady ? "is-ready" : "is-attention"}`}><i className="signal-dot" /><span><small>Controller status</small><strong>{operationalReady ? "All systems ready" : "Commissioning"}</strong></span><b>{onlineCount}/{activeGates.length}</b></div><span className="connection-pill"><i /> Encrypted connection</span><button className="notification-button" aria-label="View system alerts" onClick={() => onlineCount === activeGates.length ? toast.success("All controllers online", { description: "Physical gate feedback is available for every access point." }) : toast.warning(`${activeGates.length - onlineCount} active gate controllers are not online`, { description: `${commissionedCount} have completed a verified heartbeat; ${credentialCount} credentials have been issued.` })}><Bell /></button><div className="header-operator"><Avatar><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><span><strong>{displayName}</strong><small>{roleLabel}</small></span></div></div>
         </header>
 
@@ -1060,21 +1067,25 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             <section className="automation-workspace">
               <article className="automation-builder">
                 <div className="panel-heading"><div><h2>Build a rule</h2><small>Persistent operating policy</small></div><Zap /></div>
-                <div className="automation-form">
-                  <label><span>Rule name</span><Input value={automationName} disabled={!isAdministrator} onChange={(event) => setAutomationName(event.target.value)} placeholder="Name an approved operating rule" onKeyDown={(event) => event.key === "Enter" && addAutomation()} /></label>
-                  <label><span>When this happens</span><NativeSelect value={automationTrigger} disabled={!isAdministrator} onChange={(event) => setAutomationTrigger(event.target.value)}><NativeSelectOption value="At a scheduled time">At a scheduled time</NativeSelectOption><NativeSelectOption value="A gate remains open too long">A gate remains open too long</NativeSelectOption><NativeSelectOption value="A controller goes offline">A controller goes offline</NativeSelectOption><NativeSelectOption value="An approved safety input activates">An approved safety input activates</NativeSelectOption></NativeSelect></label>
-                  <span className="automation-flow" aria-hidden="true"><Workflow /><i /><ChevronRight /></span>
-                  <label><span>Then perform</span><NativeSelect value={automationAction} disabled={!isAdministrator} onChange={(event) => setAutomationAction(event.target.value)}><NativeSelectOption value="Notify authorised operators">Notify authorised operators</NativeSelectOption><NativeSelectOption value="Open scheduled gates">Open scheduled gates</NativeSelectOption><NativeSelectOption value="Close and secure all gates">Close and secure all gates</NativeSelectOption><NativeSelectOption value="Run the configured safety response">Run the configured safety response</NativeSelectOption></NativeSelect></label>
+                <div className="automation-form automation-form-typed">
+                  <label><span>Rule name</span><Input value={automationName} disabled={!isAdministrator} onChange={(event) => setAutomationName(event.target.value)} placeholder="e.g. Morning drop-off" /></label>
+                  <label><span>Gate</span><NativeSelect value={automationGate} disabled={!isAdministrator} onChange={(event) => setAutomationGate(event.target.value)}>{activeGates.map((gate) => <NativeSelectOption key={gate.id} value={gate.id}>{gate.name}</NativeSelectOption>)}</NativeSelect></label>
+                  <label><span>Repeat</span><NativeSelect value={automationRepeat} disabled={!isAdministrator} onChange={(event) => setAutomationRepeat(event.target.value as "weekly" | "once")}><NativeSelectOption value="weekly">Every week on…</NativeSelectOption><NativeSelectOption value="once">Once, on a date</NativeSelectOption></NativeSelect></label>
+                  {automationRepeat === "weekly"
+                    ? <fieldset className="automation-days"><legend>Days</legend>{days.map((day) => <label key={day} className={automationDays.includes(day) ? "is-on" : ""}><input type="checkbox" disabled={!isAdministrator} checked={automationDays.includes(day)} onChange={(event) => setAutomationDays((current) => event.target.checked ? days.filter((item) => item === day || current.includes(item)) : current.filter((item) => item !== day))} />{day.slice(0, 3)}</label>)}</fieldset>
+                    : <label><span>Date</span><Input type="date" value={automationDate} disabled={!isAdministrator} onChange={(event) => setAutomationDate(event.target.value)} /></label>}
+                  <label><span>Hold open from</span><Input type="time" value={automationOpen} disabled={!isAdministrator} onChange={(event) => setAutomationOpen(event.target.value)} /></label>
+                  <label><span>Release at</span><Input type="time" value={automationClose} disabled={!isAdministrator} onChange={(event) => setAutomationClose(event.target.value)} /></label>
                   <Button onClick={addAutomation} disabled={!isAdministrator || busyAction === "add-automation"}><Plus /> {busyAction === "add-automation" ? "Saving…" : "Add automation rule"}</Button>
                 </div>
-                <p className="automation-note"><ShieldCheck /> Emergency commands always take priority. A stored rule is not represented as active hardware automation until its approved input and output are commissioned.</p>
+                <p className="automation-note"><ShieldCheck /> Rules run through the same engine as Gate schedules and appear on the School scheduler. Fire / evacuation always overrides every rule. A gate only moves once its controller is commissioned and its safety input is healthy.</p>
               </article>
 
               <article className="automation-rules">
-                <div className="view-panel-heading"><div><h2>Configured rules</h2><small>{automations.filter((rule) => rule.enabled).length} enabled · {automations.length} configured</small></div><Badge variant="outline"><Workflow /> Policy records</Badge></div>
+                <div className="view-panel-heading"><div><h2>Configured rules</h2><small>{automations.filter((rule) => rule.enabled).length} enabled · {automations.length} configured</small></div><Badge variant="outline"><Workflow /> {automations.filter((rule) => rule.kind === "gate_window").length} automated</Badge></div>
                 <div className="rule-list">
                   {automations.length === 0 && <div className="activity-empty"><Workflow /><h3>No automation rules configured</h3><p>Add only a reviewed and approved rule. Storing a rule does not claim that physical integration is commissioned.</p></div>}
-                  {automations.map((rule) => <div className={`rule-row ${rule.enabled ? "is-enabled" : ""}`} key={rule.id}><span className="rule-icon"><Zap /></span><div className="rule-copy"><strong>{rule.name}</strong><span><em>IF</em> {rule.trigger}</span><span><em>THEN</em> {rule.action}</span></div><div className="rule-state"><small>{rule.enabled ? "Enabled" : "Paused"}</small><Switch checked={rule.enabled} disabled={!isAdministrator} onCheckedChange={(enabled) => toggleAutomation(rule.id, enabled)} /></div><button className="rule-delete" disabled={!isAdministrator} aria-label={`Delete ${rule.name}`} onClick={() => deleteAutomation(rule.id)}><Trash2 /></button></div>)}
+                  {automations.map((rule) => <div className={`rule-row ${rule.enabled ? "is-enabled" : ""}`} key={rule.id}><span className="rule-icon"><Zap /></span><div className="rule-copy"><strong>{rule.name}{rule.kind !== "gate_window" && <span className="rule-kind-note">Note only · not automated</span>}</strong><span><em>WHEN</em> {rule.trigger}</span><span><em>THEN</em> {rule.action}</span></div><div className="rule-state"><small>{rule.enabled ? "Enabled" : "Paused"}</small><Switch checked={rule.enabled} disabled={!isAdministrator} onCheckedChange={(enabled) => toggleAutomation(rule.id, enabled)} /></div><button className="rule-delete" disabled={!isAdministrator} aria-label={`Delete ${rule.name}`} onClick={() => deleteAutomation(rule.id)}><Trash2 /></button></div>)}
                 </div>
               </article>
             </section>

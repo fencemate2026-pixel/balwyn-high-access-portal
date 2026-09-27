@@ -62,6 +62,10 @@ export const automationRules = portal.table("automation_rules", {
   name: text("name").notNull(),
   trigger: text("trigger").notNull(),
   action: text("action").notNull(),
+  /** "note" (stored text, never executed) or "gate_window" (see lib/gate-windows.ts). */
+  kind: text("kind").notNull().default("note"),
+  /** JSON config for executable kinds; validated by parseGateWindowConfig before storage and again before use. */
+  config: text("config"),
   enabled: integerBoolean("enabled").notNull().default(true),
   updatedAt: text("updated_at").notNull().default(sql`to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`),
   updatedBy: text("updated_by").notNull().default("system"),
