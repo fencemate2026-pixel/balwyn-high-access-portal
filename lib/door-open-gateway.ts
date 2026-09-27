@@ -23,12 +23,15 @@ export function readDoorConfiguration(read: EnvironmentReader, gates: readonly G
   if (!/^[\x21-\x7e]{32,}$/.test(token)) throw new Error("Configure the private Pi token");
   const gateMap = JSON.parse(rawMap) as Record<string, number>;
   if (!gateMap || Array.isArray(gateMap) || typeof gateMap !== "object") throw new Error("Invalid door mapping");
-  const entries = Object.entries(gateMap);
+  // Entries for gates that are no longer in the register (26 Sep 2026: register
+  // reduced to the two connected gates) are dropped, not fatal: they can never be
+  // pulsed, and one stale entry must not disable remote open for the live gates.
+  const entries = Object.entries(gateMap).filter(([gate]) => gates.some((registered) => registered.id === gate));
   if (entries.length < 1 || entries.length > 4 || new Set(entries.map(([, door]) => door)).size !== entries.length ||
       entries.some(([gate, door]) => !gates.some((registered) => registered.id === gate) || !Number.isInteger(door) || door < 1 || door > 4)) {
     throw new Error("Map one to four distinct verified gates to unique door numbers 1..4");
   }
-  return { origin: base.origin, token, gateMap };
+  return { origin: base.origin, token, gateMap: Object.fromEntries(entries) as Record<string, number> };
 }
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });

@@ -228,3 +228,24 @@ test("staff pressing CLOSE during a window ends automation for that window", asy
   await pg.query(`UPDATE command_queue SET acknowledged_at = '${new Date(Date.now() - 5 * 60_000).toISOString()}'`);
   assert.equal(await store.getOrCreateScheduledControllerCommand("SIDE-ENTRY"), null);
 });
+
+test("staff accounts: administrators manage them without the settings password; others and other sites cannot", async (t) => {
+  const accounts = await vite.ssrLoadModule("/app/api/accounts/route.ts");
+  const { fetchDatabase } = await databaseFixture(t);
+  for (const key of Object.keys(env)) delete env[key];
+  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: "admin@example.test|administrator,op@example.test|operator" });
+  env.fetchDatabase = fetchDatabase;
+  const cookieFor = async (email, role) => (await auth.createSessionCookie({ displayName: role, email, role })).split(";")[0];
+  const admin = await cookieFor("admin@example.test", "administrator");
+  const operator = await cookieFor("op@example.test", "operator");
+  const list = (cookie) => accounts.GET(new Request(`${origin}/api/accounts`, { headers: { Cookie: cookie } }));
+  const create = (cookie, from = origin) => accounts.POST(new Request(`${origin}/api/accounts`, { method: "POST",
+    headers: { Cookie: cookie, Origin: from, "Sec-Fetch-Site": from === origin ? "same-origin" : "cross-site", "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "create", email: "sam@example.test", displayName: "Sam Lee", role: "viewer" }) }));
+  assert.equal((await list(admin)).status, 200, "no settings unlock needed");
+  assert.equal((await list(operator)).status, 403);
+  assert.equal((await create(admin, "https://evil.example")).status, 403);
+  const made = await create(admin);
+  assert.equal(made.status, 200, JSON.stringify(await made.clone().json()));
+  assert.match((await made.json()).setupLink, /\/setup\?token=/);
+});

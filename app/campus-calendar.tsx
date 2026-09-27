@@ -14,7 +14,7 @@ const clockShort = (value?: string) => value && Number.isFinite(Date.parse(value
 const clock = (value?: string) => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat("en-AU", { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "Time pending";
 
 type GateWindow = { gateId: string; gateName: string; source: "schedule" | "booking" | "automation"; label: string; start: string; end: string; date: string };
-const SOURCE_TEXT: Record<GateWindow["source"], string> = { schedule: "Weekly schedule", booking: "Facility hire", automation: "Automation" };
+const SOURCE_TEXT: Record<GateWindow["source"], string> = { schedule: "Weekly schedule", booking: "Stadium hire", automation: "Automation" };
 const SOURCE_TONE: Record<GateWindow["source"], string> = {
   schedule: "bg-[#E8F1FB] text-[#0B4F96] border-[#BBD4EF]",
   booking: "bg-[#FFF1E3] text-[#9A4A00] border-[#FFD2A8]",

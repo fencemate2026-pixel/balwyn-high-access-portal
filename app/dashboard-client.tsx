@@ -148,7 +148,7 @@ const groupConfig = {
 
 const viewMeta: Record<ViewKey, { label: string; description: string }> = {
   dashboard: { label: "Campus overview", description: "Your school. Connected and in view." },
-  hire: { label: "Facility hire", description: "Bookings, visitors and upcoming campus use" },
+  hire: { label: "Stadium hire", description: "Bookings, visitors and upcoming campus use" },
   gates: { label: "Gates & booms", description: `${activeGates.length} installed gate${activeGates.length === 1 ? "" : "s"} · live status` },
   cctv: { label: "CCTV & zones", description: "Authorised camera verification and site-zone awareness" },
   guidance: { label: "Emergency guidance", description: "Prepare verified, school-approved directions for staff and projector screens" },
@@ -292,6 +292,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const [adminUnlockOpen, setAdminUnlockOpen] = useState(false);
   const adminUnlocked = isAdministrator && adminAccessUntil > currentTime;
   const configurationView = ["settings", "automation"].includes(activeView);
+  // CCTV and Emergency guidance open only after the administrator password (same 10-minute unlock as settings).
+  const passwordLockedView = activeView === "cctv" || activeView === "guidance";
   const [plan, setPlan] = useState(initialData.plan);
   const [serverTime, setServerTime] = useState(initialData.serverTime);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -776,13 +778,13 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   }
 
   function navItem(view: ViewKey, Icon: typeof LayoutDashboard, badge?: string) {
-    const locked = !advancedFeaturesEnabled && (view === "cctv" || view === "guidance");
+    const locked = (view === "cctv" || view === "guidance") && (!adminUnlocked || !advancedFeaturesEnabled);
     return (
       <SidebarMenuItem key={view}>
         <SidebarMenuButton className="portal-nav-button" isActive={activeView === view} tooltip={viewMeta[view].label} onClick={() => setActiveView(view)}>
           <Icon /><span>{viewMeta[view].label}</span>
         </SidebarMenuButton>
-        {locked ? <SidebarMenuBadge><LockKeyhole className="plan-nav-lock" aria-hidden="true" /><span className="sr-only">Plan upgrade required</span></SidebarMenuBadge> : badge && <SidebarMenuBadge>{badge}</SidebarMenuBadge>}
+        {locked ? <SidebarMenuBadge><LockKeyhole className="plan-nav-lock" aria-hidden="true" /><span className="sr-only">Password or plan required</span></SidebarMenuBadge> : badge && <SidebarMenuBadge>{badge}</SidebarMenuBadge>}
       </SidebarMenuItem>
     );
   }
@@ -849,7 +851,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         <SidebarHeader className="portal-sidebar-header"><div className="magic-sidebar-brand"><BrandLogo tone="dark" /></div></SidebarHeader>
         <SidebarSeparator />
         <SidebarContent>
-          <SidebarGroup><SidebarGroupLabel>Operations</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("hire", CalendarDays)}{navItem("schedule", CalendarClock)}{navItem("dashboard", LayoutDashboard)}{navItem("cctv", Camera)}{navItem("guidance", MapPin)}{navItem("automation", Workflow, String(automations.filter((rule) => rule.enabled).length))}{navItem("safety", ShieldCheck)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
+          <SidebarGroup><SidebarGroupLabel>Operations</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("dashboard", LayoutDashboard)}{navItem("schedule", CalendarClock)}{navItem("hire", CalendarDays)}{navItem("cctv", Camera)}{navItem("guidance", MapPin)}{navItem("automation", Workflow, String(automations.filter((rule) => rule.enabled).length))}{navItem("safety", ShieldCheck)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
           <SidebarGroup><SidebarGroupLabel>Administration</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("access", Users)}{navItem("activity", ClipboardList, activity.length ? String(activity.length) : undefined)}{navItem("settings", Settings2)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
           <div className="sidebar-system-card"><span><Wifi /> System connection</span><strong><i /> Portal online</strong><small>{activeGates.length} active · {gates.length - activeGates.length} inactive</small><small>{onlineCount} of {activeGates.length} active gate controllers online</small><small>{commissionedCount} commissioned · {credentialCount} credentials issued</small><small className="voice-status"><Volume2 /> Gate voice · {voiceAnnouncements ? "On" : "Off"}</small></div><div className="sidebar-rjl-brand"><img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial Fencing and Gates" /></div>
         </SidebarContent>
@@ -906,15 +908,16 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
               <div className="view-panel-heading"><div><h2>Gates & booms</h2><small>{activeGates.length} installed gate{activeGates.length === 1 ? "" : "s"} · live status</small></div><div className="status-legend"><span className="is-open"><i /> Open confirmed</span><span className="is-closed"><i /> Closed confirmed</span><span className="is-pending"><i /> Awaiting feedback</span><span className="is-inactive"><i /> Inactive · lights off</span></div></div>
               <div className="gate-toolbar">
                 <label className="gate-search"><Search aria-hidden="true" /><span className="sr-only">Search gates</span><Input value={gateQuery} onChange={(event) => setGateQuery(event.target.value)} placeholder="Search by gate, area or asset ID" /></label>
-                <label><span className="sr-only">Filter gates by area</span><NativeSelect value={gateGroup} onChange={(event) => setGateGroup(event.target.value as "all" | GroupKey)}><NativeSelectOption value="all">All controlled areas</NativeSelectOption>{(Object.keys(groupConfig) as GroupKey[]).map((group) => <NativeSelectOption key={group} value={group}>{groupConfig[group].name}</NativeSelectOption>)}</NativeSelect></label>
+                <label><span className="sr-only">Filter gates by area</span><NativeSelect value={gateGroup} onChange={(event) => setGateGroup(event.target.value as "all" | GroupKey)}><NativeSelectOption value="all">All controlled areas</NativeSelectOption>{(Object.keys(groupConfig) as GroupKey[]).filter((group) => gates.some((gate) => gate.group === group)).map((group) => <NativeSelectOption key={group} value={group}>{groupConfig[group].name}</NativeSelectOption>)}</NativeSelect></label>
               </div>
               {filteredGates.some((gate) => gate.active) ? renderGateCards(filteredGates.filter((gate) => gate.active)) : <div className="gate-empty"><Search /><h3>No gates match this search</h3><p>Clear the search or choose another controlled area.</p><Button variant="outline" onClick={() => { setGateQuery(""); setGateGroup("all"); }}>Clear filters</Button></div>}
             </section>
           )}
 
-          {!advancedFeaturesEnabled && (activeView === "cctv" || activeView === "guidance") && <PlanUpgradeGate key={activeView} feature={activeView} onUpgrade={() => setUpgradeOpen(true)} />}
+          {passwordLockedView && !adminUnlocked && <section className="admin-settings-locked"><span className="admin-lock-icon"><LockKeyhole /></span><h2>{viewMeta[activeView].label} is password protected</h2><p>{isAdministrator ? "Enter the administrator password to open this section. It locks again after 10 minutes." : "Only an administrator can open this section."}</p>{isAdministrator && <AdminSettingsUnlock onUnlocked={settingsUnlocked} />}</section>}
+          {adminUnlocked && !advancedFeaturesEnabled && (activeView === "cctv" || activeView === "guidance") && <PlanUpgradeGate key={activeView} feature={activeView} onUpgrade={() => setUpgradeOpen(true)} />}
 
-          {activeView === "cctv" && advancedFeaturesEnabled && (
+          {activeView === "cctv" && adminUnlocked && advancedFeaturesEnabled && (
             <section className="cctv-workspace"><OperationsRoomConcept variant="cctv" />
               <div className={`cctv-readiness ${cameraWorkspaceEnabled ? "is-enabled" : ""}`} role="status">
                 <span className="cctv-readiness-icon">{cameraWorkspaceEnabled ? <ShieldCheck /> : <VideoOff />}</span>
@@ -1047,7 +1050,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
           {activeView === "schedule" && (
             <section className="schedule-workspace">
               <div className="schedule-toolbar"><div><label htmlFor="schedule-gate">Select gate</label><NativeSelect id="schedule-gate" value={selectedScheduleGate.id} onChange={(event) => { setSelectedScheduleGateId(event.target.value); setScheduleDirty(false); }} className="gate-select">{gates.map((gate) => <NativeSelectOption key={gate.id} value={gate.id} disabled={!gate.active}>{gate.name}{gate.active ? "" : " · Inactive"}</NativeSelectOption>)}</NativeSelect></div><div className="schedule-toolbar-actions"><Button variant="outline" disabled={!canOperate} onClick={copyMondayToWeekdays}><Copy /> Copy Monday to weekdays</Button><Button onClick={saveSchedule} disabled={!canOperate || !scheduleDirty || busyAction === `schedule-${selectedScheduleGate.id}`}><Save /> {busyAction === `schedule-${selectedScheduleGate.id}` ? "Saving…" : scheduleDirty ? "Save schedule" : "No unsaved changes"}</Button></div></div>
-              <div className="schedule-context"><span><GateIcon gate={selectedScheduleGate} position={getPosition(selectedScheduleGate)} runtime={runtimeFor(selectedScheduleGate)} monitoring={positionMonitoring} /></span><div><h2>{selectedScheduleGate.name}</h2><small>{selectedScheduleGate.area} · {selectedScheduleGate.id}</small><p>{selectedScheduleGate.type}</p></div><div className="timezone-card"><Clock3 /><span><strong>Australia / Melbourne</strong><small>Schedule timezone</small></span></div></div>
+              <div className="schedule-context schedule-context-plain"><div><h2>{selectedScheduleGate.name}</h2><small>{selectedScheduleGate.area} · {selectedScheduleGate.id}</small><p>{selectedScheduleGate.type}</p></div><div className="timezone-card"><Clock3 /><span><strong>Australia / Melbourne</strong><small>Schedule timezone</small></span></div></div>
               <div className="schedule-graph" aria-label={`${selectedScheduleGate.name} weekly schedule timeline`}>
                 <div className="schedule-graph-heading"><div><h3>Weekly operating timeline</h3><p>Scheduled open periods across a full 24-hour day</p></div><span className="timeline-legend"><i /> Open and accessible</span></div>
                 <div className="timeline-axis" aria-hidden="true"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
@@ -1093,7 +1096,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
           {activeView === "access" && <>
             <UserProfileEditor ownProfile={userProfile} adminUnlocked={adminUnlocked} isAdministrator={isAdministrator} onUnlock={() => setAdminUnlockOpen(true)} onSaved={profileSaved} />
-            {isAdministrator && <PortalAccountsManager adminUnlocked={adminUnlocked} onUnlock={() => setAdminUnlockOpen(true)} />}
+            {isAdministrator && <PortalAccountsManager />}
             <section className="identity-layout"><article className="identity-card"><div className="identity-card-head"><span><KeyRound /></span><div><h2>Signed-in operator</h2><small>Magic Keys server-verified identity</small></div></div><div className="identity-profile"><Avatar size="lg"><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><div><strong>{displayName}</strong><span>{user.email}</span></div><Badge><ShieldCheck /> Authenticated</Badge></div><div className="identity-rows"><div><span>Access role</span><strong>{isAdministrator ? "System administrator" : canOperate ? "Authorised operator" : "View-only operator"}</strong></div><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Session</span><strong>Signed, HTTP-only, 8-hour maximum</strong></div><div><span>Audit</span><strong>Commands and changes retained centrally</strong></div></div></article><article className="permissions-card"><div className="panel-heading"><div><h2>Operator permissions</h2><small>Current role</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> View physical gate feedback</span>{canOperate && <span><CheckCircle2 /> Queue authorised relay commands</span>}{isAdministrator && <span><CheckCircle2 /> Manage schedules after password verification</span>}{isAdministrator && <span><CheckCircle2 /> Issue emergency gate responses</span>}{isAdministrator && <span><CheckCircle2 /> Configure controllers and system policy</span>}<span><CheckCircle2 /> Review and export the audit trail</span></div><p>Gate-specific roles, a second emergency approver and school identity integration can be added before final production handover.</p></article></section>
 
             <section className="controller-commissioning"><div className="view-panel-heading"><div><h2>Separate controller commissioning</h2><small>Sensor-equipped controller path · separate from the ACB-004 open-only trigger</small></div><Badge variant="outline"><Network /> {commissionedCount} commissioned · {credentialCount} issued</Badge></div>{controllerCredential && <div className="credential-issued" role="status"><ShieldCheck /><span><strong>{controllerCredential.gateId} interface credential ready</strong><small>Transfer it once to the approved Compass interface gateway. It will be removed from this screen after download.</small></span><Button onClick={downloadControllerCredential}><Download /> Download setup file</Button><Button variant="ghost" onClick={() => setControllerCredential(null)}>Close</Button></div>}<div className="controller-list">{activeGates.map((gate) => { const runtime = runtimeFor(gate); return <article key={gate.id}><span className={`controller-state-dot is-${runtime?.controllerState ?? "uncommissioned"}`} /><span><strong>{gate.name}</strong><small>{gate.id} · {runtime?.commissioned ? runtime.controllerState : runtime?.credentialIssued ? "interface credential issued · awaiting verified Compass output and position feedback" : "Compass relay output not mapped"}{runtime?.lastSeen ? ` · last contact ${activityTime(runtime.lastSeen)}` : ""}</small></span><span className="controller-safety">{runtime?.controllerState === "online" && runtime.safetyOk === true ? <><ShieldCheck /> Current safety healthy</> : runtime?.safetyOk === false ? <><AlertTriangle /> Safety fault</> : <><Radio /> No current safety feedback</>}</span><Button variant="outline" disabled={!isAdministrator || busyAction === `provision-${gate.id}`} onClick={() => provisionController(gate.id)}>{busyAction === `provision-${gate.id}` ? "Issuing…" : runtime?.credentialIssued ? "Rotate credential" : "Issue credential"}</Button></article>; })}</div><p className="module-disclaimer">The existing Compass ACB-004 open-only trigger is configured separately and supplies no sensor feedback. This controller list is for the separate sensor-equipped OPEN/CLOSE agent; it must not be used to infer ACB-004 position or commissioning status.</p></section>
@@ -1101,7 +1104,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
           {activeView === "activity" && <section className="activity-panel"><div className="view-panel-heading"><div><h2>Permanent activity record</h2><small>Operator requests, settings and controller acknowledgements</small></div><div className="activity-heading-actions"><Badge variant="outline"><UserRound /> {user.displayName}</Badge><Button variant="outline" disabled={!activity.length} onClick={exportActivity}><Download /> Export CSV</Button></div></div>{activity.length === 0 ? <div className="activity-empty"><Activity /><h3>No activity recorded yet</h3><p>Authorised commands, controller acknowledgements, automation changes and schedule saves will appear here.</p></div> : <div className="activity-list">{activity.map((record) => <article key={record.id}><span className="activity-record-icon"><Activity /></span><div><strong>{record.action}</strong><p>{record.detail}</p><small>{record.actorName} · {record.category}</small></div><time>{activityTime(record.createdAt)}</time></article>)}</div>}</section>}
 
-          {activeView === "guidance" && advancedFeaturesEnabled && <section className="dynamic-guidance-workspace">
+          {activeView === "guidance" && adminUnlocked && advancedFeaturesEnabled && <section className="dynamic-guidance-workspace">
             <div className="guidance-command-header"><div><small>Dynamic Emergency Guidance</small><h2>Verified directions, updated as conditions change</h2><p>The portal can prepare a guidance preview from confirmed hazards, available exits and the school’s approved route library. A trained incident controller must verify it before distribution.</p></div><span className="guidance-commission-state"><i /> Simulation only · not commissioned</span></div>
             <OperationsRoomConcept variant="emergency" />
             <article className={`ptz-tracking-console ${ptzTrackingActive ? "is-tracking" : ""}`}>

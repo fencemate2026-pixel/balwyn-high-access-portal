@@ -3,7 +3,8 @@ import test from "node:test";
 import { ACTIVE_GATES, GATES, gateVisualState, isGateActive } from "../lib/portal-model.ts";
 
 const activeGate = GATES.find((gate) => gate.id === "TF-ENTRY");
-const inactiveGate = GATES.find((gate) => gate.id === "TF-EXIT");
+// No inactive gate remains in the register; a synthetic one proves inactive gates still render as inactive.
+const inactiveGate = { ...GATES.find((gate) => gate.id === "TF-ENTRY"), id: "RETIRED-GATE", name: "Retired gate", active: false };
 const runtime = (patch = {}) => ({
   gateId: activeGate.id, commandedPosition: "closed", reportedPosition: "closed",
   controllerState: "online", safetyOk: true, lastSeen: new Date().toISOString(),
@@ -11,18 +12,13 @@ const runtime = (patch = {}) => ({
   credentialIssued: true, commissioned: true, ...patch,
 });
 
-test("only the two specified swing entries are active within the nine-gate register", () => {
-  assert.equal(GATES.length, 9);
-  assert.equal(new Set(GATES.map((gate) => gate.id)).size, 9);
-  assert.deepEqual(ACTIVE_GATES.map((gate) => [gate.name, gate.kind]), [
-    ["Tony Frizza Stadium Entry", "single-swing"], ["Side Entry", "single-swing"],
+test("the register holds only the two connected swing entries, both active", () => {
+  assert.deepEqual(GATES.map((gate) => [gate.id, gate.name, gate.kind, gate.active]), [
+    ["TF-ENTRY", "Tony Frizza Stadium Entry", "single-swing", true],
+    ["SIDE-ENTRY", "Side Entry", "single-swing", true],
   ]);
-  assert.deepEqual(GATES.filter((gate) => !gate.active).map((gate) => gate.name), [
-    "Tony Frizza Exit Single Gate", "Office Entry 1 Double Swing Gates",
-    "Office Exit 1 Double Swing Gates", "Staff Car Park Entry Double Swing Gates",
-    "Staff Entry Boom Gate", "Office Entry 1 Boom Gate", "Office Exit 1 Boom Gate",
-  ]);
-  for (const id of ["TF-EXIT", "SCP-B01", "SCP-B12", "FRONT-DG01", "missing", "__proto__"]) {
+  assert.equal(ACTIVE_GATES.length, 2);
+  for (const id of ["TF-EXIT", "OFFICE-ENTRY-BOOM1", "STAFF-ENTRY-BOOM", "missing", "__proto__"]) {
     assert.equal(isGateActive(id), false);
   }
 });

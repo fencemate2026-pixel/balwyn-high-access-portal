@@ -112,12 +112,21 @@ test("client sends an explicit same-origin request, no retries, and keeps result
 });
 
 
-test("inactive gates stay hidden from remote-open controls and cannot pulse a mapped channel", async () => {
+test("gates removed from the register are dropped from the door map and can never pulse a channel", async () => {
   let calls = 0;
   const opts = { ...options(async () => { calls++; }), readEnv: (key) => ({ ...environment, DOOR_GATE_MAP: '{"TF-ENTRY":1,"TF-EXIT":4}' })[key] };
   const config = await handleDoorRequest(new Request(`${origin}/api/doors/open`), opts);
   assert.deepEqual((await config.json()).gateMap, { "TF-ENTRY": 1 });
   const response = await handleDoorRequest(req({ gateId: "TF-EXIT" }), opts);
+  assert.equal(response.status, 400);
+  assert.equal(calls, 0);
+});
+
+test("a registered but inactive gate still cannot pulse its mapped channel", async () => {
+  let calls = 0;
+  const gates = [...GATES, { ...GATES[0], id: "RETIRED-GATE", active: false }];
+  const opts = { ...options(async () => { calls++; }), gates, readEnv: (key) => ({ ...environment, DOOR_GATE_MAP: '{"TF-ENTRY":1,"RETIRED-GATE":4}' })[key] };
+  const response = await handleDoorRequest(req({ gateId: "RETIRED-GATE" }), opts);
   assert.equal(response.status, 403);
   assert.match((await response.json()).error, /inactive/i);
   assert.equal(calls, 0);

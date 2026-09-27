@@ -100,16 +100,13 @@ export const DAYS: DayKey[] = [
   "Sunday",
 ];
 
+// The gate register: ONLY the gates physically connected to Magic Keys at Balwyn.
+// (26 Sep 2026: the seven planned-but-unconnected gates and booms were removed
+// from the system at the client's direction. Add a gate here only when its
+// controller is installed.)
 export const GATES: Gate[] = [
   { id: "TF-ENTRY", name: "Tony Frizza Stadium Entry", area: "Tony Frizza Stadium", type: "Single swing gate", kind: "single-swing", active: true, group: "sports", defaultPosition: "closed" },
   { id: "SIDE-ENTRY", name: "Side Entry", area: "Side Entry", type: "Single swing gate", kind: "single-swing", active: true, group: "side", defaultPosition: "closed" },
-  { id: "TF-EXIT", name: "Tony Frizza Exit Single Gate", area: "Tony Frizza Stadium", type: "Single swing gate", kind: "single-swing", active: false, group: "sports", defaultPosition: "closed" },
-  { id: "OFFICE-ENTRY-DG1", name: "Office Entry 1 Double Swing Gates", area: "Office", type: "Double swing gates", kind: "double-swing", active: false, group: "front", defaultPosition: "closed" },
-  { id: "OFFICE-EXIT-DG1", name: "Office Exit 1 Double Swing Gates", area: "Office", type: "Double swing gates", kind: "double-swing", active: false, group: "front", defaultPosition: "closed" },
-  { id: "STAFF-ENTRY-DG", name: "Staff Car Park Entry Double Swing Gates", area: "Staff Car Park", type: "Double swing gates", kind: "double-swing", active: false, group: "staff", defaultPosition: "closed" },
-  { id: "STAFF-ENTRY-BOOM", name: "Staff Entry Boom Gate", area: "Staff Car Park", type: "Boom gate", kind: "boom", active: false, group: "staff", defaultPosition: "closed" },
-  { id: "OFFICE-ENTRY-BOOM1", name: "Office Entry 1 Boom Gate", area: "Office", type: "Boom gate", kind: "boom", active: false, group: "front", defaultPosition: "closed" },
-  { id: "OFFICE-EXIT-BOOM1", name: "Office Exit 1 Boom Gate", area: "Office", type: "Boom gate", kind: "boom", active: false, group: "front", defaultPosition: "closed" },
 ];
 
 export const ACTIVE_GATES = GATES.filter((gate) => gate.active);

@@ -10,16 +10,14 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const vite = await createServer({ appType: "custom", configFile: false, root, resolve: { alias: { "@": root } }, server: { middlewareMode: true, hmr: false } });
 after(async () => { await vite.close(); });
 
-test("accounts manager stays locked until the administrator unlock, and never shows a dead control", async () => {
+test("staff accounts open for administrators without the settings password, and never show a dead control", async () => {
   const { default: Manager } = await vite.ssrLoadModule("/app/portal-accounts-manager.tsx");
-  const locked = renderToStaticMarkup(React.createElement(Manager, { adminUnlocked: false, onUnlock: () => {} }));
-  assert.match(locked, /Unlock administrator settings to create or change staff accounts/);
-  assert.doesNotMatch(locked, /Create account/);
-  const unlocked = renderToStaticMarkup(React.createElement(Manager, { adminUnlocked: true, onUnlock: () => {} }));
-  assert.match(unlocked, /Create account/);
-  assert.match(unlocked, /View only \(password\)/);
-  assert.match(unlocked, /Operator \(password \+ authenticator\)/);
-  assert.match(unlocked, /Loading accounts/);
+  const html = renderToStaticMarkup(React.createElement(Manager));
+  assert.doesNotMatch(html, /Unlock administrator settings/);
+  assert.match(html, /Create account/);
+  assert.match(html, /View only \(password\)/);
+  assert.match(html, /Operator \(password \+ authenticator\)/);
+  assert.match(html, /Loading accounts/);
 });
 
 test("setup page never renders the one-time token on the server", async () => {

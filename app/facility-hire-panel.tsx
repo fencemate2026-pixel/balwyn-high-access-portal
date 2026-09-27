@@ -233,9 +233,9 @@ export default function FacilityHirePanel({ canBook = true }: { canBook?: boolea
   const selectedVisits = visitsByDay.get(selectedDay) ?? [];
 
   return (
-    <section className="hire-workspace fh" aria-label="Facility hire">
+    <section className="hire-workspace fh" aria-label="Stadium hire">
       <header className="fh-toolbar">
-        <h2>Facility hire</h2>
+        <h2>Stadium hire</h2>
         <div className="fh-toolbar-row">
           <span className="fh-range">{shortDate(weekStart)} – {shortDate(weekEnd)} {weekEnd.slice(0, 4)}</span>
           <div className="fh-nav">

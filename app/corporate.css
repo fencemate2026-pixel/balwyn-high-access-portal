@@ -303,3 +303,21 @@
 
 /* The floating "Ask Magic Keys" button must never cover the last card on a page. */
 .control-portal .workspace-content { padding-bottom: 112px !important; }
+
+/* ---------------------------------------------- Campus overview: bottom panel
+ * "Discover Magic Keys Advanced" was translucent glass with light text on the
+ * light canvas (unreadable). Same white card as every other tab now. */
+.control-portal .advanced-discovery {
+  background: var(--cw-card) !important; color: var(--cw-text) !important;
+  border: 1px solid var(--cw-border) !important; border-radius: 0 !important; box-shadow: var(--cw-shadow) !important;
+  backdrop-filter: none !important; -webkit-backdrop-filter: none !important; padding: var(--cw-pad) !important;
+}
+.control-portal .advanced-discovery :is(p, span, small, li) { color: var(--cw-text-2) !important; text-shadow: none !important; opacity: 1 !important; }
+.control-portal .advanced-discovery :is(h2, h3, strong) { color: var(--cw-orange) !important; text-shadow: none !important; opacity: 1 !important; }
+.control-portal .advanced-discovery .advanced-eyebrow, .control-portal .advanced-discovery .advanced-eyebrow * { color: var(--cw-blue) !important; font-weight: 700; letter-spacing: .08em; }
+.control-portal .advanced-discovery :is(a, button) { border-radius: 0 !important; }
+.control-portal .advanced-discovery [data-variant="outline"] { background: #ffffff !important; color: var(--cw-text) !important; border: 1px solid var(--cw-border-strong) !important; }
+.control-portal .advanced-discovery :is(a, button) svg { color: currentColor !important; }
+
+/* Gate schedules: the gate picture was removed; the heading block spans the row. */
+.control-portal .schedule-context-plain { display: flex !important; align-items: center; justify-content: space-between; gap: 16px; }

@@ -162,7 +162,7 @@ export async function POST(request: Request) {
       `INSERT INTO hire_comments (client_id, booking_id, body, author) SELECT b.client_id, b.id, ?, ? FROM hire_bookings b WHERE b.id = ?::uuid`,
     ).bind(comment, auth.user.email, bookingId)] : []),
     d1.prepare(`INSERT INTO activity_log (action, detail, category, actor_name, actor_role) SELECT ?, ?, 'hire', ?, ? WHERE ${bookingExists}`).bind(
-      "Facility hire booked",
+      "Stadium hire booked",
       `${fullName}, ${visitDate} ${startTime}–${endTime}${gateIds.length ? `. Gate held open: ${gateNames} (${leadMinutes} min before, ${lagMinutes} min after)` : ""}.`,
       auth.user.displayName, auth.user.role, bookingId),
     d1.prepare("SELECT id, client_id FROM hire_bookings WHERE id = ?::uuid").bind(bookingId),

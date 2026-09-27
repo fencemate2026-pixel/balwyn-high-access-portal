@@ -1,7 +1,9 @@
-// Per-person account management — administrators only, with the
-// administrator settings unlock (password re-entered within 10 minutes).
-// Every change is written to the activity log.
-import { AccountError, assertSameOrigin, createPortalAccount, getAdminSettingsAccess, listPortalAccounts, requireOperator, resetPortalAccount, updatePortalAccount } from "@/lib/portal-auth";
+// Per-person account management — signed-in administrators only.
+// 26 Sep 2026 (client direction): Staff sign-in accounts no longer need the
+// administrator settings password. Still enforced on every request: a verified
+// administrator session (role checked on the server), exact same-origin for
+// every change, and an activity-log entry for every change.
+import { AccountError, assertSameOrigin, createPortalAccount, listPortalAccounts, requireOperator, resetPortalAccount, updatePortalAccount } from "@/lib/portal-auth";
 import { recordActivity } from "@/lib/portal-store";
 
 const headers = { "Cache-Control": "no-store" };
@@ -10,9 +12,6 @@ const ROLES = new Set(["viewer", "operator", "administrator"]);
 async function authorise(request: Request) {
   const auth = await requireOperator(request, "administrator");
   if (!auth.user) return { response: auth.response };
-  if (!await getAdminSettingsAccess(request)) {
-    return { response: Response.json({ error: "Unlock administrator settings to manage accounts." }, { status: 403, headers }) };
-  }
   return { user: auth.user };
 }
 

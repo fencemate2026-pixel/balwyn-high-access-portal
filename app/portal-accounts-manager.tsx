@@ -2,11 +2,11 @@
 // Access & users → Staff sign-in accounts.
 // Administrators create per-person email accounts, issue one-time setup links,
 // change roles and disable accounts. All calls go to /api/accounts, which
-// re-checks the administrator role and the 10-minute settings unlock on the
-// server and writes every change to the activity log. This component holds no
+// re-checks the administrator role on the server and writes every change to the
+// activity log. No settings password is needed (client direction, 26 Sep 2026). This component holds no
 // authority of its own: hiding a button here is presentation, not security.
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Copy, KeyRound, LoaderCircle, LockKeyhole, RefreshCw, UserPlus } from "lucide-react";
+import { Copy, KeyRound, LoaderCircle, RefreshCw, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +37,7 @@ async function call(body?: Record<string, unknown>) {
   return result;
 }
 
-export default function PortalAccountsManager({ adminUnlocked, onUnlock }: { adminUnlocked: boolean; onUnlock: () => void }) {
+export default function PortalAccountsManager() {
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [loadedAt, setLoadedAt] = useState(0);
@@ -62,8 +62,8 @@ export default function PortalAccountsManager({ adminUnlocked, onUnlock }: { adm
   useEffect(() => {
     // Loading the list is an external read; results arrive asynchronously.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (adminUnlocked) void load();
-  }, [adminUnlocked, load]);
+    void load();
+  }, [load]);
 
   async function run(key: string, body: Record<string, unknown>, success: string) {
     setBusy(key);
@@ -99,10 +99,10 @@ export default function PortalAccountsManager({ adminUnlocked, onUnlock }: { adm
     <section className="accounts-manager view-panel" aria-labelledby="accounts-title">
       <div className="view-panel-heading">
         <div><h2 id="accounts-title">Staff sign-in accounts</h2><small>Email and password accounts for staff without Google. Each person sets their own password from a one-time link.</small></div>
-        {adminUnlocked && <Button variant="outline" onClick={() => void load()} disabled={Boolean(busy)}><RefreshCw /> Refresh</Button>}
+        <Button variant="outline" onClick={() => void load()} disabled={Boolean(busy)}><RefreshCw /> Refresh</Button>
       </div>
 
-      {!adminUnlocked ? <div className="accounts-locked"><LockKeyhole aria-hidden="true" /><p>Unlock administrator settings to create or change staff accounts.</p><Button onClick={onUnlock}><KeyRound /> Unlock settings</Button></div> : <>
+      <>
         {issued && <div className="credential-issued accounts-link" role="status">
           <KeyRound aria-hidden="true" />
           <span><strong>Setup link for {issued.email}</strong><small>Give this to the person directly (not by group email). It works once and expires {when(issued.expiresAt)}. It is not shown again.</small><code>{issued.link}</code></span>
@@ -133,7 +133,7 @@ export default function PortalAccountsManager({ adminUnlocked, onUnlock }: { adm
               </td>
             </tr>)}</tbody>
           </table></div>}
-      </>}
+      </>
     </section>
   );
 }
