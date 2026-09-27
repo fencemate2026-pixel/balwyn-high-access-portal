@@ -1,15 +1,30 @@
-/* Login stage wordmark — official 800 x 330 artwork, larger than the old 340px cap. */
+/* Center the wordmark in the visible white gap (left of the AI head).
+ * 50% of the full stage sits under the head and clips MAGICKEYS / the tagline. */
 .access-login-brand-stage .magic-wide-wordmark,
 .access-login-school-blue .access-login-brand-stage .magic-wide-wordmark,
 .access-login-brand-stage .magic-wide-artwork.is-dark .magic-wide-wordmark {
   position: absolute !important;
-  left: 50% !important;
-  top: 48% !important;
-  transform: translate(-50%, -50%) !important;
-  width: min(78%, 1120px) !important;
+  left: 0 !important;
+  right: 34% !important;
+  top: 50% !important;
+  bottom: auto !important;
+  width: auto !important;
   max-width: none !important;
   height: auto !important;
+  max-height: 42vh !important;
+  transform: translateY(-50%) !important;
   object-fit: contain !important;
-  image-rendering: auto;
+  object-position: center center !important;
+  padding: 0 5% !important;
+  margin: 0 !important;
   z-index: 2 !important;
+}
+
+@media (max-width: 1100px) {
+  .access-login-brand-stage .magic-wide-wordmark,
+  .access-login-school-blue .access-login-brand-stage .magic-wide-wordmark,
+  .access-login-brand-stage .magic-wide-artwork.is-dark .magic-wide-wordmark {
+    right: 38% !important;
+    max-height: 36vh !important;
+  }
 }
