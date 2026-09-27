@@ -7,6 +7,7 @@ import "./control-room.css";
 import "./bright-glass.css";
 // Very last: corporate workspace layer (white cards, one tab style, one spacing grid).
 import "./corporate.css";
+import "./login-wordmark.css";
 import EmergencyVoiceGuard from "./emergency-voice-guard";
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#0b131e" };

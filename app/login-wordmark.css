@@ -1,0 +1,15 @@
+/* Login stage wordmark — official 800 x 330 artwork, larger than the old 340px cap. */
+.access-login-brand-stage .magic-wide-wordmark,
+.access-login-school-blue .access-login-brand-stage .magic-wide-wordmark,
+.access-login-brand-stage .magic-wide-artwork.is-dark .magic-wide-wordmark {
+  position: absolute !important;
+  left: 50% !important;
+  top: 48% !important;
+  transform: translate(-50%, -50%) !important;
+  width: min(78%, 1120px) !important;
+  max-width: none !important;
+  height: auto !important;
+  object-fit: contain !important;
+  image-rendering: auto;
+  z-index: 2 !important;
+}
