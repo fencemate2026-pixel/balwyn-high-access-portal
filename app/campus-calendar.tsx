@@ -16,9 +16,9 @@ const clock = (value?: string) => value && Number.isFinite(Date.parse(value)) ? 
 type GateWindow = { gateId: string; gateName: string; source: "schedule" | "booking" | "automation"; label: string; start: string; end: string; date: string };
 const SOURCE_TEXT: Record<GateWindow["source"], string> = { schedule: "Weekly schedule", booking: "Stadium hire", automation: "Automation" };
 const SOURCE_TONE: Record<GateWindow["source"], string> = {
-  schedule: "bg-[#E8F1FB] text-[#0B4F96] border-[#BBD4EF]",
-  booking: "bg-[#FFF1E3] text-[#9A4A00] border-[#FFD2A8]",
-  automation: "bg-[#E9F7EF] text-[#146C3A] border-[#B9E3C9]",
+  schedule: "bg-[#5CC8FF]/15 text-[#BFE9FF] border-[#5CC8FF]/40",
+  booking: "bg-[#FF7A00]/15 text-[#FFD2A8] border-[#FF7A00]/40",
+  automation: "bg-[#E9F7EF] text-[#5BE39A] border-[#B9E3C9]",
 };
 
 /**
@@ -73,8 +73,8 @@ export default function CampusCalendar({ onManage, canBook }: { onManage: () => 
   return <section className={`campus-glass-calendar ${GLASS_PANEL} flex min-w-0 flex-col gap-4 p-5`} aria-labelledby="campus-calendar-title">
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h2 id="campus-calendar-title" className="m-0 flex items-center gap-2 text-base font-bold"><CalendarDays className="size-5 text-[#0B6BCB]" aria-hidden="true" /> School scheduler</h2>
-        <p className="m-0 mt-1 text-sm text-[#4E6479]">{rangeLabel}</p>
+        <h2 id="campus-calendar-title" className="m-0 flex items-center gap-2 text-base font-bold"><CalendarDays className="size-5 text-[#5CC8FF]" aria-hidden="true" /> Gate Schedules</h2>
+        <p className="m-0 mt-1 text-sm text-[#B9CFE2]">{rangeLabel}</p>
       </div>
       <div className="flex items-center gap-2">
         <button type="button" className={glassButton()} onClick={() => navigate(shiftDate(start, -7))} aria-label="Previous calendar week"><ChevronLeft className="size-4" aria-hidden="true" /></button>
@@ -89,33 +89,33 @@ export default function CampusCalendar({ onManage, canBook }: { onManage: () => 
       const gateWins = windowsByDay.get(date) ?? [];
       const isToday = date === today;
       const isSelected = selected === date;
-      const state = isToday ? "border-[#FF7A00] bg-[#FFF4E8] shadow-[0_0_0_1px_#FF7A00]" : isSelected ? "border-[#0B6BCB] shadow-[0_0_0_1px_#0B6BCB]" : "";
-      return <li key={date}><button type="button" className={`${GLASS_TILE} ${state} ${GLASS_FOCUS} relative flex h-full min-h-[118px] w-full flex-col items-start gap-1 p-3 text-left transition-colors hover:border-[#0B6BCB]`}
+      const state = isToday ? "border-[#FF7A00] bg-[#FF7A00]/20 shadow-[0_0_0_1px_#FF7A00]" : isSelected ? "border-[#5CC8FF] shadow-[0_0_0_1px_#5CC8FF]" : "";
+      return <li key={date}><button type="button" className={`${GLASS_TILE} ${state} ${GLASS_FOCUS} relative flex h-full min-h-[118px] w-full flex-col items-start gap-1 p-3 text-left transition-colors hover:border-[#5CC8FF]`}
         aria-current={isToday ? "date" : undefined} aria-pressed={isSelected}
         aria-label={`${dateLabel(date, { weekday: "long", day: "numeric", month: "long" })}: ${loading ? "loading" : `${entries.length} bookings, ${gateWins.length} gate open windows`}`}
         onClick={() => setSelected(isSelected ? null : date)}>
-        <span className={`text-xs font-bold uppercase tracking-wide ${isToday ? "text-[#C25E00]" : "text-[#4E6479]"}`}>{dateLabel(date, { weekday: "short" })}</span>
-        <strong className={`text-2xl leading-none font-bold tabular-nums ${isToday ? "text-[#FF7A00]" : "text-[#0F2A44]"}`}>{Number(date.slice(-2))}</strong>
+        <span className={`text-xs font-bold uppercase tracking-wide ${isToday ? "text-[#FFB26B]" : "text-[#B9CFE2]"}`}>{dateLabel(date, { weekday: "short" })}</span>
+        <strong className={`text-2xl leading-none font-bold tabular-nums ${isToday ? "text-[#FF7A00]" : "text-[#F5FBFF]"}`}>{Number(date.slice(-2))}</strong>
         {/* Up to two items per day; the rest are counted. Details open on click. */}
         <span className="mt-1 flex w-full min-w-0 flex-col gap-1">
-          {[...entries.map((visit) => ({ key: `b-${visit.occurrence_id}`, tone: "border-[#FF7A00] bg-[#FFF4E8] text-[#7A3A00]", text: `${clockShort(visit.starts_at)} ${visit.organisation || visit.full_name || "Hire"}` })),
-            ...gateWins.map((window) => ({ key: `g-${window.gateId}-${window.start}`, tone: "border-[#16A34A] bg-[#E9F7EF] text-[#146C3A]", text: `${clockShort(window.start)} Gate open` }))]
+          {[...entries.map((visit) => ({ key: `b-${visit.occurrence_id}`, tone: "border-[#FF7A00] bg-[#FF7A00]/20 text-[#FFD2A8]", text: `${clockShort(visit.starts_at)} ${visit.organisation || visit.full_name || "Hire"}` })),
+            ...gateWins.map((window) => ({ key: `g-${window.gateId}-${window.start}`, tone: "border-[#22C55E] bg-[#22C55E]/15 text-[#A7F3C8]", text: `${clockShort(window.start)} Gate open` }))]
             .slice(0, 2).map((item) => <span key={item.key} className={`mk-chip block truncate border-l-2 px-1.5 py-0.5 font-semibold ${item.tone}`}>{item.text}</span>)}
-          {entries.length + gateWins.length > 2 && <span className="text-[11px] font-semibold text-[#0B6BCB]">+{entries.length + gateWins.length - 2} more</span>}
+          {entries.length + gateWins.length > 2 && <span className="text-[11px] font-semibold text-[#5CC8FF]">+{entries.length + gateWins.length - 2} more</span>}
         </span>
-        <span className="mt-auto text-xs whitespace-nowrap text-[#6B7F92]">{loading ? "Loading…" : error ? "Unavailable" : entries.length ? `${entries.length} booking${entries.length === 1 ? "" : "s"}` : "No bookings"}</span>
+        <span className="mt-auto text-xs whitespace-nowrap text-[#8FB0CF]">{loading ? "Loading…" : error ? "Unavailable" : entries.length ? `${entries.length} booking${entries.length === 1 ? "" : "s"}` : "No bookings"}</span>
       </button></li>;
     })}</ol></div>
-    {error && <p className="m-0 flex items-center justify-between text-sm text-[#B45309]" role="status">{error}<button type="button" className={glassButton()} onClick={() => setRevision((value) => value + 1)} aria-label="Retry calendar"><RefreshCw className="size-4" aria-hidden="true" /></button></p>}
+    {error && <p className="m-0 flex items-center justify-between text-sm text-[#FFB020]" role="status">{error}<button type="button" className={glassButton()} onClick={() => setRevision((value) => value + 1)} aria-label="Retry calendar"><RefreshCw className="size-4" aria-hidden="true" /></button></p>}
     {selected && <div className={`${GLASS_TILE} grid gap-4 p-4 md:grid-cols-2`}>
-      <div className="md:col-span-2 flex items-center justify-between text-sm text-[#0F2A44]"><strong>{dateLabel(selected, { weekday: "long", day: "numeric", month: "long" })}</strong><button type="button" className={glassButton()} onClick={() => setSelected(null)} aria-label="Close selected day"><X className="size-4" aria-hidden="true" /></button></div>
+      <div className="md:col-span-2 flex items-center justify-between text-sm text-[#F5FBFF]"><strong>{dateLabel(selected, { weekday: "long", day: "numeric", month: "long" })}</strong><button type="button" className={glassButton()} onClick={() => setSelected(null)} aria-label="Close selected day"><X className="size-4" aria-hidden="true" /></button></div>
       <div>
-        <h3 className="m-0 mb-2 text-xs font-bold uppercase tracking-wide text-[#4E6479]">Bookings</h3>
-        {(byDay.get(selected) ?? []).length ? (byDay.get(selected) ?? []).map((visit, index) => <div key={visit.occurrence_id ?? index} className="mb-2 border-l-2 border-[#FF7A00] pl-3 text-sm text-[#0F2A44]"><strong>{visit.organisation || visit.full_name || visit.schedule_name || "Hire booking"}</strong><span className="block text-[#4E6479]">{clock(visit.starts_at)} – {clock(visit.ends_at)}{Array.isArray(visit.areas) && visit.areas.length ? ` · ${visit.areas.join(", ")}` : ""}</span></div>) : <p className="m-0 text-sm text-[#6B7F92]">No bookings.</p>}
+        <h3 className="m-0 mb-2 text-xs font-bold uppercase tracking-wide text-[#B9CFE2]">Bookings</h3>
+        {(byDay.get(selected) ?? []).length ? (byDay.get(selected) ?? []).map((visit, index) => <div key={visit.occurrence_id ?? index} className="mb-2 border-l-2 border-[#FF7A00] pl-3 text-sm text-[#F5FBFF]"><strong>{visit.organisation || visit.full_name || visit.schedule_name || "Hire booking"}</strong><span className="block text-[#B9CFE2]">{clock(visit.starts_at)} – {clock(visit.ends_at)}{Array.isArray(visit.areas) && visit.areas.length ? ` · ${visit.areas.join(", ")}` : ""}</span></div>) : <p className="m-0 text-sm text-[#8FB0CF]">No bookings.</p>}
       </div>
       <div>
-        <h3 className="m-0 mb-2 text-xs font-bold uppercase tracking-wide text-[#4E6479]">Gate open windows</h3>
-        {(windowsByDay.get(selected) ?? []).length ? (windowsByDay.get(selected) ?? []).map((window) => <div key={`${window.gateId}-${window.start}-${window.source}`} className="mb-2 flex items-start justify-between gap-3 border-l-2 border-[#16A34A] pl-3 text-sm text-[#0F2A44]"><span><strong>{window.gateName}</strong><span className="block text-[#4E6479]">{clock(window.start)} – {clock(window.end)} · {window.label}</span></span><span className={`shrink-0 border px-2 py-0.5 text-[11px] font-semibold ${SOURCE_TONE[window.source]}`}>{SOURCE_TEXT[window.source]}</span></div>) : <p className="m-0 text-sm text-[#6B7F92]">No gate automation this day.</p>}
+        <h3 className="m-0 mb-2 text-xs font-bold uppercase tracking-wide text-[#B9CFE2]">Gate open windows</h3>
+        {(windowsByDay.get(selected) ?? []).length ? (windowsByDay.get(selected) ?? []).map((window) => <div key={`${window.gateId}-${window.start}-${window.source}`} className="mb-2 flex items-start justify-between gap-3 border-l-2 border-[#22C55E] pl-3 text-sm text-[#F5FBFF]"><span><strong>{window.gateName}</strong><span className="block text-[#B9CFE2]">{clock(window.start)} – {clock(window.end)} · {window.label}</span></span><span className={`shrink-0 border px-2 py-0.5 text-[11px] font-semibold ${SOURCE_TONE[window.source]}`}>{SOURCE_TEXT[window.source]}</span></div>) : <p className="m-0 text-sm text-[#8FB0CF]">No gate automation this day.</p>}
       </div>
     </div>}
   </section>;

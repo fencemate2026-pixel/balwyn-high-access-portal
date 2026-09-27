@@ -321,3 +321,97 @@
 
 /* Gate schedules: the gate picture was removed; the heading block spans the row. */
 .control-portal .schedule-context-plain { display: flex !important; align-items: center; justify-content: space-between; gap: 16px; }
+
+/* =====================================================================
+ * 27 Sep 2026 — header emergency control, navy header panels, hover lift
+ * ===================================================================== */
+
+/* ---- Header: room for the crest AND the emergency control ------------ */
+.control-portal .workspace-header { min-height: 88px !important; gap: 20px; }
+.control-portal .workspace-location { display: flex !important; align-items: center !important; gap: 20px !important; min-width: 0; }
+.control-portal .header-safety { display: flex; align-items: center; gap: 16px; padding-left: 20px; border-left: 1px solid rgba(255,255,255,.14); }
+.control-portal .header-safety .safety-bar-status { display: flex; align-items: center; gap: 10px; background: none !important; border: 0 !important; padding: 0 !important; }
+.control-portal .header-safety .safety-bar-status small { display: block; color: #8fb0cf !important; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.control-portal .header-safety .safety-bar-status strong { display: block; color: #ffffff !important; font-size: 14px; }
+.control-portal .header-safety .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.25); flex: 0 0 10px; }
+.control-portal .header-safety .is-alert .status-dot { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.35); }
+.control-portal .header-safety-note { display: flex; align-items: center; gap: 4px; margin-top: 2px; color: #8fb0cf; font-size: 11px; font-style: normal; white-space: nowrap; }
+.control-portal .header-safety-note svg { width: 12px; height: 12px; }
+@media (max-width: 1280px) { .control-portal .header-safety-note { display: none; } }
+@media (max-width: 900px) { .control-portal .header-safety .safety-bar-status { display: none; } .control-portal .header-safety { border-left: 0; padding-left: 0; } }
+
+/* ---- Fire / evacuation: solid bright red, unmistakable -------------- */
+.control-portal .safety-command.fire {
+  min-height: 52px !important; padding: 8px 20px 8px 12px !important; gap: 12px !important;
+  background: linear-gradient(180deg, #ff2d3b 0%, #d7141f 100%) !important; color: #ffffff !important;
+  border: 2px solid #ff6b73 !important; border-radius: 0 !important; opacity: 1 !important;
+  box-shadow: 0 0 0 3px rgba(255,45,59,.25), 0 8px 22px rgba(215,20,31,.45) !important;
+}
+.control-portal .safety-command.fire .safety-command-icon { display: grid; place-items: center; width: 34px; height: 34px; background: rgba(255,255,255,.18) !important; color: #ffffff !important; border-radius: 0 !important; }
+.control-portal .safety-command.fire .safety-command-icon svg { color: #ffffff !important; }
+.control-portal .safety-command.fire strong { color: #ffffff !important; font-size: 14px !important; font-weight: 800 !important; letter-spacing: .06em !important; }
+.control-portal .safety-command.fire em { color: #ffe4e6 !important; font-size: 11px !important; font-style: normal; }
+.control-portal .safety-command.fire:hover:not(:disabled) { background: linear-gradient(180deg, #ff4552 0%, #e51b27 100%) !important; }
+.control-portal .safety-command.fire.is-live { animation: mk-fire-pulse 1.4s ease-in-out infinite; }
+.control-portal .safety-command.fire:disabled { cursor: not-allowed; filter: saturate(.85); opacity: .9 !important; }
+@keyframes mk-fire-pulse { 0%, 100% { box-shadow: 0 0 0 3px rgba(255,45,59,.35), 0 8px 22px rgba(215,20,31,.45); } 50% { box-shadow: 0 0 0 9px rgba(255,45,59,.15), 0 8px 26px rgba(215,20,31,.6); } }
+
+/* ---- Gate Schedules + Local weather: the navy of the side dashboard --- */
+.control-portal .campus-context { color-scheme: dark; }
+.control-portal .campus-context .mk-navy h2 { color: #ff9a3d !important; }
+.control-portal .campus-context .mk-navy :is(p, span, small, strong, a) { text-shadow: none !important; }
+.control-portal .campus-context .mk-navy a { color: #8fd3ff !important; }
+.control-portal .campus-glass-calendar button[aria-current="date"] {
+  background-color: rgba(255,122,0,.2) !important; border-color: #ff7a00 !important;
+  box-shadow: 0 0 0 1px #ff7a00, 0 0 18px rgba(255,122,0,.35) !important;
+}
+.control-portal .campus-glass-calendar button[aria-pressed="true"]:not([aria-current="date"]) { border-color: #5cc8ff !important; box-shadow: 0 0 0 1px #5cc8ff !important; }
+
+/* ---- Hover lift: buttons, calendar days, cards you can click ------------
+ * Raises 2 px with a soft shadow. Disabled controls never move. Anyone who
+ * has asked their device to reduce motion gets the colour change only. */
+.control-portal :is(button, [data-slot="button"], a[role="button"], .portal-nav-button, .mk-tile, .fh-day, .quick-state-button, .safety-command, [role="tab"]) {
+  transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease, border-color .15s ease;
+}
+.control-portal :is(button, [data-slot="button"], a[role="button"], .mk-tile, .fh-day, .quick-state-button, [role="tab"]):not(:disabled):not([aria-disabled="true"]):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(6, 40, 70, .22);
+}
+.control-portal .safety-command:not(:disabled):hover { transform: translateY(-2px); }
+.control-portal .portal-nav-button:hover { transform: translateX(3px); }
+.control-portal :is(button, [data-slot="button"], .mk-tile, .fh-day):not(:disabled):active { transform: translateY(0); box-shadow: none; }
+/* Never lift things that must stay put: the 3D gate canvas and the sidebar collapse control. */
+.control-portal :is(.gate-model-canvas, .gate-model-canvas *, .sidebar-toggle):hover { transform: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .control-portal * { transition: none !important; animation: none !important; }
+  .control-portal *:hover { transform: none !important; }
+}
+
+/* Navy header panels, enforced. bright-glass.css (unlayered) forces these two
+ * panels white with navy text; unlayered CSS always beats Tailwind utility
+ * classes, so the navy palette must be restated here, with more specificity. */
+.control-portal .campus-context .mk-glass.mk-navy {
+  background: linear-gradient(135deg, #0d3a63 0%, #062846 100%) !important;
+  border: 1px solid #1e5a8a !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 10px 28px rgba(6,40,70,.35) !important;
+  color: #f5fbff !important;
+}
+.control-portal .campus-context .mk-navy :is(p, span, strong, li, h3, b) { color: #eaf3fa !important; }
+.control-portal .campus-context .mk-navy :is(small, figcaption, .mk-gauge-label) { color: #9fc0da !important; }
+.control-portal .campus-context .mk-navy header p,
+.control-portal .campus-context .mk-navy .mk-tile span:first-child { color: #b9cfe2 !important; }
+.control-portal .campus-context .mk-navy .mk-tile { background: rgba(255,255,255,.06) !important; border-color: rgba(255,255,255,.14) !important; }
+.control-portal .campus-context .mk-navy .mk-tile:hover { background: rgba(255,255,255,.11) !important; border-color: #5cc8ff !important; }
+.control-portal .campus-context .mk-navy button[aria-current="date"] { background: rgba(255,122,0,.22) !important; border-color: #ff7a00 !important; }
+.control-portal .campus-context .mk-navy button[aria-current="date"] span:first-child { color: #ffb26b !important; }
+.control-portal .campus-context .mk-navy button[aria-current="date"] strong { color: #ff9a3d !important; }
+.control-portal .campus-context .mk-navy .mk-chip { color: #ffffff !important; }
+.control-portal .campus-context .mk-navy .mk-gauge-value { color: #ffffff !important; }
+.control-portal .campus-context .mk-navy a { color: #8fd3ff !important; }
+.control-portal .campus-context .mk-navy svg { color: #5cc8ff; }
+
+/* Header on one row: crest | system state + FIRE | status, connection, user. */
+.control-portal .workspace-header { display: flex !important; flex-wrap: nowrap !important; align-items: center !important; justify-content: space-between !important; }
+.control-portal .workspace-header-right { flex-wrap: nowrap !important; min-width: 0; }
+@media (max-width: 1700px) { .control-portal .header-safety-note { display: none; } }
+@media (max-width: 1560px) { .control-portal .header-safety .safety-command.fire em { display: none; } .control-portal .connection-pill { display: none !important; } }

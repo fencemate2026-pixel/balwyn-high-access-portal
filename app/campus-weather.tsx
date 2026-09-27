@@ -29,19 +29,19 @@ export default function CampusWeather() {
   return <section className={`campus-glass-weather ${GLASS_PANEL} relative flex min-w-0 flex-col gap-4 overflow-hidden p-5`} aria-labelledby="campus-weather-title">
     <header className="flex items-start justify-between gap-3">
       <div>
-        <h2 id="campus-weather-title" className="m-0 flex items-center gap-2 text-base font-bold text-[#0F2A44]"><MapPin className="size-4 text-[#0B6BCB]" aria-hidden="true" /> Local weather</h2>
-        <p className="m-0 mt-1 text-sm text-[#4E6479]">Balwyn, Victoria</p>
+        <h2 id="campus-weather-title" className="m-0 flex items-center gap-2 text-base font-bold text-[#F5FBFF]"><MapPin className="size-4 text-[#5CC8FF]" aria-hidden="true" /> Local weather</h2>
+        <p className="m-0 mt-1 text-sm text-[#B9CFE2]">Balwyn, Victoria</p>
       </div>
-      {weather && <p className="m-0 text-xs text-[#6B7F92]" role="status">{error || weather.stale ? "Last available forecast · " : "Updated "}{updated}</p>}
+      {weather && <p className="m-0 text-xs text-[#8FB0CF]" role="status">{error || weather.stale ? "Last available forecast · " : "Updated "}{updated}</p>}
     </header>
     {weather ? <>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <WeatherIcon kind={weather.current.icon} size={52} />
           <div>
-            <strong className="block text-4xl leading-none font-bold tabular-nums text-[#0F2A44]">{number(weather.current.temp, "°")}</strong>
-            <span className="mt-1 block text-sm text-[#4E6479]">{weather.current.label}</span>
-            <span className="mt-1 flex items-center gap-1.5 text-xs text-[#6B7F92]"><Wind className="size-3.5" aria-hidden="true" /> Wind {number(weather.current.wind, " km/h")}</span>
+            <strong className="block text-4xl leading-none font-bold tabular-nums text-[#F5FBFF]">{number(weather.current.temp, "°")}</strong>
+            <span className="mt-1 block text-sm text-[#B9CFE2]">{weather.current.label}</span>
+            <span className="mt-1 flex items-center gap-1.5 text-xs text-[#8FB0CF]"><Wind className="size-3.5" aria-hidden="true" /> Wind {number(weather.current.wind, " km/h")}</span>
           </div>
         </div>
         <div className="flex gap-3">
@@ -50,12 +50,12 @@ export default function CampusWeather() {
         </div>
       </div>
       <ol className="m-0 grid list-none grid-cols-4 gap-2 p-0 sm:grid-cols-7" aria-label="Seven-day forecast">{weather.days.slice(0, 7).map((day) => <li key={day.date} className={`${GLASS_TILE} flex flex-col items-center gap-0.5 px-1 py-2`} title={`${day.label}, high ${number(day.max, "°C")}, low ${number(day.min, "°C")}`}>
-        <span className="text-xs font-bold text-[#4E6479]">{new Intl.DateTimeFormat("en-AU", { weekday: "short", timeZone: "UTC" }).format(new Date(`${day.date}T12:00:00Z`))}</span>
+        <span className="text-xs font-bold text-[#B9CFE2]">{new Intl.DateTimeFormat("en-AU", { weekday: "short", timeZone: "UTC" }).format(new Date(`${day.date}T12:00:00Z`))}</span>
         <WeatherIcon kind={day.icon} size={26} />
-        <span className="text-sm font-semibold tabular-nums text-[#0F2A44]">{number(day.max, "°")}</span>
-        <span className="text-xs tabular-nums text-[#6B7F92]">{number(day.min, "°")}</span>
+        <span className="text-sm font-semibold tabular-nums text-[#F5FBFF]">{number(day.max, "°")}</span>
+        <span className="text-xs tabular-nums text-[#8FB0CF]">{number(day.min, "°")}</span>
       </li>)}</ol>
-      <div className="flex items-center justify-end gap-3 text-xs text-[#6B7F92]"><a className="text-[#0B6BCB] underline" href={weather.source === "MET Norway" ? "https://www.met.no/en" : "https://open-meteo.com/"} target="_blank" rel="noopener noreferrer">Forecast: {weather.source}</a><button type="button" className={glassButton()} aria-label="Refresh Balwyn weather" onClick={() => setRevision(value => value + 1)}><RefreshCw className="size-4" aria-hidden="true" /></button></div>
-    </> : <div className="flex min-h-32 items-center justify-between gap-3"><div><strong className="text-4xl font-bold text-[#6B7F92]">—°</strong><p className="m-0 mt-1 text-sm text-[#B45309]" role="status">{error ? "Forecast temporarily unavailable" : "Loading Balwyn forecast…"}</p></div>{error && <button type="button" className={glassButton()} aria-label="Retry Balwyn weather" onClick={() => setRevision((value) => value + 1)}><RefreshCw className="size-4" aria-hidden="true" /></button>}</div>}
+      <div className="flex items-center justify-end gap-3 text-xs text-[#8FB0CF]"><a className="text-[#5CC8FF] underline" href={weather.source === "MET Norway" ? "https://www.met.no/en" : "https://open-meteo.com/"} target="_blank" rel="noopener noreferrer">Forecast: {weather.source}</a><button type="button" className={glassButton()} aria-label="Refresh Balwyn weather" onClick={() => setRevision(value => value + 1)}><RefreshCw className="size-4" aria-hidden="true" /></button></div>
+    </> : <div className="flex min-h-32 items-center justify-between gap-3"><div><strong className="text-4xl font-bold text-[#8FB0CF]">—°</strong><p className="m-0 mt-1 text-sm text-[#FFB020]" role="status">{error ? "Forecast temporarily unavailable" : "Loading Balwyn forecast…"}</p></div>{error && <button type="button" className={glassButton()} aria-label="Retry Balwyn weather" onClick={() => setRevision((value) => value + 1)}><RefreshCw className="size-4" aria-hidden="true" /></button>}</div>}
   </section>;
 }

@@ -861,20 +861,13 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
       <SidebarInset className="portal-workspace">
         <header className="workspace-header">
-          <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="workspace-school-brand"><img src="/balwyn-high-school-logo-clear.png" alt="Balwyn High School" /></span></div>
+          <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="workspace-school-brand"><img src="/balwyn-high-school-logo-clear.png" alt="Balwyn High School" /></span><div className="header-safety" role="region" aria-label="Emergency gate commands"><div className={`safety-bar-status${systemMode === "normal" ? "" : " is-alert"}`}><i className="status-dot" /><span><small>System state</small><strong>{systemMode === "normal" ? "No emergency active" : systemMode === "lockdown" ? "Lockdown active" : "Fire / evacuation active"}</strong><em className="header-safety-note"><Radio aria-hidden="true" /> Local safety circuits remain authoritative</em></span></div><SafetyCommand mode="fire" active={systemMode === "fire"} authorised={isAdministrator} onConfirm={() => setPendingEmergency("fire")} /></div></div>
           <div className="workspace-header-right"><div className={`system-status-cluster ${operationalReady ? "is-ready" : "is-attention"}`}><i className="signal-dot" /><span><small>Controller status</small><strong>{operationalReady ? "All systems ready" : "Commissioning"}</strong></span><b>{onlineCount}/{activeGates.length}</b></div><span className="connection-pill"><i /> Encrypted connection</span><button className="notification-button" aria-label="View system alerts" onClick={() => onlineCount === activeGates.length ? toast.success("All controllers online", { description: "Physical gate feedback is available for every access point." }) : toast.warning(`${activeGates.length - onlineCount} active gate controllers are not online`, { description: `${commissionedCount} have completed a verified heartbeat; ${credentialCount} credentials have been issued.` })}><Bell /></button><div className="header-operator"><Avatar><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><span><strong>{displayName}</strong><small>{roleLabel}</small></span></div></div>
         </header>
 
         <div className="campus-context"><CampusCalendar onManage={() => setActiveView("hire")} canBook={canOperate} /><CampusWeather /></div>
 
-        <section className="safety-bar" aria-label="Emergency gate commands">
-          <div className={`safety-bar-status${systemMode === "normal" ? "" : " is-alert"}`}>
-            <i className="status-dot" />
-            <span><small>System state</small><strong>{systemMode === "normal" ? "No emergency active" : systemMode === "lockdown" ? "Lockdown active" : "Fire / evacuation active"}</strong></span>
-          </div>
-          <div className="safety-command-grid"><SafetyCommand mode="fire" active={systemMode === "fire"} authorised={isAdministrator} onConfirm={() => setPendingEmergency("fire")} /></div>
-          <div className="command-safety-note"><Radio /> Local safety circuits remain authoritative</div>
-        </section>
+        {/* The fire / evacuation control lives in the header (always visible on every page). */}
 
         {systemMode !== "normal" && <EmergencyAlertPanel mode={systemMode} onClear={() => setPendingEmergency("clear")} confirmed={emergencyConfirmed} pending={emergencyPending} failed={emergencyFailed} canClear={isAdministrator} projectorAccess={advancedFeaturesEnabled} />}
 
