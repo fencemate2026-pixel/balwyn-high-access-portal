@@ -24,7 +24,7 @@ export default function OperatorHelpDock() {
   const [events, setEvents] = useState<HelpEvent[]>([]);
   const [items, setItems] = useState<ChatItem[]>([{
     role: "assistant",
-    content: "Ask how the portal works. I cannot open gates, issue fire commands, or change settings.",
+    content: "Ask how to add a user, open a gate, change a schedule, or how fire evacuation works. I explain the steps on screen. I cannot press the controls for you.",
   }]);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -101,7 +101,7 @@ export default function OperatorHelpDock() {
                 {items.map((item, index) => (
                   <p key={`${item.role}-${index}`} className={`operator-help-item is-${item.role}`}>{item.content}</p>
                 ))}
-                {busy ? <p className="operator-help-item is-assistant">Looking up the guide…</p> : null}
+                {busy ? <p className="operator-help-item is-assistant">Looking that up…</p> : null}
               </div>
               <form onSubmit={send}>
                 <label className="sr-only" htmlFor="operator-help-input">Question</label>
@@ -110,7 +110,7 @@ export default function OperatorHelpDock() {
                   value={question}
                   onChange={(event) => setQuestion(event.target.value)}
                   maxLength={1500}
-                  placeholder="How does fire evacuation work?"
+                  placeholder="How do I add a user?"
                   disabled={busy}
                 />
                 <button type="submit" disabled={busy || !question.trim()}>Send</button>
