@@ -188,6 +188,12 @@ class ConfigTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaisesRegex(ConfigError, message):
                 Config.from_env(broken)
 
+    def test_state_directory_is_split_on_the_os_path_separator_only(self) -> None:
+        import os
+        first, second = ("C:\\Temp\\gate-a", "D:\\x") if os.name == "nt" else ("/var/lib/balwyn-gate/TF-ENTRY", "/tmp/x")
+        config = Config.from_env({**env("https://magickeys-balwyn-portal.com", first + os.pathsep + second)})
+        self.assertEqual(str(config.state_dir), first)
+
     def test_safety_none_means_monitor_only(self) -> None:
         config = Config.from_env({**env("https://magickeys-balwyn-portal.com", "/tmp/x"), "SAFETY_INPUT": "none"})
         self.assertTrue(config.monitor_only)

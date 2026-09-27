@@ -59,3 +59,8 @@ __pycache__/
 # and in CI when accidentally committed here in the past).
 /fencemat-rebuild/
 /balwyn-high-access-portal/
+
+# Gate controller test/bench state must never be committed
+gate-controller/**/state.json
+gate-controller/**/audit.jsonl
+/C/

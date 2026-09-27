@@ -164,7 +164,10 @@ class Config:
             hold_max_s=_num(env, "HOLD_MAX_S", 14 * 3600, 60.0, 24 * 3600),
             network_loss_release_s=_num(env, "NETWORK_LOSS_RELEASE_S", 300.0, 30.0, 3600.0),
             loop_stall_s=_num(env, "LOOP_STALL_S", 10.0, 2.0, 60.0),
-            state_dir=Path(env.get("STATE_DIRECTORY", "/var/lib/balwyn-gate").split(":")[0]),
+            # systemd may pass several state directories separated by the OS path
+            # separator (":" on Linux). Splitting on ":" unconditionally broke Windows
+            # paths such as C:\...\Temp (it produced a relative folder named "C").
+            state_dir=Path(env.get("STATE_DIRECTORY", "/var/lib/balwyn-gate").split(os.pathsep)[0]),
             dry_run=_bool(env, "DRY_RUN", default=False),
             ca_file=env.get("CA_FILE", "").strip() or None,
         )

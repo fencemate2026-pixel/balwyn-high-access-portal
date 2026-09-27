@@ -1,5 +1,0 @@
-{"t":"2026-09-27T12:00:58+1000","event":"command_start","id":1,"command":"open","source":"manual"}
-{"t":"2026-09-27T12:00:58+1000","event":"relay_pulse","seconds":1.0}
-{"t":"2026-09-27T12:00:59+1000","event":"relay_release","reason":"pulse complete","was":"pulsing","kind":""}
-{"t":"2026-09-27T12:01:01+1000","event":"command_result","id":1,"state":"acknowledged","position":"open"}
-{"t":"2026-09-27T12:01:10+1000","event":"controller_stopped"}
