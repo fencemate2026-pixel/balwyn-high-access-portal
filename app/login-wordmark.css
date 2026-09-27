@@ -1,22 +1,24 @@
-/* Same box as .magic-wide-artwork::after (the school crest).
- * object-position:center puts MAGICKEYS on the crest, not under the AI head. */
+/* Crest watermark box is inset 8% 28% 8% 12% → spans 12%–72% x 8%–92%.
+ * Midpoint = left 42%, top 50%. Translate -50/-50 so the wordmark centre
+ * sits on the crest centre. Do not use inset+width:auto on an img — that
+ * only honours top/left and parks the mark on the crest's top-left. */
 .access-login-brand-stage .magic-wide-wordmark,
-.access-login-school-blue .access-login-brand-stage .magic-wide-wordmark {
+.access-login-school-blue .access-login-brand-stage .magic-wide-wordmark,
+.access-login-brand-stage .magic-wide-artwork.is-dark .magic-wide-wordmark {
   position: absolute !important;
-  inset: 8% 28% 8% 12% !important;
-  width: auto !important;
-  height: auto !important;
+  inset: auto !important;
+  left: 42% !important;
+  top: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: min(56%, 920px) !important;
   max-width: none !important;
-  max-height: none !important;
-  transform: none !important;
+  height: auto !important;
+  max-height: 34vh !important;
+  transform: translate(-50%, -50%) !important;
   object-fit: contain !important;
   object-position: center center !important;
   padding: 0 !important;
   margin: 0 !important;
   z-index: 2 !important;
-}
-
-.access-login-brand-stage .magic-wide-artwork.is-dark .magic-wide-wordmark,
-.access-login-school-blue .magic-wide-artwork.is-dark .magic-wide-wordmark {
-  inset: 10% 34% 10% 8% !important;
 }
