@@ -34,6 +34,19 @@ export function readDoorConfiguration(read: EnvironmentReader, gates: readonly G
   return { origin: base.origin, token, gateMap: Object.fromEntries(entries) as Record<string, number> };
 }
 
+/**
+ * The environment the remote-open path is allowed to see, shared by the gateway
+ * route and the help assistant so both always agree (28 Sep 2026: the route used
+ * to ignore the Equipment switch while the helper reported the path disabled).
+ * The administrator's Equipment switch can only DISABLE the path. The channel
+ * mapping always comes from the server setting DOOR_GATE_MAP, never from a saved
+ * portal value, so a saved setting can never move a gate onto another relay.
+ * `remoteOpenEnabled` null means the setting could not be read: fail closed.
+ */
+export function remoteOpenEnvironment(read: EnvironmentReader, remoteOpenEnabled: boolean | null): EnvironmentReader {
+  return (key) => (remoteOpenEnabled === true ? read(key) : undefined);
+}
+
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
 export async function handleDoorRequest(request: Request, options: GatewayOptions): Promise<Response> {

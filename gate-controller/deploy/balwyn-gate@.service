@@ -3,9 +3,12 @@
 # State + audit log: /var/lib/balwyn-gate/%i/
 [Unit]
 Description=Balwyn gate controller for %i (Magic Keys portal)
-After=network-online.target dev-gpiochip0.device
+# No dependency on dev-gpiochip0.device: Raspberry Pi OS does not tag gpiochip
+# devices for systemd, so that unit never becomes active and Requires= on it
+# failed the service after the device timeout. The GPIO chip exists from early
+# boot; if it is missing the controller stops with an error and is restarted.
+After=network-online.target
 Wants=network-online.target
-Requires=dev-gpiochip0.device
 StartLimitIntervalSec=120
 StartLimitBurst=10
 

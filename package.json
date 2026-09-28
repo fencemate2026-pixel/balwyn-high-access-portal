@@ -10,7 +10,7 @@
     "dev": "next dev --hostname 0.0.0.0",
     "build": "node scripts/build-help-index.mjs && next build --webpack && node scripts/check-no-purple.mjs .next/static",
     "start": "next start --hostname 0.0.0.0",
-    "test": "npm run build && node --test tests/*.test.mjs && python3 -m unittest discover -s controller-agent/tests -p 'test_*.py' && python3 -m unittest discover -s pi-door-service/tests -v",
+    "test": "npm run build && node --test tests/*.test.mjs && python3 -m unittest discover -s gate-controller/tests && python3 -m unittest discover -s controller-agent/tests -p 'test_*.py' && python3 -m unittest discover -s pi-door-service/tests -v",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern archive",
     "db:generate": "drizzle-kit generate",
     "test:doors": "node --test tests/remote-open.test.mjs && python3 -m unittest discover -s pi-door-service/tests -v",

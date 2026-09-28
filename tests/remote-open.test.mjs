@@ -131,3 +131,20 @@ test("a registered but inactive gate still cannot pulse its mapped channel", asy
   assert.match((await response.json()).error, /inactive/i);
   assert.equal(calls, 0);
 });
+
+test("the Equipment switch can only disable remote open, and the relay mapping always comes from the server setting", async () => {
+  const { remoteOpenEnvironment } = await import("../lib/door-open-gateway.ts");
+  // Enabled: the server environment is used unchanged.
+  assert.deepEqual(readDoorConfiguration(remoteOpenEnvironment(readEnv, true), GATES).gateMap, { "TF-ENTRY": 1, "SIDE-ENTRY": 4 });
+  // Disabled, or the setting could not be read: the path is unconfigured and makes no hardware call.
+  for (const enabled of [false, null]) {
+    let calls = 0;
+    const reader = remoteOpenEnvironment(readEnv, enabled);
+    assert.equal(readDoorConfiguration(reader, GATES), null);
+    const config = await handleDoorRequest(new Request(`${origin}/api/doors/open`), { ...options(() => { calls++; }), readEnv: reader });
+    assert.deepEqual(await config.json(), { configured: false });
+    const pulse = await handleDoorRequest(req(), { ...options(() => { calls++; }), readEnv: reader });
+    assert.equal(pulse.status, 503);
+    assert.equal(calls, 0);
+  }
+});

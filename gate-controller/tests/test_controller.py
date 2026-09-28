@@ -8,9 +8,12 @@ and a local HTTP server stands in for the portal's controller routes.
 from __future__ import annotations
 
 import json
+import os
+import socket
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -19,9 +22,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from balwyn_gate_controller.config import Config, ConfigError  # noqa: E402
 from balwyn_gate_controller.controller import GateController  # noqa: E402
-from balwyn_gate_controller.hardware import FakeBackend, GateIO  # noqa: E402
+from balwyn_gate_controller.hardware import FakeBackend, GateIO, lgpio_work_dir  # noqa: E402
 from balwyn_gate_controller.journal import Journal  # noqa: E402
-from balwyn_gate_controller.portal import PortalClient  # noqa: E402
+from balwyn_gate_controller.portal import PortalClient, PortalError  # noqa: E402
 from balwyn_gate_controller.relay import RelaySupervisor  # noqa: E402
 
 RELAY, CLOSED, OPEN, SAFETY = 17, 22, 23, 24
@@ -154,7 +157,8 @@ class Rig:
         self.config = Config.from_env(env(self.portal.url, self.tmp.name, **self.extra))
         io = GateIO(self.backend, self.config.relay_pin, self.config.relay_active_low, self.config.closed_reed_pin,
                     self.config.open_reed_pin, self.config.safety_pin, self.config.input_active_low, self.config.input_pull)
-        self.ctl = GateController(self.config, io, PortalClient(self.portal.url, "TF-ENTRY", TOKEN), Journal(Path(self.tmp.name)), self.clock)
+        self.ctl = GateController(self.config, io, PortalClient(self.portal.url, "TF-ENTRY", TOKEN), Journal(Path(self.tmp.name)), self.clock,
+                                  threaded_network=False)  # simulated clock: exchanges run inline, deterministically
 
     def run(self, seconds: float, dt: float = 0.05) -> None:
         for _ in range(int(seconds / dt)):
@@ -361,6 +365,198 @@ class ControllerTests(unittest.TestCase):
         rig.ctl.shutdown()
         self.assertEqual(rig.backend.levels[RELAY], 1)
         self.assertTrue(rig.backend.closed)
+
+
+class BlackHole:
+    """Accepts TCP connections and never answers: a black-holed network path."""
+
+    def __init__(self) -> None:
+        self.sock = socket.socket()
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(50)
+        self.held: list[socket.socket] = []
+        self.url = f"http://127.0.0.1:{self.sock.getsockname()[1]}"
+        threading.Thread(target=self._accept, daemon=True).start()
+
+    def _accept(self) -> None:
+        while True:
+            try:
+                conn, _ = self.sock.accept()
+            except OSError:
+                return
+            self.held.append(conn)
+
+    def close(self) -> None:
+        for conn in self.held:
+            conn.close()
+        self.sock.close()
+
+
+def systemd_env_file(path: Path) -> dict:
+    """Read an EnvironmentFile= the way systemd does (src/basic/env-file.c): a
+    comment only at the start of a line; an unquoted value is everything after
+    '=' with surrounding whitespace removed, so a mid-line '#' stays in it."""
+    values = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.lstrip(" \t")
+        if not line or line[0] in "#;" or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip(" \t")
+    return values
+
+
+DEPLOY = Path(__file__).resolve().parents[1] / "deploy"
+
+
+class DeploymentFileTests(unittest.TestCase):
+    def test_example_env_file_passes_check_config_exactly_as_systemd_reads_it(self) -> None:
+        values = systemd_env_file(DEPLOY / "gate.env.example")
+        config = Config.from_env({**values, "CONTROLLER_TOKEN": TOKEN, "STATE_DIRECTORY": "/tmp/x"})
+        self.assertTrue(config.dry_run, "the example must start in DRY_RUN")
+        self.assertFalse(config.schedule_control, "first commissioning starts with schedule control off")
+
+    def test_inline_comment_is_reported_by_name(self) -> None:
+        broken = {**env("https://magickeys-balwyn-portal.com", "/tmp/x"), "RELAY_PIN": "17   # relay"}
+        broken.pop("ALLOW_INSECURE_HTTP_FOR_TESTS")
+        with self.assertRaisesRegex(ConfigError, "RELAY_PIN contains '#'"):
+            Config.from_env(broken)
+
+    def test_service_unit_has_no_device_dependency_that_udev_never_satisfies(self) -> None:
+        # Raspberry Pi OS does not tag gpiochip devices for systemd, so a
+        # dev-gpiochip0.device unit never starts and Requires= on it fails the service.
+        unit = (DEPLOY / "balwyn-gate@.service").read_text(encoding="utf-8")
+        directives = [line for line in unit.splitlines() if not line.lstrip().startswith("#")]
+        self.assertFalse(any("gpiochip0.device" in line for line in directives))
+        self.assertIn("DeviceAllow=/dev/gpiochip0 rw", unit)
+
+
+class LgpioWorkDirTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.saved = os.environ.pop("LG_WD", None)
+        self.addCleanup(self._restore)
+
+    def _restore(self) -> None:
+        os.environ.pop("LG_WD", None)
+        if self.saved is not None:
+            os.environ["LG_WD"] = self.saved
+
+    def test_existing_lg_wd_wins(self) -> None:
+        os.environ["LG_WD"] = "/somewhere/else"
+        self.assertEqual(lgpio_work_dir(Path("/tmp/ignored")), "/somewhere/else")
+
+    def test_preferred_directory_is_created_private(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            wanted = Path(tmp) / "state" / "lgpio"
+            self.assertEqual(lgpio_work_dir(wanted), str(wanted))
+            self.assertEqual(os.stat(wanted).st_mode & 0o777, 0o700)
+
+    def test_unwritable_preference_falls_back_to_a_private_temporary_directory(self) -> None:
+        chosen = lgpio_work_dir(Path("/proc/not-writable/lgpio"))
+        self.addCleanup(lambda: os.rmdir(chosen))
+        self.assertTrue(os.path.isdir(chosen) and os.access(chosen, os.W_OK))
+        self.assertIn("balwyn-lgpio-", chosen)
+
+
+class PortalClientTests(unittest.TestCase):
+    def test_redirect_is_refused_and_the_credential_is_not_forwarded(self) -> None:
+        seen: list = []
+
+        class Elsewhere(BaseHTTPRequestHandler):
+            def log_message(self, *_: object) -> None:
+                pass
+
+            def do_GET(self) -> None:  # noqa: N802
+                seen.append(self.headers.get("Authorization")); self.send_response(200); self.end_headers()
+            do_POST = do_GET
+
+        other = ThreadingHTTPServer(("127.0.0.1", 0), Elsewhere)
+        threading.Thread(target=other.serve_forever, daemon=True).start()
+        self.addCleanup(other.shutdown)
+        target = f"http://127.0.0.1:{other.server_address[1]}/"
+
+        class Redirect(BaseHTTPRequestHandler):
+            def log_message(self, *_: object) -> None:
+                pass
+
+            def do_POST(self) -> None:  # noqa: N802
+                self.send_response(301); self.send_header("Location", target); self.send_header("Content-Length", "0"); self.end_headers()
+
+        portal = ThreadingHTTPServer(("127.0.0.1", 0), Redirect)
+        threading.Thread(target=portal.serve_forever, daemon=True).start()
+        self.addCleanup(portal.shutdown)
+        client = PortalClient(f"http://127.0.0.1:{portal.server_address[1]}", "TF-ENTRY", TOKEN, timeout_s=2)
+        with self.assertRaises(PortalError) as caught:
+            client.poll("closed", True, [], True)
+        self.assertEqual(caught.exception.status, 301)
+        self.assertEqual(seen, [])
+
+    def test_a_non_object_json_reply_is_a_portal_error_not_a_crash(self) -> None:
+        class ListReply(BaseHTTPRequestHandler):
+            def log_message(self, *_: object) -> None:
+                pass
+
+            def do_POST(self) -> None:  # noqa: N802
+                body = b"[1, 2]"
+                self.send_response(200); self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), ListReply)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        with self.assertRaises(PortalError):
+            PortalClient(f"http://127.0.0.1:{server.server_address[1]}", "TF-ENTRY", TOKEN, timeout_s=2).poll("closed", True, [], True)
+
+
+class ThreadedNetworkTests(unittest.TestCase):
+    """The service configuration: portal exchanges on a worker thread, real clock."""
+
+    def build(self, url: str, state: str, backend: FakeBackend, **extra: str) -> GateController:
+        config = Config.from_env(env(url, state, CYCLE_PULSE_S="1", TRAVEL_TIMEOUT_S="10", AUTO_CLOSE_TIMEOUT_S="20", **extra))
+        io = GateIO(backend, config.relay_pin, config.relay_active_low, config.closed_reed_pin, config.open_reed_pin,
+                    config.safety_pin, config.input_active_low, config.input_pull)
+        return GateController(config, io, PortalClient(url, "TF-ENTRY", TOKEN, timeout_s=8), Journal(Path(state)),
+                              threaded_network=True)
+
+    def test_black_holed_network_never_stalls_the_loop_and_a_fire_hold_survives(self) -> None:
+        hole = BlackHole()
+        self.addCleanup(hole.close)
+        tmp = tempfile.TemporaryDirectory(); self.addCleanup(tmp.cleanup)
+        backend = FakeBackend(); gate = SimGate(backend)
+        ctl = self.build(hole.url, tmp.name, backend)
+        ctl.relay.hold("emergency")
+        ctl._queue_ack(1, "acknowledged", "fire open confirmed")
+        ctl._queue_ack(2, "acknowledged", "second")
+        worst = 0.0
+        end = time.monotonic() + 3.0
+        while time.monotonic() < end:  # three seconds of the real service loop
+            started = time.monotonic()
+            gate.step(0.05)
+            ctl.tick()
+            worst = max(worst, time.monotonic() - started)
+            time.sleep(0.05)
+        self.assertLess(worst, 0.25, f"a tick blocked for {worst:.2f} s")
+        self.assertTrue(ctl.link.busy(), "the exchange is still waiting on the black hole")
+        self.assertTrue(gate.relay_on(), "the fire hold must survive a black-holed network")
+        self.assertEqual(len(ctl.pending_acks), 2, "undelivered acknowledgements are kept for later")
+
+    def test_manual_open_is_confirmed_end_to_end_with_a_threaded_link(self) -> None:
+        portal = FakePortal(); self.addCleanup(portal.close)
+        tmp = tempfile.TemporaryDirectory(); self.addCleanup(tmp.cleanup)
+        backend = FakeBackend(); gate = SimGate(backend, travel=1.0, auto_close=2.0)
+        ctl = self.build(portal.url, tmp.name, backend)
+        last = time.monotonic()
+        queued = False
+        end = time.monotonic() + 8.0
+        while time.monotonic() < end and not any(cid == 21 for cid, _ in portal.acks):
+            now = time.monotonic(); gate.step(now - last); last = now
+            ctl.tick()
+            if not queued and portal.polls and portal.polls[-1]["position"] == "closed" and portal.polls[-1]["safetyOk"]:
+                portal.queue.append({"id": 21, "command": "open", "source": "manual"}); queued = True
+            time.sleep(0.02)
+        acks = [body for cid, body in portal.acks if cid == 21]
+        self.assertTrue(acks, "no acknowledgement reached the portal")
+        self.assertEqual(acks[0]["state"], "acknowledged")
+        self.assertEqual(acks[0]["position"], "open")
 
 
 if __name__ == "__main__":

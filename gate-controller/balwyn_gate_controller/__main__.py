@@ -26,7 +26,8 @@ TICK_S = 0.05
 
 
 def _io(config: Config) -> GateIO:
-    return GateIO(LgpioBackend(), config.relay_pin, config.relay_active_low, config.closed_reed_pin,
+    # lgpio needs a writable directory for its notification FIFO (see hardware.py).
+    return GateIO(LgpioBackend(config.state_dir / "lgpio"), config.relay_pin, config.relay_active_low, config.closed_reed_pin,
                   config.open_reed_pin, config.safety_pin, config.input_active_low, config.input_pull)
 
 
@@ -46,7 +47,8 @@ def run(config: Config) -> int:
     journal = Journal(config.state_dir)
     io = _io(config)
     portal = PortalClient(config.portal_url, config.gate_id, config.token, config.ca_file)
-    controller = GateController(config, io, portal, journal)
+    # threaded_network: portal calls never block the relay loop or the systemd watchdog.
+    controller = GateController(config, io, portal, journal, threaded_network=True)
     stopping = False
 
     def stop(signum: int, _frame: object) -> None:

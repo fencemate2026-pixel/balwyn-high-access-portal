@@ -36,6 +36,12 @@ GATE_ID_PATTERN = re.compile(r"^[A-Z0-9-]{2,40}$")
 # with the ID EEPROM pins (0, 1).
 VALID_PINS = set(range(2, 28))
 MAX_PULSE_S = 10.0  # the portal refuses pulse acknowledgements longer than 10 s
+SETTINGS = (
+    "PORTAL_URL", "GATE_ID", "CONTROLLER_TOKEN", "CONTROLLER_TOKEN_FILE", "RELAY_PIN", "RELAY_ACTIVE_LOW",
+    "CLOSED_REED_PIN", "OPEN_REED_PIN", "SAFETY_INPUT", "INPUT_ACTIVE_LOW", "INPUT_PULL", "CYCLE_PULSE_S",
+    "TRAVEL_TIMEOUT_S", "AUTO_CLOSE_TIMEOUT_S", "DEBOUNCE_S", "SCHEDULE_CONTROL", "HOLD_MAX_S",
+    "NETWORK_LOSS_RELEASE_S", "LOOP_STALL_S", "DRY_RUN", "CA_FILE",
+)
 
 
 class ConfigError(ValueError):
@@ -113,6 +119,12 @@ class Config:
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "Config":
         env = os.environ if env is None else env
+        # systemd's EnvironmentFile= only treats "#" as a comment at the START of
+        # a line: "RELAY_PIN=17  # note" hands the controller the whole text.
+        for name in SETTINGS:
+            if "#" in env.get(name, ""):
+                raise ConfigError(f"{name} contains '#'. Put comments on their own line: systemd keeps "
+                                  "everything after the '=' as the value")
         portal_url = _req(env, "PORTAL_URL").rstrip("/")
         parsed = urllib.parse.urlparse(portal_url)
         allow_http = env.get("ALLOW_INSECURE_HTTP_FOR_TESTS", "") == "1"
