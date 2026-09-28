@@ -84,7 +84,7 @@ export default function PublicAppHome() {
       </section>
 
       <footer className="magic-entry-footer">
-        <img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial Group" width={150} height={50} />
+        <img src="/rjl-commercial-logo-2026.png" alt="RJL Commercial Group" width={150} height={35} />
         <nav aria-label="Policies and support">
           <Link href="/privacy">Privacy Policy</Link>
           <Link href="/terms">Terms of Use</Link>
