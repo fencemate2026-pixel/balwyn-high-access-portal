@@ -4,7 +4,7 @@ import test, { after, beforeEach } from "node:test";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 import { databaseFixture, passwordHash } from "./auth-fixture.mjs";
-import { reserveSignInAttempt } from "../lib/signin-rate-limit.ts";
+import { reserveSignInAttempt, reserveSignInAttempts } from "../lib/signin-rate-limit.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const vite = await createServer({ appType: "custom", configFile: false, root, resolve: { alias: { "@": root } }, server: { middlewareMode: true, hmr: false },
@@ -96,6 +96,14 @@ test("concurrent password attempts cannot exceed the database rate limit", async
   const { db } = await fixture(t);
   const results = await Promise.allSettled(Array.from({ length: 16 }, () => reserveSignInAttempt(db, "test-rate-key", 8)));
   assert.equal(results.filter((value) => value.status === "fulfilled").length, 8);
+});
+
+test("batched reservations (one round trip) enforce every key's cap under concurrency", async (t) => {
+  const { db } = await fixture(t);
+  const results = await Promise.allSettled(Array.from({ length: 16 }, (_, i) => reserveSignInAttempts(db, [{ key: "ip-key", limit: 24 }, { key: `account-${i % 2}`, limit: 5 }])));
+  assert.equal(results.filter((value) => value.status === "fulfilled").length, 10, "5 per account key");
+  const refused = results.find((value) => value.status === "rejected");
+  assert.match(String(refused?.reason?.message), /Too many sign-in attempts/);
 });
 
 test("email sign-in requires the second factor, consumes codes once and preserves approval revocation", async (t) => {

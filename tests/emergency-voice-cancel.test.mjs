@@ -4,17 +4,26 @@ const fs = require('fs');
 const vm = require('vm');
 const ts = require('typescript');
 const assert = require('node:assert/strict');
-let cleanup, spoken = [], cancelled = 0;
-const synth = { speaking: true, pending: false, getVoices: () => [], speak: u => spoken.push(u.text), cancel: () => cancelled++ };
+
+// The guard only warms the voice list. It must never wrap speak() or cancel():
+// wrapping them used to replace and restart the dashboard's fire warning, which
+// cut the sentence off part-way (fixed 28 Sep 2026).
+let voiceRequests = 0;
+const speak = () => {}, cancel = () => {};
+const synth = { speak, cancel, getVoices: () => { voiceRequests += 1; return []; } };
 const code = ts.transpileModule(fs.readFileSync('app/emergency-voice-guard.tsx', 'utf8'), {compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX}}).outputText;
-const sandbox = {exports: {}, window: {speechSynthesis: synth}, SpeechSynthesisUtterance: class {constructor(text) {this.text=text;} addEventListener() {}}, require: n => n === 'react' ? {useEffect: fn => {cleanup=fn();}} : {emergencyVoiceScript: () => 'confirmed warning'}};
+const sandbox = {exports: {}, window: {speechSynthesis: synth}, require: n => n === 'react' ? {useEffect: fn => { fn(); }} : {}};
 vm.runInNewContext(code, sandbox);
 sandbox.exports.default();
-synth.speak({text:'Warning. Fire evacuation'});
-const before=cancelled;
-synth.cancel();
-assert.equal(cancelled,before+1,'An active warning must stop immediately when cancelled');
-synth.speak({text:'Warning. Fire evacuation'});
-assert.equal(spoken.length,2,'Warnings must be able to resume after a failed clear');
-cleanup();
-const after=cancelled; synth.cancel(); assert.equal(cancelled,after+1); console.log("PASS: immediate cancellation, warning resumption, and cleanup");
+assert.equal(synth.speak, speak, 'speak() must not be wrapped');
+assert.equal(synth.cancel, cancel, 'cancel() must not be wrapped');
+assert.equal(voiceRequests, 1, 'the voice list is requested once, early');
+
+// The dashboard's warning loop waits for each sentence to END before repeating,
+// and never cancels a sentence part-way.
+const dashboard = fs.readFileSync('app/dashboard-client.tsx', 'utf8');
+const loop = dashboard.slice(dashboard.indexOf('const speakWarning'), dashboard.indexOf('const voiceStatusText'));
+assert.ok(loop.includes('addEventListener("end"'), 'the next warning is scheduled from the end of the previous one');
+assert.ok(!/setInterval\(speakWarning/.test(loop), 'no fixed-interval restart that cuts the sentence off');
+assert.ok(loop.includes('emergencyVoiceScript('), 'one warning script, the full sentence');
+console.log("PASS: guard never intercepts speech; dashboard warning finishes each sentence");

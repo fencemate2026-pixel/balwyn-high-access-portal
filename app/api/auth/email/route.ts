@@ -2,7 +2,7 @@ import { getSql } from "@/db";
 import { createMfaChallengeCookie, clearMfaChallengeCookie, createSessionCookie, credentialIdentity, getOrCreateTotpEnrollment, recordAccountSignIn, requestFingerprint, signInRateKey, verifyAccountCredentials, verifyOperatorCredentials } from "@/lib/portal-auth";
 import { recordActivity, getPortalSnapshot } from "@/lib/portal-store";
 import { isSameOriginSignInRequest } from "@/lib/google-signin";
-import { reserveSignInAttempt, SignInRateLimitError } from "@/lib/signin-rate-limit";
+import { reserveSignInAttempts, SignInRateLimitError } from "@/lib/signin-rate-limit";
 import { readSignInBody } from "@/lib/signin-request";
 
 export async function POST(request: Request) {
@@ -17,12 +17,18 @@ export async function POST(request: Request) {
     return Response.json({ error: "Enter your email and password." }, { status: 400, headers });
   }
   try {
-    const db = getSql();
-    await reserveSignInAttempt(db, await signInRateKey(`email:ip:${request.headers.get("cf-connecting-ip") ?? "unknown"}`), 24);
-    await reserveSignInAttempt(db, await signInRateKey(`email:account:${body.email.trim().toLowerCase()}`));
-    // Site accounts first (Render/Azure settings), then per-person accounts.
-    const user = await verifyOperatorCredentials(body.email, body.password)
-      ?? await verifyAccountCredentials(body.email, body.password);
+    // Both rate-limit reservations in one database round trip.
+    await reserveSignInAttempts(getSql(), [
+      { key: await signInRateKey(`email:ip:${request.headers.get("cf-connecting-ip") ?? "unknown"}`), limit: 24 },
+      { key: await signInRateKey(`email:account:${body.email.trim().toLowerCase()}`) },
+    ]);
+    // Site accounts (Render/Azure settings) win over per-person accounts; both
+    // are checked at the same time so their database lookups overlap.
+    const [siteUser, accountUser] = await Promise.all([
+      verifyOperatorCredentials(body.email, body.password),
+      verifyAccountCredentials(body.email, body.password),
+    ]);
+    const user = siteUser ?? accountUser;
     if (!user) return Response.json({ error: "The email or password was not recognised. Use an approved operator account." }, { status: 401, headers });
     // View-only per-person accounts sign in with the password alone: they cannot
     // open gates or change anything. Operators and administrators always get the

@@ -15,7 +15,8 @@ const csp = [
   "img-src 'self' data: blob: https://*.googleusercontent.com",
   "font-src 'self' data:",
   "connect-src 'self' https://accounts.google.com",
-  "frame-src https://accounts.google.com",
+  // 'self': the CCTV and Emergency guidance pages frame /dashboard-illustration.html.
+  "frame-src 'self' https://accounts.google.com",
   "frame-ancestors 'self'",
   "form-action 'self' https://login.microsoftonline.com",
   "base-uri 'self'",
