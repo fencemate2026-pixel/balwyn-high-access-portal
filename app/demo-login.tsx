@@ -177,7 +177,10 @@ export default function DemoLogin() {
       } catch { if (active) setError("Sign-in options could not be loaded. Please refresh the page."); }
     }
     void loadProviders();
-    return () => { active = false; controller.abort(); };
+    // Download the dashboard code while the operator is typing, so it is ready
+    // the moment sign-in succeeds (sign-in speed, 28 Sep 2026).
+    const preload = window.setTimeout(prepareWorkspace, 800);
+    return () => { active = false; controller.abort(); window.clearTimeout(preload); };
   }, []);
 
   useEffect(() => {
@@ -334,7 +337,7 @@ export default function DemoLogin() {
               <nav className="access-login-legal flex items-center justify-center gap-5" aria-label="Legal information"><Link href="/privacy">Privacy policy</Link><span aria-hidden="true">·</span><Link href="/terms">Terms of use</Link></nav>
               <a className="access-login-partner" href="https://rjlcommercialgroup.com" target="_blank" rel="noopener noreferrer" aria-label="RJL Commercial — installer and support">
                 {/* eslint-disable-next-line @next/next/no-img-element -- existing transparent installer logo */}
-                <img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial" width={900} height={210} />
+                <img src="/rjl-commercial-logo-2026.png" alt="RJL Commercial" width={1200} height={280} />
               </a>
             </div>
           </section>
@@ -344,7 +347,7 @@ export default function DemoLogin() {
           <p>Magic Keys<span aria-hidden="true"> / </span><span>Protecting futures.</span></p>
           <a className="access-login-partner flex items-center gap-3" href="https://rjlcommercialgroup.com" target="_blank" rel="noopener noreferrer" aria-label="RJL Commercial Fencing and Gates — installer and support">
             {/* eslint-disable-next-line @next/next/no-img-element -- local transparent installer logo */}
-            <img src="/rjl-commercial-logo-clear.png" alt="RJL Commercial" width={900} height={210} />
+            <img src="/rjl-commercial-logo-2026.png" alt="RJL Commercial" width={1200} height={280} />
           </a>
         </footer>
       </div>

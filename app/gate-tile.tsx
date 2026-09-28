@@ -5,6 +5,19 @@ import type { Gate, GateVisualState } from "@/lib/portal-model";
 import type { GateMotion } from "@/lib/gate-motion";
 import type { GateScene } from "./gate-scene";
 
+// Building a 3D gate (renderer, lighting environment, shadows) is heavy main-
+// thread work. Build one scene at a time, when the browser is idle, so the
+// dashboard (and the fire button) appears and responds first; the flat gate
+// illustration shows until the model is ready (sign-in speed, 28 Sep 2026).
+let sceneQueue: Promise<void> = Promise.resolve();
+function whenIdle(task: () => void) {
+  sceneQueue = sceneQueue.then(() => new Promise<void>((resolve) => {
+    const run = () => { try { task(); } finally { resolve(); } };
+    const idle = (window as Window & { requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number }).requestIdleCallback;
+    if (idle) idle(run, { timeout: 1500 }); else window.setTimeout(run, 50);
+  }));
+}
+
 function stateText(position: GateVisualState) {
   if (position === "closed") return { state: "Stop", detail: "Confirmed closed" };
   if (position === "open") return { state: "Operating", detail: "Confirmed open" };
@@ -35,11 +48,11 @@ export default function GateTile({ gate, position, motion, interactive = false, 
       scene.current?.setVisible(visible);
       if (!visible || started) return;
       started = true;
-      void import("./gate-scene").then(({ createGateScene }) => {
+      void import("./gate-scene").then(({ createGateScene }) => whenIdle(() => {
         if (disposed) return;
         scene.current = createGateScene(element, gate.kind, latest.current.position, latest.current.target, () => setReady(false), interactive);
         setReady(true);
-      }).catch(() => { /* Local artwork remains visible when WebGL is unavailable. */ });
+      })).catch(() => { /* Local artwork remains visible when WebGL is unavailable. */ });
     }, { rootMargin: "100px" });
     observer.observe(element);
     return () => { disposed = true; observer.disconnect(); scene.current?.dispose(); scene.current = null; };

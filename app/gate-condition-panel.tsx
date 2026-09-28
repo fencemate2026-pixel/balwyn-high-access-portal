@@ -3,7 +3,7 @@
 import { Activity, ArrowUpRight, ShieldCheck, Thermometer, Radio, MousePointer2, RotateCcw } from "lucide-react";
 import GateTile from "./gate-tile";
 import { gateMotion } from "@/lib/gate-motion";
-import type { Gate, GateRuntime, GateVisualState, SystemMode } from "@/lib/portal-model";
+import { controllerResponsive, type Gate, type GateRuntime, type GateVisualState, type SystemMode } from "@/lib/portal-model";
 
 type Tone = "green" | "amber" | "red";
 export function controllerHealth(runtime: GateRuntime | undefined, position: GateVisualState, now: number): { tone: Tone; label: string } {
@@ -36,7 +36,7 @@ export default function GateConditionPanel({ gates, runtime, getPosition, system
         const temp = temperatureC[gate.id];
         const hasTemperature = typeof temp === "number" && Number.isFinite(temp);
         const commandInFlight = ["queued", "dispatched"].includes(run?.lastCommandState ?? "idle");
-        const canCommand = Boolean(onCommand && canOperate && systemMode === "normal" && run?.commissioned && run.controllerState === "online" && run.safetyOk === true && !commandInFlight && !busy);
+        const canCommand = Boolean(onCommand && canOperate && systemMode === "normal" && controllerResponsive(run, now) && run?.safetyOk === true && !commandInFlight && !busy);
         return <article key={gate.id} className="hardware-card group overflow-hidden rounded-2xl border border-border bg-card shadow-card">
           <header className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5">
             <div className="flex items-center gap-3"><span className="gate-ordinal grid size-9 place-items-center rounded-none border border-[#FF7A00] bg-[#FF7A00] text-xs font-bold text-white" aria-hidden="true">0{index + 1}</span><div><h3 className="m-0 text-sm font-semibold text-foreground">{gate.name}</h3><p className="m-0 mt-1 text-[11px] text-muted-foreground">{gate.id} <span className="px-1.5">/</span> {gate.type}</p></div></div>

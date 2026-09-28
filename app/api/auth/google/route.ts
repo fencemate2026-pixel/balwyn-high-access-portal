@@ -3,7 +3,7 @@ import { googleAccountRoles } from "@/lib/auth-settings";
 import { getSql } from "@/db";
 import { createSessionCookie, googleAllowedEmails, googleClientId } from "@/lib/portal-auth";
 import { authenticateGoogleSignIn, clearGoogleSignInCookie, isSameOriginSignInRequest } from "@/lib/google-signin";
-import { ensurePortalSeeded, getPortalSnapshot } from "@/lib/portal-store";
+import { getPortalSnapshot } from "@/lib/portal-store";
 
 export async function POST(request: Request) {
   const headers = new Headers({ "Cache-Control": "no-store" });
@@ -20,8 +20,7 @@ export async function POST(request: Request) {
     const verifiedUser = await authenticateGoogleSignIn(getSql(), request, body, { clientId: googleClientId(), allowedEmails: googleAllowedEmails(), accountRoles: googleAccountRoles() });
     if (!verifiedUser || !portalEmailAllowed(verifiedUser.email)) return Response.json({ error: "This sign-in request has expired or the Google account is not approved. Please try again with an approved account." }, { status: 403, headers });
     const user = withOwnerAccess(verifiedUser, "google");
-    stage = "seed_portal";
-    await ensurePortalSeeded();
+    // getPortalSnapshot seeds a brand-new portal itself (no extra round trip).
     stage = "read_portal_snapshot";
     const snapshot = await getPortalSnapshot(user);
     stage = "create_session";

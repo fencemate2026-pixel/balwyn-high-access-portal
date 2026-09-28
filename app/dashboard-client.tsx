@@ -109,12 +109,14 @@ import UserProfileEditor from "./user-profile-editor";
 import OperationsRoomConcept from "./operations-room-concept";
 import GateTile from "./gate-tile";
 import { gateMotion } from "@/lib/gate-motion";
+import { emergencyVoiceScript } from "@/lib/emergency-voice";
 import type { UserProfile } from "@/lib/profile-model";
 import { PROTECTED_SETTINGS_ACTIONS } from "@/lib/protected-settings";
 import {
   DAYS as days,
   GATES as gates,
   ACTIVE_GATES as activeGates,
+  controllerResponsive,
   gateVisualState,
   type GateVisualState,
   type AutomationRule,
@@ -335,6 +337,9 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   // Incremented whenever this operator changes something. Background refreshes
   // started before the change are discarded, so stale state never reappears.
   const mutationEpochRef = useRef(0);
+  // Number of operator requests still in flight. Background refreshes are not
+  // applied meanwhile, so they cannot undo an instant (optimistic) change.
+  const mutationsInFlightRef = useRef(0);
 
   useEffect(() => {
     if (!isAdministrator) return;
@@ -409,6 +414,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     }
     setBusyAction(label);
     mutationEpochRef.current += 1;
+    mutationsInFlightRef.current += 1;
     try {
       const response = await fetch("/api/portal", {
         method: "POST",
@@ -428,6 +434,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       if (result.controllerCredential) setControllerCredential(result.controllerCredential);
       return result;
     } finally {
+      mutationsInFlightRef.current -= 1;
       setBusyAction(null);
     }
   }
@@ -446,7 +453,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         if (response.ok) {
           const result = await response.json() as { snapshot?: PortalSnapshot };
           // Discard if the operator changed something while this was in flight.
-          if (active && result.snapshot && epochAtStart === mutationEpochRef.current) applySnapshot(result.snapshot, scheduleDirty);
+          if (active && result.snapshot && epochAtStart === mutationEpochRef.current && mutationsInFlightRef.current === 0) applySnapshot(result.snapshot, scheduleDirty);
         }
       } catch {
         // Retain the last confirmed state and let the connection status communicate staleness.
@@ -476,29 +483,36 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   useEffect(() => {
     if (!voiceAnnouncements || clearingEmergency || systemMode === "normal" || typeof window === "undefined") return;
 
+    // Speak the WHOLE sentence, wait for it to finish, pause, then repeat.
+    // (A fixed 6.5 s restart with cancel() used to cut the sentence off.)
+    let stopped = false;
+    let nextTimer: number | undefined;
     const speakWarning = () => {
-      if (!("speechSynthesis" in window)) return;
+      if (stopped || !("speechSynthesis" in window)) return;
       const synth = window.speechSynthesis;
       const voice = findAustralianVoice(synth.getVoices()) ?? selectedVoiceRef.current;
-
       const message = systemMode === "lockdown"
         ? "Warning. Lockdown gate commands issued. Check every gate confirmation."
-        : "Warning. Fire evacuation gate commands issued. Check every gate confirmation and evacuate now.";
+        : emergencyVoiceScript("fire");
       const utterance = new SpeechSynthesisUtterance(message);
       utterance.lang = "en-AU";
-      utterance.rate = 0.84;
+      utterance.rate = 0.92;
       utterance.pitch = 1;
       utterance.volume = 1;
       if (voice) utterance.voice = voice;
-      synth.cancel();
+      const again = (pauseMs: number) => { if (!stopped) nextTimer = window.setTimeout(speakWarning, pauseMs); };
+      utterance.addEventListener("end", () => again(2000));
+      utterance.addEventListener("error", () => again(4000));
       synth.speak(utterance);
     };
 
+    // Start at once; anything already speaking (e.g. a gate announcement) is stopped first.
+    window.speechSynthesis?.cancel();
     speakWarning();
-    const warningTimer = window.setInterval(speakWarning, 6500);
 
     return () => {
-      window.clearInterval(warningTimer);
+      stopped = true;
+      if (nextTimer) window.clearTimeout(nextTimer);
       window.speechSynthesis?.cancel();
     };
   }, [systemMode, voiceAnnouncements, clearingEmergency]);
@@ -608,20 +622,29 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   }
 
   async function activateEmergency(mode: "lockdown" | "fire") {
+    // Instant response: the fire panel and the spoken warning start the moment
+    // the button is confirmed, not after the server round trip. If the server
+    // refuses, the previous mode is restored and the error is shown.
+    const previousMode = systemMode;
+    setSystemMode(mode);
+    setActiveView("gates");
     try {
       await postPortal({ action: "emergency", mode }, `emergency-${mode}`);
-      setActiveView("gates");
       toast.warning(mode === "lockdown" ? "Lockdown gate commands issued" : "Fire / evacuation gate commands issued", {
         description: "The portal is waiting for each controller and physical position input.",
       });
     } catch (reason) {
+      setSystemMode(previousMode);
       toast.error("Emergency gate command was not issued", { description: reason instanceof Error ? reason.message : "Try again or use the approved local emergency controls." });
     }
   }
 
   async function clearEmergency() {
+    // Instant response: the warning stops and the fire panel closes at once;
+    // the server's confirmed state follows. A refused clear restores the panel.
+    const previousMode = systemMode;
     setClearingEmergency(true);
-    // Stop the repeating spoken warning straight away; the confirmed state follows.
+    setSystemMode("normal");
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     try {
       await postPortal({ action: "clear_emergency" }, "clear-emergency");
@@ -639,6 +662,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
           return;
         } catch { /* fall through to the error below */ }
       }
+      setSystemMode(previousMode);
       toast.error("Emergency priority was not cleared", { description: message || "Use the approved local procedure." });
     } finally {
       setClearingEmergency(false);
@@ -647,11 +671,18 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   async function setGatePosition(gate: Gate, position: GatePosition) {
     if (!gate.active || systemMode !== "normal") return;
+    // Instant response: the gate model starts its labelled command preview
+    // ("Open command preview · awaiting confirmation") as soon as the command is
+    // confirmed. Only the controller's reed switches ever turn it into
+    // "Confirmed open/closed". A refused command restores the previous state.
+    const previous = gateRuntime[gate.id];
+    if (previous) setGateRuntime((current) => ({ ...current, [gate.id]: { ...previous, commandedPosition: position, lastCommandState: "queued" } }));
     try {
       await postPortal({ action: "gate_command", gateId: gate.id, position }, `gate-${gate.id}`);
       toast.success(`${gate.name}: ${position} command queued`, { description: "Waiting for controller and physical position confirmation." });
       announceGateCommand(position);
     } catch (reason) {
+      if (previous) setGateRuntime((current) => ({ ...current, [gate.id]: previous }));
       toast.error(`${gate.name}: command not issued`, { description: reason instanceof Error ? reason.message : "The portal could not queue the command." });
     }
   }
@@ -1219,7 +1250,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             const runtime = runtimeFor(selectedGate);
             const status = gateStatus(selectedGate);
             const commandInFlight = ["queued", "dispatched"].includes(runtime?.lastCommandState ?? "idle");
-            const canControl = selectedGate.active && canOperate && systemMode === "normal" && runtime?.controllerState === "online" && runtime.safetyOk === true && !commandInFlight && !busyAction;
+            const canControl = selectedGate.active && canOperate && systemMode === "normal" && controllerResponsive(runtime, currentTime) && runtime?.safetyOk === true && !commandInFlight && !busyAction;
             if (!selectedGate.active) return <>
               <SheetHeader className="gate-sheet-header"><SheetTitle>{selectedGate.name}</SheetTitle><SheetDescription>{selectedGate.type} · {selectedGate.area}</SheetDescription></SheetHeader>
               <div className="inactive-gate-details"><GateIcon gate={selectedGate} position="inactive" /><span className="gate-activation-badge is-inactive">Inactive</span><h3>Not activated yet</h3><p>This access point is listed for future activation. Gate controls, schedules and indicator lights are off.</p></div>

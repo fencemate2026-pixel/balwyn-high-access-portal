@@ -140,6 +140,18 @@ export function isGateActive(gateId: string): boolean {
 
 export type GateVisualState = GatePosition | "moving" | "unknown" | "inactive";
 
+/**
+ * True only while the controller is online AND its last heartbeat is under 90 s
+ * old: the same test the health badge uses. Gate controls use it too, so a
+ * badge reading "Controller offline" never sits beside enabled OPEN/CLOSE
+ * buttons while the next dashboard refresh is still on its way (28 Sep 2026).
+ */
+export function controllerResponsive(runtime: GateRuntime | undefined, now: number): boolean {
+  if (!runtime?.commissioned || runtime.controllerState !== "online" || !runtime.lastSeen) return false;
+  const seen = Date.parse(runtime.lastSeen);
+  return Number.isFinite(seen) && now - seen <= 90_000;
+}
+
 export function gateVisualState(gate: Gate, runtime?: GateRuntime, monitoring = true): GateVisualState {
   if (!gate.active) return "inactive";
   if (!monitoring || !runtime?.commissioned || runtime.controllerState !== "online") return "unknown";

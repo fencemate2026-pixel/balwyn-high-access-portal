@@ -111,18 +111,32 @@ async function verifyGoogleIdentity(credential: string, nonce: string, settings:
   const email = claims.email.trim().toLocaleLowerCase("en-AU");
   if (!settings.allowedEmails.has(email) || (settings.accountRoles && !settings.accountRoles.has(email))) return null;
 
+  const keys = await googleSigningKeys(fetcher, header.kid);
+  const jwk = keys.find((key) => key.kid === header.kid && key.kty === "RSA" && key.alg === "RS256" && (!key.use || key.use === "sig"));
+  if (!jwk) return null;
+  const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
+  const validSignature = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, encoder.encode(`${encodedHeader}.${encodedPayload}`));
+  if (!validSignature) return null;
+  return { displayName: typeof claims.name === "string" && claims.name.trim() ? claims.name.trim() : email, email, role: settings.accountRoles?.get(email) ?? "administrator" };
+}
+
+// Google's public signing keys, cached for up to an hour (sign-in speed, 28 Sep
+// 2026). Only the production fetcher is cached, and a token signed with a key
+// the cache does not hold always triggers a fresh download (Google rotates keys).
+let cachedGoogleKeys: { keys: GoogleJwk[]; expiresAt: number } | null = null;
+async function googleSigningKeys(fetcher: typeof fetch, kid: string): Promise<GoogleJwk[]> {
+  const cacheable = fetcher === fetch;
+  if (cacheable && cachedGoogleKeys && cachedGoogleKeys.expiresAt > Date.now() && cachedGoogleKeys.keys.some((key) => key.kid === kid)) {
+    return cachedGoogleKeys.keys;
+  }
   const response = await fetcher("https://www.googleapis.com/oauth2/v3/certs", {
     headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000),
   });
   if (!response.ok) throw new Error("Google signing keys are unavailable.");
   const keySet = await response.json() as { keys?: GoogleJwk[] };
   if (!Array.isArray(keySet?.keys)) throw new Error("Google signing keys are unavailable.");
-  const jwk = keySet.keys.find((key) => key.kid === header.kid && key.kty === "RSA" && key.alg === "RS256" && (!key.use || key.use === "sig"));
-  if (!jwk) return null;
-  const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
-  const validSignature = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, encoder.encode(`${encodedHeader}.${encodedPayload}`));
-  if (!validSignature) return null;
-  return { displayName: typeof claims.name === "string" && claims.name.trim() ? claims.name.trim() : email, email, role: settings.accountRoles?.get(email) ?? "administrator" };
+  if (cacheable) cachedGoogleKeys = { keys: keySet.keys, expiresAt: Date.now() + 60 * 60 * 1000 };
+  return keySet.keys;
 }
 
 export async function authenticateGoogleSignIn(
