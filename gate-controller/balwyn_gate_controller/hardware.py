@@ -6,12 +6,43 @@ gpio_claim_input with SET_PULL_*, gpio_read, gpio_write, gpiochip_close.
 
 FakeBackend is for tests and bench simulation. It never imports lgpio, so the
 test suite cannot drive a real relay even when run on a Pi.
+
+lgpio working directory (fixed 28 Sep 2026): `import lgpio` itself starts a
+notification thread that creates a FIFO named .lgd-nfy<N> in the directory
+named by the LG_WD environment variable, else the current directory, and then
+chdir()s into it. The service runs from a read-only /opt directory as an
+unprivileged user, where that FIFO cannot be created and the import raised
+FileNotFoundError, so the controller could never start. LG_WD is now always
+set to a private, writable directory before lgpio is imported.
 """
 
 from __future__ import annotations
 
+import os
+import tempfile
 import threading
+from pathlib import Path
 from typing import Dict, List, Optional, Protocol, Tuple
+
+
+def lgpio_work_dir(preferred: Optional[Path]) -> str:
+    """A private, writable directory for lgpio's notification FIFO.
+
+    An LG_WD already set in the environment wins. Otherwise use `preferred`
+    (the controller passes <state dir>/lgpio), and if that cannot be created or
+    written, a fresh private temporary directory.
+    """
+    existing = os.environ.get("LG_WD", "").strip()
+    if existing:
+        return existing
+    if preferred is not None:
+        try:
+            preferred.mkdir(mode=0o700, parents=True, exist_ok=True)
+            if os.access(preferred, os.W_OK | os.X_OK):
+                return str(preferred)
+        except OSError:
+            pass
+    return tempfile.mkdtemp(prefix="balwyn-lgpio-")
 
 
 class Backend(Protocol):
@@ -23,9 +54,12 @@ class Backend(Protocol):
 
 
 class LgpioBackend:
-    """Real GPIO on Raspberry Pi OS (Bookworm) through lgpio, chip 0."""
+    """Real GPIO on Raspberry Pi OS through lgpio, chip 0 (the 40-pin header on
+    a Pi 4, and on a Pi 5 with a current kernel)."""
 
-    def __init__(self) -> None:
+    def __init__(self, work_dir: Optional[Path] = None) -> None:
+        # Must happen before the import: see the module docstring.
+        os.environ["LG_WD"] = lgpio_work_dir(work_dir)
         import lgpio  # imported here so tests and non-Pi machines never load it
 
         self._lgpio = lgpio

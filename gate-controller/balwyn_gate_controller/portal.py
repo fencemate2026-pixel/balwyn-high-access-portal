@@ -25,6 +25,15 @@ class PortalError(Exception):
         self.status = status
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """urllib follows redirects and re-sends the Authorization header to the new
+    location. The controller credential must only ever go to PORTAL_URL, so a
+    redirect is reported as an HTTP error (e.g. "HTTP 301": fix PORTAL_URL)."""
+
+    def redirect_request(self, *_args: Any, **_kwargs: Any) -> None:  # type: ignore[override]
+        return None
+
+
 class PortalClient:
     def __init__(self, base_url: str, gate_id: str, token: str, ca_file: Optional[str] = None, timeout_s: float = 8.0) -> None:
         self.base = base_url
@@ -32,6 +41,7 @@ class PortalClient:
         self._token = token
         self._timeout = timeout_s
         self._ssl = ssl.create_default_context(cafile=ca_file) if base_url.startswith("https://") else None
+        self._opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=self._ssl), _NoRedirect())
 
     def _post(self, path: str, body: Dict[str, Any]) -> Dict[str, Any]:
         data = json.dumps(body).encode("utf-8")
@@ -41,8 +51,13 @@ class PortalClient:
             "User-Agent": f"balwyn-gate-controller/{__version__}",
         })
         try:
-            with urllib.request.urlopen(request, timeout=self._timeout, context=self._ssl) as response:
-                return json.loads(response.read(65536).decode("utf-8") or "{}")
+            with self._opener.open(request, timeout=self._timeout) as response:
+                body = json.loads(response.read(65536).decode("utf-8") or "{}")
+            if not isinstance(body, dict):
+                # A proxy or captive-portal page can answer 200 with other JSON;
+                # treat it as unreachable instead of crashing the control loop.
+                raise PortalError("portal answered with an unexpected body")
+            return body
         except urllib.error.HTTPError as error:
             # Never log the token; the portal's error text is short and safe.
             try:

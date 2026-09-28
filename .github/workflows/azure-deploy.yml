@@ -35,6 +35,8 @@ jobs:
       - run: npm ci --include=dev --no-audit --no-fund
       - run: npm run build
       - run: node --test tests/*.test.mjs
+      # The Pi gate controller that drives the relays (no GPIO: simulated gate only).
+      - run: python3 -m unittest discover -s gate-controller/tests
 
   deploy:
     needs: test

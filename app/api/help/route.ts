@@ -7,7 +7,7 @@ import { answerHelp, parseHelpInput, type HelpInput } from '@/lib/help-agent';
 import { recordHelpEvent } from '@/lib/help-events';
 import { getPortalPlan } from '@/lib/portal-plan';
 import { readEquipment } from '@/lib/equipment-store';
-import { readDoorConfiguration } from '@/lib/door-open-gateway';
+import { readDoorConfiguration, remoteOpenEnvironment } from '@/lib/door-open-gateway';
 import { GATES } from '@/lib/portal-model';
 export const dynamic = 'force-dynamic';
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -44,11 +44,8 @@ export async function POST(request: Request) {
   let remoteOpen = 'Configuration could not be read. Hardware operation is not verified.';
   try {
     const equipment = await readEquipment();
-    const configuration = readDoorConfiguration(key => {
-      if (!equipment.remoteOpenEnabled) return undefined;
-      if (key === 'DOOR_GATE_MAP' && equipment.gateMap !== null) return Object.keys(equipment.gateMap).length ? JSON.stringify(equipment.gateMap) : undefined;
-      return values[key];
-    }, GATES);
+    // Same reader as /api/doors/open, so the helper describes exactly what the route does.
+    const configuration = readDoorConfiguration(remoteOpenEnvironment(key => values[key], equipment.remoteOpenEnabled), GATES);
     remoteOpen = !equipment.remoteOpenEnabled ? 'Disabled in equipment settings.' : configuration ? 'Configuration is present and valid in format. Reachability and physical operation have not been tested by this helper.' : 'Not configured; no hardware call can be made through this integration.';
   } catch { /* Do not expose configuration values or parsing errors. */ }
   const result = await answerHelp(input, { role: auth.user.role, plan: getPortalPlan(auth.user).name, remoteOpen }, provider);

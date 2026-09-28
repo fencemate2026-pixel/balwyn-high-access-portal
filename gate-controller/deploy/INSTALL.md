@@ -9,6 +9,20 @@ no port is opened, no tunnel or port-forward is needed on the school network.
 RJL technician watching the gate. Remote testing uses `DRY_RUN=true` or the
 bench simulator, never a live relay.
 
+**Commands:** every command below is ONE line. Paste them one at a time (some
+SSH apps, e.g. Termius, scramble multi-line pastes).
+
+## 0. What to buy and check before site day
+
+| Item | Requirement | Why |
+|---|---|---|
+| Raspberry Pi | Pi 4 or Pi 5, with the official Raspberry Pi power supply for that model (Pi 5: 27 W USB-C) | Under-voltage causes random resets, and every reset drops a hold. |
+| OS | Raspberry Pi OS Lite 64-bit (Bookworm or Trixie), current updates | On a current kernel the 40-pin header is `/dev/gpiochip0` on both Pi 4 and Pi 5; the controller opens chip 0. |
+| Relay board | Driven directly by ONE GPIO pin per channel, works with 3.3 V logic, opto-isolated, contacts rated for the operator input (F70 AP/COM is a low-voltage dry contact) | The controller switches a GPIO line. **I²C relay HATs (e.g. PiRelay V2, 8 Relays Card) will not work.** A 5 V module whose input needs 5 V logic may never switch fully off from a 3.3 V pin. |
+| Relay pin | The GPIO your board actually uses for its channel, e.g. Waveshare 3-channel RPi Relay Board = GPIO 26 / 20 / 21. Set `RELAY_PIN` to it, and keep reed and safety inputs off the board's other relay pins | Using the example's GPIO 17 on a board wired to GPIO 26 drives nothing, or the wrong thing. |
+| Reed switches | Normally-open (make when the magnet is present), one at closed, one at open | See section 1. |
+| Meter | Continuity/resistance across relay COM–NO | Tests B0 and B3. |
+
 ## 1. What is wired
 
 | Pi input / output | Goes to | Notes |
@@ -56,9 +70,17 @@ What the safety input does and does not tell the portal: it reports that the F70
 not in alarm and has adequate power. It does **not** report whether a photocell beam is
 clear; the F70's own photocells and obstacle detection keep protecting people on every movement.
 
-## 2. Install (fresh Pi OS Lite 64-bit, Bookworm)
+## 2. Install (fresh Pi OS Lite 64-bit)
 
+Copy the `gate-controller` folder from this repository to the Pi first. From a
+laptop that has the repository (replace `pi` and the address with the Pi's user
+and IP):
 ```
+scp -r gate-controller pi@192.168.1.50:~/
+```
+Then on the Pi, one line at a time:
+```
+cd ~/gate-controller
 sudo apt update && sudo apt install -y python3 python3-lgpio
 sudo useradd --system --no-create-home --groups gpio balwyn-gate
 sudo mkdir -p /opt/balwyn-gate-controller /etc/balwyn-gate
@@ -66,6 +88,37 @@ sudo cp -r balwyn_gate_controller /opt/balwyn-gate-controller/
 sudo cp deploy/balwyn-gate@.service /etc/systemd/system/
 sudo systemctl daemon-reload
 ```
+Check: `python3 -c "import lgpio"` prints nothing (no error), and
+`id balwyn-gate` lists the `gpio` group.
+
+Check the network the Pi will actually use (the school's):
+* `timedatectl` must show `System clock synchronized: yes`. A Pi has no
+  battery-backed clock, and HTTPS certificate checks fail until the time is
+  right. If it stays `no`, the school network probably blocks outside time
+  servers: ask school IT for their NTP server, put it on an `NTP=` line in
+  `/etc/systemd/timesyncd.conf`, then `sudo systemctl restart systemd-timesyncd`.
+* `curl -sS https://magickeys-balwyn-portal.com/api/health` must print
+  `{"status":"ok"}`. A certificate error means the school inspects HTTPS
+  traffic: ask school IT to exempt the Pi, or obtain their root certificate
+  and set `CA_FILE` to it.
+
+Optional, recommended: make the firmware hold the relay pin OFF from early boot,
+before Linux and the controller start. Add ONE line to `/boot/firmware/config.txt`
+(use your `RELAY_PIN`): `gpio=17=op,dh` for an active-low board
+(`RELAY_ACTIVE_LOW=true`), or `gpio=17=op,dl` for an active-high board. The
+Raspberry Pi documentation notes a delay of a few seconds between power being
+applied and this taking effect, so test B0 is still required.
+
+## 2a. Bench test B0 (relay board NOT connected to the gate operator)
+
+With a meter across the relay channel's COM and NO:
+power the Pi on, and through the whole boot the contact must stay **open** (no
+continuity). Then `sudo reboot`: open throughout. Keep the meter on when you
+reach section 4: the contact stays open while `read-inputs` runs (the relay is
+claimed OFF). If the contact closes at any point,
+stop. Check `RELAY_ACTIVE_LOW` and `RELAY_PIN` against the relay board's
+documentation before going further. Only connect COM/NO to the operator once B0
+passes.
 
 ## 3. Credential and settings (per gate)
 
@@ -76,8 +129,11 @@ sudo systemctl daemon-reload
    sudo install -m 600 -o root -g root /dev/null /etc/balwyn-gate/TF-ENTRY.token
    sudo nano /etc/balwyn-gate/TF-ENTRY.token        # paste the credential, save
    sudo cp deploy/gate.env.example /etc/balwyn-gate/TF-ENTRY.env
-   sudo nano /etc/balwyn-gate/TF-ENTRY.env          # pins, timings; keep DRY_RUN=true
+   sudo chgrp balwyn-gate /etc/balwyn-gate/TF-ENTRY.env && sudo chmod 640 /etc/balwyn-gate/TF-ENTRY.env
+   sudo nano /etc/balwyn-gate/TF-ENTRY.env
    ```
+   Set the pins and timings; keep `DRY_RUN=true` and `SCHEDULE_CONTROL=false`.
+   Comments must stay on their own lines: `RELAY_PIN=17  # note` is refused.
 3. Check the settings. With `DRY_RUN=true` still set, start the service once and read its first lines:
    ```
    sudo systemctl start balwyn-gate@TF-ENTRY
@@ -90,9 +146,9 @@ sudo systemctl daemon-reload
 
 ```
 sudo systemctl stop balwyn-gate@TF-ENTRY
-cd /opt/balwyn-gate-controller && sudo -u balwyn-gate env $(grep -v '^#' /etc/balwyn-gate/TF-ENTRY.env | xargs) \
-  CONTROLLER_TOKEN=$(sudo cat /etc/balwyn-gate/TF-ENTRY.token) python3 -m balwyn_gate_controller read-inputs
+cd /opt/balwyn-gate-controller && sudo -u balwyn-gate env $(grep -v '^#' /etc/balwyn-gate/TF-ENTRY.env | xargs) CONTROLLER_TOKEN=$(sudo cat /etc/balwyn-gate/TF-ENTRY.token) python3 -m balwyn_gate_controller read-inputs
 ```
+(The second command is one long line.)
 Prints the reeds and safety input once a second for 30 s. Check by hand:
 gate closed → `closed_reed=True`; open the gate with its own remote → `open_reed=True`;
 block the safety device → `safety=False`. The relay is claimed OFF and never energised by this command.
@@ -109,7 +165,13 @@ the activity log must say **"Dry run: relay not operated"**.
 
 ## 6. Supervised commissioning (on site, technician at the gate, stopwatch)
 
-Set `DRY_RUN=false`, then `sudo systemctl restart balwyn-gate@TF-ENTRY`.
+Before this step, look at the portal's Gate schedules, Automation and Facility
+hire pages: note every window that includes this gate today.
+
+Set `DRY_RUN=false` (leave `SCHEDULE_CONTROL=false`), then
+`sudo systemctl restart balwyn-gate@TF-ENTRY`. After C1 passes, set
+`SCHEDULE_CONTROL=true` and restart again before C2 and C3: from then on the
+gate follows every schedule, booking and rule that includes it.
 
 | Test | Do | Pass when |
 |---|---|---|
