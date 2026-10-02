@@ -9,6 +9,7 @@ A corrupt journal is moved aside (state.json.corrupt-<ts>) and reported as a
 fault, instead of stopping the controller forever with no heartbeat.
 
 Audit log (audit.jsonl): one JSON line per event, rotated at 2 MB, 5 files.
+Threat detection and labelling are tracked for continuous learning.
 """
 
 from __future__ import annotations
@@ -102,3 +103,62 @@ class Journal:
             os.chmod(self.audit_path, 0o600)
         except OSError:
             pass  # an audit write failure must never stop gate control; journal state is separate
+
+    # ----------------------------------------------------------------- threats (for learning)
+    def threat_detected(self, detection_id: str, source: str, confidence: float,
+                       location: str, distance_m: float, approach_speed: float = 0.0) -> None:
+        """Record a perimeter threat detection from thermal/radar/video."""
+        self.audit("threat_detected", {
+            "detection_id": detection_id,
+            "source": source,  # "THERMAL", "RADAR", "VIDEO", "FUSION"
+            "confidence": round(confidence, 4),
+            "location": location,  # "FRONT", "SPORTS", "STAFF", "EMERGENCY"
+            "distance_m": round(distance_m, 1),
+            "approach_speed": round(approach_speed, 2),
+        })
+
+    def threat_proposed(self, detection_id: str, model_id: str,
+                       confidence: float, proposed_action: str,
+                       reasoning: Dict[str, Any] | None = None) -> None:
+        """Record AI model's proposal before staff approval."""
+        data = {
+            "detection_id": detection_id,
+            "model_id": model_id,
+            "confidence": round(confidence, 4),
+            "proposed_action": proposed_action,  # "FULL_LOCKDOWN", "HEIGHTENED_ALERT", "MONITOR"
+        }
+        if reasoning:
+            data["reasoning"] = reasoning
+        self.audit("threat_proposed", data)
+
+    def threat_approved(self, detection_id: str, approved_by: str,
+                       action: str, door_sequence: List[str] | None = None) -> None:
+        """Record staff approval of threat response."""
+        data = {
+            "detection_id": detection_id,
+            "approved_by": approved_by,
+            "action": action,
+        }
+        if door_sequence:
+            data["door_sequence"] = door_sequence
+        self.audit("threat_approved", data)
+
+    def threat_rejected(self, detection_id: str, rejected_by: str, reason: str = "") -> None:
+        """Record staff rejection of threat proposal."""
+        self.audit("threat_rejected", {
+            "detection_id": detection_id,
+            "rejected_by": rejected_by,
+            "reason": reason[:200],
+        })
+
+    def threat_labelled(self, detection_id: str, label: str, labelled_by: str,
+                       confidence_in_label: float = 1.0) -> None:
+        """Record staff label for a past threat (for learning)."""
+        if label not in ("true_positive", "false_positive", "unsure"):
+            raise ValueError("label must be true_positive, false_positive, or unsure")
+        self.audit("threat_labelled", {
+            "detection_id": detection_id,
+            "label": label,
+            "labelled_by": labelled_by,
+            "confidence_in_label": round(confidence_in_label, 2),
+        })
