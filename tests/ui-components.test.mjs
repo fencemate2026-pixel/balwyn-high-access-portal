@@ -203,3 +203,45 @@ test("campus calendar keeps Monday boundaries across Melbourne daylight saving",
   assert.equal(shiftDate("2026-10-04", 1), "2026-10-05");
   assert.equal(shiftDate("2026-12-31", 1), "2027-01-01");
 });
+
+test("view-only staff see the fire control as locked, administrators see it live", async () => {
+  const { default: DashboardClient } = await vite.ssrLoadModule("/app/dashboard-client.tsx");
+  const { ACTIVE_GATES, makeSchedules } = await vite.ssrLoadModule("/lib/portal-model.ts");
+  const now = new Date(Date.now() + 60_000).toISOString();
+  const snapshotFor = (role, systemMode = "normal") => ({
+    systemMode,
+    gates: ACTIVE_GATES.map((gate) => ({
+      gateId: gate.id, commandedPosition: gate.defaultPosition, reportedPosition: "closed", controllerState: "online",
+      safetyOk: true, lastSeen: now, lastCommandState: "idle", lastCommandId: null, lastError: null, credentialIssued: true, commissioned: true,
+    })),
+    schedules: makeSchedules(), activity: [], automations: [],
+    settings: { positionMonitoring: true, faultAlerts: true, voiceAnnouncements: false, enabledModules: ["mobile"] },
+    plan: { tier: "core", name: "Gate Operations", advancedFeatures: false },
+    user: { displayName: "Test User", email: "user@example.test", role },
+    serverTime: now,
+  });
+  const render = (snapshot) => renderToStaticMarkup(React.createElement(DashboardClient, { user: snapshot.user, initialData: snapshot }));
+  const fireButton = (html) => html.match(/<button[^>]*class="safety-command fire[^"]*"[^>]*>/)?.[0] ?? "";
+
+  // Viewer, no emergency: disabled, marked locked, says administrator only.
+  const viewer = render(snapshotFor("viewer"));
+  assert.match(fireButton(viewer), /is-locked/);
+  assert.match(fireButton(viewer), /disabled=""/);
+  assert.match(viewer, /FIRE \/ EVACUATION · ADMIN ONLY/);
+  assert.doesNotMatch(viewer, /START FIRE \/ EVACUATION/);
+
+  // Operator (can open gates, cannot start an evacuation): also locked.
+  assert.match(fireButton(render(snapshotFor("operator"))), /is-locked/);
+
+  // Administrator: the live red button, not locked.
+  const admin = render(snapshotFor("administrator"));
+  assert.match(fireButton(admin), /safety-command fire/);
+  assert.doesNotMatch(fireButton(admin), /is-locked|disabled/);
+  assert.match(admin, /START FIRE \/ EVACUATION/);
+
+  // During an evacuation everyone sees the red ACTIVE state, never the locked style.
+  const viewerDuringFire = render(snapshotFor("viewer", "fire"));
+  assert.match(fireButton(viewerDuringFire), /is-live/);
+  assert.doesNotMatch(fireButton(viewerDuringFire), /is-locked/);
+  assert.match(viewerDuringFire, /FIRE \/ EVACUATION · ACTIVE/);
+});
