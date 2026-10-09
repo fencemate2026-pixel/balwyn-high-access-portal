@@ -8,6 +8,9 @@ import "./bright-glass.css";
 // Very last: corporate workspace layer (white cards, one tab style, one spacing grid).
 import "./corporate.css";
 import "./login-wordmark.css";
+// Sign-in AI face sizing and animation, then the locked-module showcase. Keep these last.
+import "./login-ai-face.css";
+import "./advanced-showcase.css";
 import EmergencyVoiceGuard from "./emergency-voice-guard";
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#0b131e" };

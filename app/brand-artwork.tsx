@@ -1,5 +1,6 @@
 import { useId } from "react";
 import BrandLogo from "./brand-logo";
+import AiFaceFx from "./ai-face-fx";
 
 // Lay out the existing logo and AI artwork independently so neither is stretched
 // or confined to the old split-screen Balwyn background.
@@ -32,6 +33,8 @@ export default function BrandArtwork({ className = "", fillHeight = false, tone 
         </defs>
         <image href="/magic-keys-brand-background.png" width="1263" height="984" clipPath={`url(#${aiHeadClipId})`} />
       </svg>
+      {/* Sign-in panel only: animated light over the AI face (decorative, reduced-motion safe). */}
+      {fillHeight && <AiFaceFx />}
     </div>
   );
 }

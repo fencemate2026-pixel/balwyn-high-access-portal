@@ -559,6 +559,11 @@ h1, h2, h3 { letter-spacing: -.025em; }
   font-style: normal;
   font-weight: 400;
   font-display: swap;
+  /* This embedded copy has blank (invisible) shapes for 181 characters, including
+     the middle dot, degree sign, multiplication sign and arrows, so text such as
+     "Portal sync · 9 Oct" or "18°" showed gaps. Only the characters it really draws
+     are listed here; everything else falls back to the next font (Arial / system sans). */
+  unicode-range: U+20-7E, U+A0-A5, U+A7-AB, U+AD-AE, U+B1, U+B4-B6, U+B8, U+BA-BB, U+BD, U+BF-D1, U+D3-D6, U+D8-DC, U+DE-F6, U+F8-FC, U+FE-FF, U+131, U+141-142, U+152-153, U+160-161, U+178, U+192, U+2BA, U+2C6-2C7, U+2C9, U+2D8-2DC, U+2013-2014, U+2018-2019, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2122, U+2215, U+2219, U+F001-F002;
 }
 /* High-luminance glass: electric blue, charcoal, cyan and orange. */
 :root, .dark { --font-ui: "Univers Extended", "Univers", Arial, sans-serif; --font-display: var(--font-ui); }

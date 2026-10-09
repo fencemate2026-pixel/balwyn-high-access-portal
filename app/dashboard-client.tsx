@@ -102,6 +102,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toaster } from "@/components/ui/sonner";
 import PlanUpgradeGate from "./plan-upgrade-gate";
+import AdvancedShowcase from "./advanced-showcase";
 import BrandLogo from "./brand-logo";
 import AdminSettingsUnlock from "./admin-settings-unlock";
 import PortalAccountsManager from "./portal-accounts-manager";
@@ -222,18 +223,22 @@ function GateIcon({ gate, position, runtime, monitoring = true }: { gate: Gate; 
 
 function SafetyCommand({ mode, active, authorised, onConfirm }: { mode: "lockdown" | "fire"; active: boolean; authorised: boolean; onConfirm: () => void }) {
   const lockdown = mode === "lockdown";
-  const Icon = lockdown ? ShieldAlert : Flame;
+  // Non-administrators cannot start it (the button is disabled), so it must not look
+  // like a live red button. While an emergency IS active it stays red for everyone.
+  const locked = !authorised && !active;
+  const Icon = locked ? LockKeyhole : lockdown ? ShieldAlert : Flame;
   return (
     <button
-      className={`safety-command ${mode}${active ? " is-live" : ""}`}
-      aria-label={lockdown ? "Review emergency lockdown gate commands" : "Review fire evacuation gate commands"}
+      className={`safety-command ${mode}${active ? " is-live" : ""}${locked ? " is-locked" : ""}`}
+      aria-label={locked ? (lockdown ? "Emergency lockdown: administrator only" : "Fire evacuation: administrator only") : lockdown ? "Review emergency lockdown gate commands" : "Review fire evacuation gate commands"}
+      title={locked ? "Only an administrator can start this" : undefined}
       aria-pressed={active}
       disabled={!authorised}
       onClick={onConfirm}
     >
       <span className="safety-command-icon"><Icon /></span>
       <span>
-        <strong>{active ? (lockdown ? "LOCKDOWN · ACTIVE" : "FIRE / EVACUATION · ACTIVE") : (lockdown ? "START LOCKDOWN" : "START FIRE / EVACUATION")}</strong>
+        <strong>{active ? (lockdown ? "LOCKDOWN · ACTIVE" : "FIRE / EVACUATION · ACTIVE") : locked ? (lockdown ? "LOCKDOWN · ADMIN ONLY" : "FIRE / EVACUATION · ADMIN ONLY") : (lockdown ? "START LOCKDOWN" : "START FIRE / EVACUATION")}</strong>
         <em>{!authorised ? "Administrator approval required" : active ? "Priority active · confirmation required to reissue" : lockdown ? "Queues CLOSE commands · confirmation required" : "Queues OPEN commands · confirmation required"}</em>
       </span>
     </button>
@@ -938,7 +943,9 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             </section>
           )}
 
-          {passwordLockedView && !adminUnlocked && <section className="admin-settings-locked"><span className="admin-lock-icon"><LockKeyhole /></span><h2>{viewMeta[activeView].label} is password protected</h2><p>{isAdministrator ? "Enter the administrator password to open this section. It locks again after 10 minutes." : "Only an administrator can open this section."}</p>{isAdministrator && <AdminSettingsUnlock onUnlocked={settingsUnlocked} />}</section>}
+          {passwordLockedView && !adminUnlocked && (isAdministrator || advancedFeaturesEnabled) && <section className="admin-settings-locked"><span className="admin-lock-icon"><LockKeyhole /></span><h2>{viewMeta[activeView].label} is password protected</h2><p>{isAdministrator ? "Enter the administrator password to open this section. It locks again after 10 minutes." : "Only an administrator can open this section."}</p>{isAdministrator && <AdminSettingsUnlock onUnlocked={settingsUnlocked} />}</section>}
+          {/* Locked modules: staff see what the service does and how to ask RJL about it. The module itself stays locked. */}
+          {!adminUnlocked && !advancedFeaturesEnabled && (activeView === "cctv" || activeView === "guidance") && <AdvancedShowcase key={activeView} feature={activeView} viewerName={displayName} viewerEmail={user.email} onSwitch={(view) => { setActiveView(view); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}
           {adminUnlocked && !advancedFeaturesEnabled && (activeView === "cctv" || activeView === "guidance") && <PlanUpgradeGate key={activeView} feature={activeView} onUpgrade={() => setUpgradeOpen(true)} />}
 
           {activeView === "cctv" && adminUnlocked && advancedFeaturesEnabled && (

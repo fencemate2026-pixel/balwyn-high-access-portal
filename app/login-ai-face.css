@@ -1,0 +1,94 @@
+/*
+ * Sign-in brand panel: AI face that is always fully visible, plus its animation.
+ * Loaded last (see app/layout.tsx) so it wins over the earlier login layers.
+ *
+ * 1. Face sizing. The face artwork is 463 x 984. It used to be squeezed into a
+ *    fixed 29% strip and cropped ("slice"), so on laptops part of the face was cut
+ *    off and on upright tablets only a sliver showed. It is now sized from the
+ *    artwork layer (container units): full height where there is room, otherwise
+ *    a smaller whole face anchored bottom-right. It never overlaps the logo
+ *    (the logo is nudged left to end at 66%; the face uses at most the right 33%).
+ * 2. Phones. The brand panel was hidden below 800 px. It now shows as a banner
+ *    above the sign-in box, so phone users see the logo and the face too.
+ * 3. Animation. See app/ai-face-fx.tsx. Screen blending keeps every effect on
+ *    the face; reduced-motion devices get the still artwork.
+ */
+
+/* ---- 1. Face sizing ------------------------------------------------------ */
+/* The artwork layer is absolutely positioned to fill the panel, so its size never
+   depends on its content: a reliable size container for the face (the panel itself
+   reports zero height to container units in Chrome when it sits at its minimum height). */
+.access-login-school-blue .access-login-brand-stage .magic-wide-artwork { container-type: size; }
+
+.access-login-school-blue .access-login-brand-stage .magic-wide-ai-head,
+.access-login-school-blue .access-login-brand-stage .magic-ai-fx {
+  position: absolute !important;
+  top: auto !important;
+  bottom: 0 !important;
+  right: 0 !important;
+  left: auto !important;
+  width: min(47.05cqh, 33cqw) !important;   /* full height (463/984 = 0.4705) but never wider than the strip right of the logo */
+  height: auto !important;
+  max-width: none !important;
+  aspect-ratio: 463 / 984;
+}
+
+/* Logo: same artwork, nudged left and a little smaller so it ends at 66% of the
+   panel and the face (right-hand 33%) never covers it. Phones override this below. */
+.access-login-school-blue .access-login-brand-stage .magic-wide-wordmark {
+  left: 40% !important;
+  width: min(52%, 880px) !important;
+}
+
+/* ---- 3. Animation layers ------------------------------------------------- */
+.access-login-school-blue .access-login-brand-stage .magic-ai-fx {
+  z-index: 5 !important;
+  overflow: hidden;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+.magic-ai-fx > * { position: absolute; inset: 0; }
+.magic-ai-fx-particles { width: 100%; height: 100%; }
+
+/* Soft "breathing" glow over the face */
+.magic-ai-fx-glow {
+  background: radial-gradient(ellipse 70% 45% at 60% 48%, rgba(79, 195, 255, 0.42), transparent 70%);
+  animation: magic-ai-breathe 5s ease-in-out infinite alternate;
+}
+@keyframes magic-ai-breathe { from { opacity: 0.15; } to { opacity: 0.75; } }
+
+/* Light beam sweeping slowly down the face */
+.magic-ai-fx-scan {
+  background: linear-gradient(to bottom, transparent 0%, rgba(79, 195, 255, 0) 44%,
+    rgba(79, 195, 255, 0.55) 50%, rgba(79, 195, 255, 0) 56%, transparent 100%);
+  background-size: 100% 260%;
+  animation: magic-ai-scan 6.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes magic-ai-scan { from { background-position: 0 100%; } to { background-position: 0 0%; } }
+
+/* Anyone whose device asks for less motion sees the still artwork. */
+@media (prefers-reduced-motion: reduce) {
+  .access-login-school-blue .access-login-brand-stage .magic-ai-fx { display: none !important; }
+}
+
+/* ---- 2. Phones: brand banner above the sign-in box ------------------------ */
+@media (max-width: 800px) {
+  .access-login-school-blue .access-login-brand-stage {
+    display: block !important;
+    order: -1;
+    position: relative !important;
+    top: auto !important;
+    height: clamp(200px, 32svh, 280px) !important;
+    min-height: 0 !important;
+    width: 100%;
+  }
+  .access-login-school-blue .access-login-brand-stage .magic-wide-wordmark {
+    left: 38% !important;
+    width: min(340px, 44%) !important;
+  }
+  .access-login-school-blue .access-login-brand-stage .magic-wide-ai-head,
+  .access-login-school-blue .access-login-brand-stage .magic-ai-fx {
+    width: min(47.05cqh, 36cqw) !important;
+  }
+  .access-login-school-blue .access-login-panel { min-height: auto !important; }
+}

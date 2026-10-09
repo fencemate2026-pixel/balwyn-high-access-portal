@@ -354,6 +354,13 @@
 .control-portal .safety-command.fire:hover:not(:disabled) { background: linear-gradient(180deg, #ff4552 0%, #e51b27 100%) !important; }
 .control-portal .safety-command.fire.is-live { animation: mk-fire-pulse 1.4s ease-in-out infinite; }
 .control-portal .safety-command.fire:disabled { cursor: not-allowed; filter: saturate(.85); opacity: .9 !important; }
+/* View-only staff: the fire control is shown but plainly locked (only administrators can start it). */
+.control-portal .safety-command.fire.is-locked {
+  background: rgba(255, 255, 255, .06) !important; border: 2px dashed rgba(255, 128, 136, .8) !important;
+  box-shadow: none !important; filter: none; opacity: 1 !important; cursor: not-allowed;
+}
+.control-portal .safety-command.fire.is-locked .safety-command-icon { background: rgba(255, 255, 255, .1) !important; }
+.control-portal .safety-command.fire.is-locked :is(strong, em, .safety-command-icon svg) { color: #ffd0d3 !important; }
 @keyframes mk-fire-pulse { 0%, 100% { box-shadow: 0 0 0 3px rgba(255,45,59,.35), 0 8px 22px rgba(215,20,31,.45); } 50% { box-shadow: 0 0 0 9px rgba(255,45,59,.15), 0 8px 26px rgba(215,20,31,.6); } }
 
 /* ---- Gate Schedules + Local weather: the navy of the side dashboard --- */
