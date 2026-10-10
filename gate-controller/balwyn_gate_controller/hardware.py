@@ -126,7 +126,8 @@ class GateIO:
 
     def __init__(self, backend: Backend, relay_pin: int, relay_active_low: bool,
                  closed_reed_pin: int, open_reed_pin: Optional[int], safety_pin: Optional[int],
-                 input_active_low: bool, input_pull: str) -> None:
+                 input_active_low: bool, input_pull: str,
+                 unlock_relay_pin: Optional[int] = None, unlock_sense_pin: Optional[int] = None) -> None:
         self._b = backend
         self.relay_pin = relay_pin
         self._relay_on = 0 if relay_active_low else 1
@@ -136,9 +137,14 @@ class GateIO:
         self.safety_pin = safety_pin
         self._input_active_low = input_active_low
         self._energised = False
-        # Relay claimed OFF first, before any input, so a start-up fault can never leave it on.
+        self.unlock_relay_pin = unlock_relay_pin
+        self.unlock_sense_pin = unlock_sense_pin
+        # Relays claimed OFF first, before any input, so a start-up fault can never leave one on.
+        # Both relay channels sit on the same relay board, so they share RELAY_ACTIVE_LOW.
         backend.claim_output(relay_pin, self._relay_off)
-        for pin in (closed_reed_pin, open_reed_pin, safety_pin):
+        if unlock_relay_pin is not None:
+            backend.claim_output(unlock_relay_pin, self._relay_off)
+        for pin in (closed_reed_pin, open_reed_pin, safety_pin, unlock_sense_pin):
             if pin is not None:
                 backend.claim_input(pin, input_pull)
 
@@ -159,13 +165,25 @@ class GateIO:
         self._b.write(self.relay_pin, self._relay_on if on else self._relay_off)
         self._energised = on
 
+    def unlock_relay(self, on: bool) -> None:
+        """The access board's exit-button press. A no-op when no unlock relay is fitted."""
+        if self.unlock_relay_pin is not None:
+            self._b.write(self.unlock_relay_pin, self._relay_on if on else self._relay_off)
+
+    def unlock_sensed(self) -> Optional[bool]:
+        """True while the access board holds the door unlocked (K1 spare contact made). None if not fitted."""
+        return None if self.unlock_sense_pin is None else self._active(self.unlock_sense_pin)
+
     @property
     def relay_energised(self) -> bool:
         return self._energised
 
     def shutdown(self) -> None:
-        """Relay off, then release the chip. Safe to call more than once."""
+        """Both relays off, then release the chip. Safe to call more than once."""
         try:
-            self.relay(False)
+            try:
+                self.relay(False)
+            finally:
+                self.unlock_relay(False)
         finally:
             self._b.close()

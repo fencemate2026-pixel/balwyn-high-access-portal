@@ -70,6 +70,37 @@ What the safety input does and does not tell the portal: it reports that the F70
 not in alarm and has adequate power. It does **not** report whether a photocell beam is
 clear; the F70's own photocells and obstacle detection keep protecting people on every movement.
 
+## 1b. Access board (ACB-004) and magnetic lock (optional, added 11 Oct 2026)
+
+Use this when the gate's magnetic lock is powered through the school's S4A
+ACB-004 access board, so the lock must be released before the gate can move.
+Source: S4A wiring diagram "ACB-00 series" (2019), ACB-004 sheet; the Balwyn
+Installer Technical Appendix (K1 interposing relay).
+
+| Pi | Goes to | Notes |
+|---|---|---|
+| Second relay channel (`UNLOCK_RELAY_PIN`) COM/NO | ACB-004 exit-button input for this gate's door: **P1 and the GND beside it** (P2 / P3 / P4 for doors 2-4) | One short press (`UNLOCK_PULSE_S`, 0.5 s). The board then releases the lock for its own unlock time, set in the S4A software (Balwyn: 5 s), and logs a button press. **Never S1-S4: those are door-sensor inputs.** |
+| `UNLOCK_SENSE_PIN` + GND | Spare (second) contact of **K1**, the 12 V DPDT relay driven by the ACB door relay's NO (coil to the lock supply 0 V) | Made = the board has unlocked the door. The gate is only driven after this confirms the unlock. Also logs unlocks the board makes by itself (card, QR code, its software). |
+| Gate relay (`RELAY_PIN`) COM/NO | F70/IPU36 **34 (AP) / 32 (COM)**, **in parallel with K1's first contact** | K1 opens the gate for a card scan; the Pi relay holds it open for schedules, bookings and fire. Either contact closing opens the gate. |
+
+Sequence for a portal open (schedule, booking, manual): press P1 -> board
+unlocks (K1 pulls in, gate starts) -> unlock confirmed -> Pi gate relay closes
+and holds -> after the unlock time the board re-powers the lock, which only
+re-catches the gate when it closes at the end of the window. A fire /
+evacuation open presses, waits `UNLOCK_LEAD_S` and holds without waiting for
+confirmation; the fire panel's hardwired lock release is the life-safety path.
+
+Bench checks before site (all UNVERIFIED until done):
+* **U1** Press P1 from the Pi: the board's door LED lights for the set unlock
+  time and `read-inputs` shows `board_unlocked=True` for that time only.
+* **U2** Meter across K1 contact 1: closed only during the unlock time.
+* **U3** With the lock and gate on the bench: the magnet releases before the
+  gate pulls. If the gate jerks against the magnet, fit an on-delay timer relay
+  for K1 contact 1 (0.5-1 s) or use the F70 pre-flashing delay.
+* **U4** If a door sensor is wired to the board's S1, turn off "door not closed
+  for a long time" alarms for this door in the S4A software, or a schedule hold
+  will raise them.
+
 ## 2. Install (fresh Pi OS Lite 64-bit)
 
 Copy the `gate-controller` folder from this repository to the Pi first. From a

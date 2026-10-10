@@ -25,9 +25,10 @@ from balwyn_gate_controller.controller import GateController  # noqa: E402
 from balwyn_gate_controller.hardware import FakeBackend, GateIO, lgpio_work_dir  # noqa: E402
 from balwyn_gate_controller.journal import Journal  # noqa: E402
 from balwyn_gate_controller.portal import PortalClient, PortalError  # noqa: E402
-from balwyn_gate_controller.relay import RelaySupervisor  # noqa: E402
+from balwyn_gate_controller.relay import PulseOutput, RelaySupervisor  # noqa: E402
 
 RELAY, CLOSED, OPEN, SAFETY = 17, 22, 23, 24
+UNLOCK, BOARD_SENSE = 25, 27  # access-board exit-button relay, K1 spare contact
 TOKEN = "t" * 43
 
 
@@ -82,6 +83,52 @@ class SimGate:
         if self.has_open_reed:
             self.b.set_input(OPEN, 0 if self.angle >= 1.0 else 1)
         self.b.set_input(SAFETY, 0 if self.safety else 1)
+
+
+class SimBoardGate(SimGate):
+    """The gate behind an ACB-004 access board with a fail-safe magnetic lock.
+
+    * A press on the exit-button input (UNLOCK relay closing) makes the board
+      unlock the door for `unlock_time` seconds (Balwyn: 5 s).
+    * While unlocked, K1 pulls in: its first contact closes the operator's AP
+      input in parallel with the Pi's gate relay, its second contact makes the
+      Pi's sense input (active-low).
+    * While locked, a closed gate cannot move: if anything drives AP then, the
+      motor is pushing against the magnet. Tests assert that never happens.
+    """
+
+    def __init__(self, backend: FakeBackend, unlock_time: float = 5.0, board_responds: bool = True, **kwargs: object) -> None:
+        self.unlock_time = unlock_time
+        self.board_responds = board_responds
+        self.unlocked_for = 0.0
+        self.prev_press = False
+        self.pushed_against_lock = False
+        super().__init__(backend, **kwargs)  # type: ignore[arg-type]
+
+    def press(self) -> bool:
+        return self.b.levels.get(UNLOCK, 1) == 0
+
+    def board_unlocked(self) -> bool:
+        return self.unlocked_for > 0.0
+
+    def relay_on(self) -> bool:
+        return super().relay_on() or self.board_unlocked()  # K1 contact 1 in parallel on AP
+
+    def step(self, dt: float) -> None:
+        pressed = self.press()
+        if pressed and not self.prev_press and self.board_responds:
+            self.unlocked_for = self.unlock_time
+        self.prev_press = pressed
+        if not self.board_unlocked() and self.angle <= 0.0 and self.relay_on():
+            self.pushed_against_lock = True  # the magnet holds a closed gate
+        else:
+            super().step(dt)
+        self.unlocked_for = max(0.0, self.unlocked_for - dt)
+        self.publish()
+
+    def publish(self) -> None:
+        super().publish()
+        self.b.set_input(BOARD_SENSE, 0 if self.board_unlocked() else 1)
 
 
 class FakePortal:
@@ -142,21 +189,23 @@ def env(url: str, state: str, **extra: str) -> dict:
 
 
 class Rig:
-    def __init__(self, test: unittest.TestCase, **extra: str) -> None:
+    def __init__(self, test: unittest.TestCase, gate_factory=None, **extra: str) -> None:
         self.portal = FakePortal()
         test.addCleanup(self.portal.close)
         self.tmp = tempfile.TemporaryDirectory()
         test.addCleanup(self.tmp.cleanup)
         self.extra = extra
         self.backend = FakeBackend()
-        self.gate = SimGate(self.backend, open_reed="OPEN_REED_PIN" not in extra)
+        factory = gate_factory or (lambda backend, open_reed: SimGate(backend, open_reed=open_reed))
+        self.gate = factory(self.backend, "OPEN_REED_PIN" not in extra)
         self.clock = Clock()
         self.build()
 
     def build(self) -> None:
         self.config = Config.from_env(env(self.portal.url, self.tmp.name, **self.extra))
         io = GateIO(self.backend, self.config.relay_pin, self.config.relay_active_low, self.config.closed_reed_pin,
-                    self.config.open_reed_pin, self.config.safety_pin, self.config.input_active_low, self.config.input_pull)
+                    self.config.open_reed_pin, self.config.safety_pin, self.config.input_active_low, self.config.input_pull,
+                    unlock_relay_pin=self.config.unlock_relay_pin, unlock_sense_pin=self.config.unlock_sense_pin)
         self.ctl = GateController(self.config, io, PortalClient(self.portal.url, "TF-ENTRY", TOKEN), Journal(Path(self.tmp.name)), self.clock,
                                   threaded_network=False)  # simulated clock: exchanges run inline, deterministically
 
@@ -171,6 +220,17 @@ class Rig:
 
     def relay_writes_on(self) -> int:
         return sum(1 for pin, level in self.backend.writes if pin == RELAY and level == 0)
+
+    def presses(self) -> int:
+        return sum(1 for pin, level in self.backend.writes if pin == UNLOCK and level == 0)
+
+    def first_on(self, pin: int) -> int:
+        """Index of the first write that switched `pin` on (active-low), or a large number if never."""
+        return next((i for i, (p, level) in enumerate(self.backend.writes) if p == pin and level == 0), 10 ** 9)
+
+    def audit_events(self) -> list[str]:
+        path = Path(self.tmp.name, "audit.jsonl")
+        return [json.loads(line)["event"] for line in path.read_text(encoding="utf-8").splitlines()] if path.exists() else []
 
 
 # ---------------------------------------------------------------------- tests
@@ -197,6 +257,21 @@ class ConfigTests(unittest.TestCase):
         first, second = ("C:\\Temp\\gate-a", "D:\\x") if os.name == "nt" else ("/var/lib/balwyn-gate/TF-ENTRY", "/tmp/x")
         config = Config.from_env({**env("https://magickeys-balwyn-portal.com", first + os.pathsep + second)})
         self.assertEqual(str(config.state_dir), first)
+
+    def test_unlock_settings_are_checked(self) -> None:
+        good = env("https://magickeys-balwyn-portal.com", "/tmp/x")
+        config = Config.from_env({**good, "UNLOCK_RELAY_PIN": str(UNLOCK), "UNLOCK_SENSE_PIN": str(BOARD_SENSE)})
+        self.assertEqual((config.unlock_relay_pin, config.unlock_sense_pin, config.unlock_pulse_s), (UNLOCK, BOARD_SENSE, 0.5))
+        self.assertIsNone(Config.from_env(good).unlock_relay_pin)  # existing env files: feature off
+        for key, value, message in [
+            ("UNLOCK_RELAY_PIN", str(RELAY), "different pins"),
+            ("UNLOCK_SENSE_PIN", str(CLOSED), "different pins"),
+            ("UNLOCK_PULSE_S", "3", "UNLOCK_PULSE_S"),
+            ("UNLOCK_CONFIRM_TIMEOUT_S", "0", "UNLOCK_CONFIRM_TIMEOUT_S"),
+            ("UNLOCK_RELAY_PIN", "40", "UNLOCK_RELAY_PIN"),
+        ]:
+            with self.subTest(key=key), self.assertRaisesRegex(ConfigError, message):
+                Config.from_env({**good, "UNLOCK_RELAY_PIN": str(UNLOCK), key: value})
 
     def test_safety_none_means_monitor_only(self) -> None:
         config = Config.from_env({**env("https://magickeys-balwyn-portal.com", "/tmp/x"), "SAFETY_INPUT": "none"})
@@ -237,6 +312,28 @@ class RelayTests(unittest.TestCase):
             self.clock.t += 60; self.relay.enforce()  # no feed, no portal: an hour and a half
         self.assertEqual(self.relay.state.mode, "holding")
         self.assertTrue(self.levels[-1])
+
+
+class PulseOutputTests(unittest.TestCase):
+    def test_a_press_is_bounded_never_doubled_and_always_ends(self) -> None:
+        clock, levels = Clock(), []
+        press = PulseOutput(levels.append, audit=lambda *_: None, clock=clock)
+        self.assertEqual(levels, [False])
+        self.assertTrue(press.pulse(30))           # asked for 30 s: capped at 2 s
+        self.assertFalse(press.pulse(0.5))         # no second press while one runs
+        clock.t += 1.9; press.enforce(); self.assertTrue(levels[-1])
+        clock.t += 0.2; press.enforce(); self.assertFalse(levels[-1])
+
+    def test_the_relay_watchdog_also_ends_a_press(self) -> None:
+        clock, levels, gate = Clock(), [], []
+        relay = RelaySupervisor(gate.append, hold_max_s=3600, network_loss_release_s=300, loop_stall_s=10,
+                                audit=lambda *_: None, clock=clock)
+        press = PulseOutput(levels.append, audit=lambda *_: None, clock=clock)
+        relay.add_companion(press.enforce)
+        relay.hold("emergency"); press.pulse(0.5)
+        clock.t += 60; relay.enforce()             # main loop frozen: only the watchdog runs
+        self.assertFalse(levels[-1])
+        self.assertTrue(gate[-1])                   # the fire hold is untouched
 
 
 class ControllerTests(unittest.TestCase):
@@ -365,6 +462,111 @@ class ControllerTests(unittest.TestCase):
         rig.ctl.shutdown()
         self.assertEqual(rig.backend.levels[RELAY], 1)
         self.assertTrue(rig.backend.closed)
+
+
+def board_rig(test: unittest.TestCase, sense: bool = True, **gate_kwargs: object) -> Rig:
+    extra = {"UNLOCK_RELAY_PIN": str(UNLOCK)}
+    if sense:
+        extra["UNLOCK_SENSE_PIN"] = str(BOARD_SENSE)
+    return Rig(test, gate_factory=lambda backend, open_reed: SimBoardGate(backend, open_reed=open_reed, **gate_kwargs), **extra)
+
+
+class AccessBoardUnlockTests(unittest.TestCase):
+    """The ACB-004 path: press the exit-button input, the board releases the lock, then the Pi drives / holds the gate."""
+
+    def test_schedule_open_presses_the_board_then_holds_for_the_whole_window(self) -> None:
+        rig = board_rig(self)
+        rig.run(1)
+        rig.portal.queue.append({"id": 20, "command": "open", "source": "schedule"})
+        rig.run(90)  # far past the 5 s unlock and the operator's 20 s auto-close
+        ack = rig.acks_for(20)[0]
+        self.assertEqual(ack["state"], "acknowledged")
+        self.assertIn("Access board unlock requested", ack["detail"])
+        self.assertEqual(rig.gate.angle, 1.0)                  # still held open
+        self.assertEqual(rig.presses(), 1)
+        self.assertLess(rig.first_on(UNLOCK), rig.first_on(RELAY))  # lock released before the gate relay
+        self.assertFalse(rig.gate.pushed_against_lock)
+        self.assertEqual(rig.backend.levels[UNLOCK], 1)        # the press ended
+        self.assertFalse(rig.gate.board_unlocked())            # board re-locked long ago; gate is open anyway
+        # A second schedule open while held: no new press, no new movement.
+        rig.portal.queue.append({"id": 21, "command": "open", "source": "schedule"})
+        rig.run(3)
+        self.assertEqual(rig.presses(), 1)
+        # End of window: release, the operator auto-closes, the magnet re-catches the gate.
+        rig.portal.queue.append({"id": 22, "command": "closed", "source": "schedule"})
+        rig.run(60)
+        self.assertEqual(rig.acks_for(22)[0]["state"], "acknowledged")
+        self.assertEqual(rig.gate.angle, 0.0)
+        self.assertEqual(rig.presses(), 1)
+        self.assertIn("unlock_confirmed", rig.audit_events())
+
+    def test_gate_relay_is_never_driven_if_the_board_does_not_confirm_the_unlock(self) -> None:
+        rig = board_rig(self, board_responds=False)
+        rig.run(1)
+        rig.portal.queue.append({"id": 23, "command": "open", "source": "manual"})
+        rig.run(5)
+        ack = rig.acks_for(23)[0]
+        self.assertEqual(ack["state"], "failed")
+        self.assertIn("did not confirm the unlock", ack["detail"])
+        self.assertEqual(rig.relay_writes_on(), 0)
+        self.assertFalse(rig.gate.pushed_against_lock)
+        self.assertEqual(rig.gate.angle, 0.0)
+        self.assertTrue(any("did not confirm" in fault for fault in rig.portal.polls[-1]["faults"]))
+
+    def test_fire_open_does_not_wait_for_confirmation(self) -> None:
+        rig = board_rig(self, board_responds=False)
+        rig.run(1)
+        rig.portal.queue.append({"id": 24, "command": "open", "source": "emergency"})
+        rig.run(1.5)  # press + 0.5 s lead, then the hold
+        self.assertEqual(rig.backend.levels[RELAY], 0)
+        self.assertEqual(rig.ctl.relay.state.hold_kind, "emergency")
+
+    def test_without_a_sense_input_the_gate_is_driven_after_the_lead_delay(self) -> None:
+        rig = board_rig(self, sense=False)
+        rig.run(1)
+        rig.portal.queue.append({"id": 25, "command": "open", "source": "manual"})
+        for _ in range(100):                                    # until the command is collected and the press starts
+            if rig.presses():
+                break
+            rig.run(0.05)
+        self.assertEqual(rig.presses(), 1)
+        rig.run(0.3)
+        self.assertEqual(rig.relay_writes_on(), 0)             # still inside the 0.5 s lead
+        rig.run(15)
+        self.assertEqual(rig.acks_for(25)[0]["state"], "acknowledged")
+        self.assertFalse(rig.gate.pushed_against_lock)
+
+    def test_an_unlock_made_by_the_board_itself_is_logged(self) -> None:
+        rig = board_rig(self)
+        rig.run(1)
+        rig.gate.unlocked_for = 5.0  # a card or QR scan at the reader
+        rig.run(2)
+        self.assertIn("board_unlock_seen", rig.audit_events())
+        self.assertEqual(rig.presses(), 0)
+
+    def test_safety_fault_while_waiting_cancels_the_open(self) -> None:
+        rig = board_rig(self, board_responds=False)
+        rig.run(1)
+        rig.portal.queue.append({"id": 26, "command": "open", "source": "schedule"})
+        for _ in range(100):                                    # until the open is waiting for the board
+            if rig.ctl.pending is not None:
+                break
+            rig.run(0.05)
+        self.assertIsNotNone(rig.ctl.pending)
+        rig.gate.safety = False
+        rig.run(3)
+        self.assertEqual(rig.acks_for(26)[0]["state"], "failed")
+        self.assertIn("safety", rig.acks_for(26)[0]["detail"])
+        self.assertEqual(rig.relay_writes_on(), 0)
+
+    def test_shutdown_leaves_both_relays_off(self) -> None:
+        rig = board_rig(self)
+        rig.run(1)
+        rig.portal.queue.append({"id": 27, "command": "open", "source": "manual"})
+        rig.run(0.6)  # mid-press
+        rig.ctl.shutdown()
+        self.assertEqual(rig.backend.levels[UNLOCK], 1)
+        self.assertEqual(rig.backend.levels[RELAY], 1)
 
 
 class BlackHole:

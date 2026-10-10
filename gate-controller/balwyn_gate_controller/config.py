@@ -20,6 +20,20 @@ Hardware model (agreed 19 Sep 2026):
     is made while the operator's own safety circuit is healthy. With
     SAFETY_INPUT=none the controller runs monitor-only: it reports position
     but reports safety as NOT healthy, so the portal never sends it commands.
+
+Access-board unlock (added 11 Oct 2026, optional): for gates whose magnetic
+lock is powered by the school's ACB-004 access board.
+  * UNLOCK_RELAY_PIN: a second relay channel whose volt-free contact is wired
+    across the board's exit-button input for that door (P1-P4 and its GND).
+    Before an open, the controller gives it one short press, so the board
+    releases the lock for its own unlock time (e.g. 5 s) and logs the press.
+    The gate relay then opens / holds the gate as usual. Once the gate is open
+    the board may re-power the lock; it re-catches the gate when it closes.
+  * UNLOCK_SENSE_PIN: an input wired to a spare volt-free contact of the 12 V
+    interposing relay (K1) that the board's door relay drives. Made = the board
+    has unlocked the door. When fitted, the controller only drives the gate
+    after this confirms the unlock (a fire / evacuation command proceeds
+    anyway). It also logs unlocks the board makes by itself (card, QR, button).
 """
 
 from __future__ import annotations
@@ -41,7 +55,9 @@ SETTINGS = (
     "CLOSED_REED_PIN", "OPEN_REED_PIN", "SAFETY_INPUT", "INPUT_ACTIVE_LOW", "INPUT_PULL", "CYCLE_PULSE_S",
     "TRAVEL_TIMEOUT_S", "AUTO_CLOSE_TIMEOUT_S", "DEBOUNCE_S", "SCHEDULE_CONTROL", "HOLD_MAX_S",
     "NETWORK_LOSS_RELEASE_S", "LOOP_STALL_S", "DRY_RUN", "CA_FILE",
+    "UNLOCK_RELAY_PIN", "UNLOCK_SENSE_PIN", "UNLOCK_PULSE_S", "UNLOCK_CONFIRM_TIMEOUT_S", "UNLOCK_LEAD_S",
 )
+MAX_UNLOCK_PULSE_S = 2.0  # an exit-button press, never a hold: the board times the unlock itself
 
 
 class ConfigError(ValueError):
@@ -111,6 +127,12 @@ class Config:
     state_dir: Path
     dry_run: bool
     ca_file: Optional[str]
+    # Access-board unlock (optional). Defaults keep existing env files valid.
+    unlock_relay_pin: Optional[int] = None
+    unlock_sense_pin: Optional[int] = None
+    unlock_pulse_s: float = 0.5
+    unlock_confirm_timeout_s: float = 2.0
+    unlock_lead_s: float = 0.5
 
     @property
     def monitor_only(self) -> bool:
@@ -182,10 +204,17 @@ class Config:
             state_dir=Path(env.get("STATE_DIRECTORY", "/var/lib/balwyn-gate").split(os.pathsep)[0]),
             dry_run=_bool(env, "DRY_RUN", default=False),
             ca_file=env.get("CA_FILE", "").strip() or None,
+            unlock_relay_pin=_pin(env, "UNLOCK_RELAY_PIN", required=False),
+            unlock_sense_pin=_pin(env, "UNLOCK_SENSE_PIN", required=False),
+            unlock_pulse_s=_num(env, "UNLOCK_PULSE_S", 0.5, 0.3, MAX_UNLOCK_PULSE_S),
+            unlock_confirm_timeout_s=_num(env, "UNLOCK_CONFIRM_TIMEOUT_S", 2.0, 0.5, 10.0),
+            unlock_lead_s=_num(env, "UNLOCK_LEAD_S", 0.5, 0.0, 5.0),
         )
-        pins = [p for p in (config.relay_pin, config.closed_reed_pin, config.open_reed_pin, config.safety_pin) if p is not None]
+        pins = [p for p in (config.relay_pin, config.closed_reed_pin, config.open_reed_pin, config.safety_pin,
+                            config.unlock_relay_pin, config.unlock_sense_pin) if p is not None]
         if len(set(pins)) != len(pins):
-            raise ConfigError("RELAY_PIN, CLOSED_REED_PIN, OPEN_REED_PIN and SAFETY_INPUT must all be different pins")
+            raise ConfigError("RELAY_PIN, CLOSED_REED_PIN, OPEN_REED_PIN, SAFETY_INPUT, UNLOCK_RELAY_PIN and "
+                              "UNLOCK_SENSE_PIN must all be different pins")
         if config.travel_timeout_s <= config.cycle_pulse_s:
             raise ConfigError("TRAVEL_TIMEOUT_S must be longer than CYCLE_PULSE_S")
         return config

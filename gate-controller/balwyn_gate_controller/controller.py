@@ -18,6 +18,17 @@ Results are acknowledged honestly:
 The portal independently downgrades any acknowledgement whose position does
 not match the command (lib/controller-safety.ts).
 
+Access-board unlock (added 11 Oct 2026, only when UNLOCK_RELAY_PIN is set):
+  an open that needs the gate to move first gives the access board's exit-button
+  input one short press, so the board releases the magnetic lock for its own
+  unlock time. With UNLOCK_SENSE_PIN fitted, the gate relay is only driven once
+  the board confirms the unlock; without it, after UNLOCK_LEAD_S. If the board
+  never confirms, the command fails and the gate relay is NOT driven (the motor
+  must not push against a locked magnet). A fire / evacuation command does not
+  wait for confirmation: it presses, waits UNLOCK_LEAD_S and holds the gate
+  (the fire panel's hardwired lock release is the life-safety path). This all
+  runs as a staged action across ticks: tick() still never waits.
+
 Network off the control loop (fixed 28 Sep 2026): every HTTPS call to the
 portal runs in a PortalLink exchange. In the service the exchange runs on a
 worker thread, so tick() never waits on the network. Before this, a
@@ -41,7 +52,7 @@ from .hardware import GateIO
 from .journal import Journal
 from .portal import PortalClient, PortalError
 from .position import PositionTracker
-from .relay import RelaySupervisor
+from .relay import PulseOutput, RelaySupervisor
 
 LOG = logging.getLogger("balwyn-gate")
 HOLD_SOURCES = {"schedule", "emergency"}
@@ -56,6 +67,15 @@ class Job:
     source: str
     deadline: float
     action: str          # what the relay did, for the acknowledgement text
+
+
+@dataclass
+class PendingOpen:
+    """An open waiting for the access board to release the lock."""
+    command_id: int
+    source: str
+    phase: str           # "confirm" (waiting for the board's unlock signal) | "lead" (short delay, then drive the gate)
+    deadline: float
 
 
 @dataclass
@@ -128,6 +148,14 @@ class GateController:
         self.link = PortalLink(threaded_network)
         self.relay = RelaySupervisor(io.relay, config.hold_max_s, config.network_loss_release_s,
                                      config.loop_stall_s, journal.audit, clock)
+        # Optional access-board exit-button press. Its deadline is enforced by the same watchdog.
+        self.unlock: Optional[PulseOutput] = None
+        if config.unlock_relay_pin is not None:
+            self.unlock = PulseOutput(io.unlock_relay, journal.audit, clock)
+            self.relay.add_companion(self.unlock.enforce)
+        self.pending: Optional[PendingOpen] = None
+        self.unlock_fault = ""          # last unlock problem, reported until the next confirmed unlock
+        self._board_unlocked = False    # previous reading of the board's unlock signal (edge detection)
         self.tracker = PositionTracker(config.debounce_s, config.travel_timeout_s, config.open_reed_pin is not None)
         self.job: Optional[Job] = None
         self.pending_acks: List[Dict[str, Any]] = []
@@ -160,6 +188,9 @@ class GateController:
             faults.append("Local safety circuit is not healthy")
         if self.relay.state.released_reason in {"controller loop stalled", "portal unreachable too long", "hold exceeded maximum duration"} and self.relay.state.mode == "idle":
             faults.append(f"Relay hold released: {self.relay.state.released_reason}")
+        if self.unlock_fault:
+            faults.append(self.unlock_fault)
+        self._watch_board(now)
         self.position = reading.position
         self.safety_ok = safety is True and not reading.faults
         self.faults = faults[:8]
@@ -167,6 +198,17 @@ class GateController:
         # A fire hold is kept: the operator's own safety devices still govern motion.
         if not self.safety_ok and self.relay.state.mode != "idle" and self.relay.state.hold_kind != "emergency":
             self.relay.release("safety input not healthy")
+        if not self.safety_ok and self.pending and self.pending.source != "emergency":
+            self._fail_pending(self.pending, "Local safety circuit became unhealthy while waiting for the unlock. Gate relay not operated.")
+
+    def _watch_board(self, now: float) -> None:
+        """Log each unlock the access board makes by itself (card, QR code, exit button, its software)."""
+        sensed = self.io.unlock_sensed()
+        if sensed is None:
+            return
+        if sensed and not self._board_unlocked and not (self.unlock and self.unlock.active) and not self.pending:
+            self.journal.audit("board_unlock_seen", {"note": "access board unlocked this door itself"})
+        self._board_unlocked = bool(sensed)
 
     # ------------------------------------------------------------------ tick
     def tick(self) -> None:
@@ -174,8 +216,51 @@ class GateController:
         self.relay.feed()
         self.relay.enforce(now)
         self._sense(now)
+        self._advance_pending(now)
         self._follow_job(now)
         self._network(now)
+
+    # ------------------------------------------------------- access-board unlock
+    def _needs_unlock(self) -> bool:
+        """Press the board's exit button only when the gate actually has to move off the lock."""
+        return self.unlock is not None and self.relay.state.mode != "holding" and self.position != "open"
+
+    def _begin_unlock(self, command_id: int, source: str, now: float) -> None:
+        assert self.unlock is not None
+        if not self.unlock.pulse(self.cfg.unlock_pulse_s):
+            self._fail_pending(PendingOpen(command_id, source, "confirm", now), "Unlock relay busy. Gate relay not operated.")
+            return
+        if self.cfg.unlock_sense_pin is not None and source != "emergency":
+            self.pending = PendingOpen(command_id, source, "confirm", now + self.cfg.unlock_confirm_timeout_s)
+        else:
+            self.pending = PendingOpen(command_id, source, "lead", now + self.cfg.unlock_lead_s)
+
+    def _advance_pending(self, now: float) -> None:
+        pending = self.pending
+        if not pending:
+            return
+        if pending.phase == "confirm":
+            if self.io.unlock_sensed():
+                self.unlock_fault = ""
+                self.journal.audit("unlock_confirmed", {"id": pending.command_id})
+                pending.phase, pending.deadline = "lead", now + self.cfg.unlock_lead_s
+            elif now >= pending.deadline:
+                self.unlock_fault = "Access board did not confirm the last unlock"
+                self.journal.audit("unlock_not_confirmed", {"id": pending.command_id})
+                self._fail_pending(pending, f"Access board did not confirm the unlock within {self.cfg.unlock_confirm_timeout_s:g} s. "
+                                            "Gate relay NOT operated: the magnetic lock may still be locked.")
+                return
+        if pending.phase == "lead" and now >= pending.deadline:
+            self.pending = None
+            self._start_open(pending.command_id, pending.source, now, "Access board unlock requested; ")
+
+    def _fail_pending(self, pending: PendingOpen, detail: str) -> None:
+        if self.pending is pending:
+            self.pending = None
+        self.journal.finish(pending.command_id, "failed", detail)
+        self.journal.audit("command_result", {"id": pending.command_id, "state": "failed", "position": self.position})
+        self._queue_ack(pending.command_id, "failed", detail)
+        self.next_poll = 0.0
 
     def _follow_job(self, now: float) -> None:
         job = self.job
@@ -299,17 +384,20 @@ class GateController:
             return
 
         if self.journal.seen(command_id):
-            if self.job and self.job.command_id == command_id:
+            if (self.job and self.job.command_id == command_id) or (self.pending and self.pending.command_id == command_id):
                 return  # still working on it; the portal re-sent it after its lease
             outcome = self.journal.done.get(str(command_id), {})
             state = "acknowledged" if self.position == target else "failed"
             self._queue_ack(command_id, state, f"Already handled ({outcome.get('outcome', 'unknown')}); not repeated.")
             return
 
-        if self.job:
+        if self.job or self.pending:
             if source != "emergency":
                 return  # busy; the portal re-dispatches after its 30 s lease
-            self._complete(self.job, "failed", "Superseded by fire / evacuation command.")
+            if self.job:
+                self._complete(self.job, "failed", "Superseded by fire / evacuation command.")
+            if self.pending:
+                self._fail_pending(self.pending, "Superseded by fire / evacuation command.")
 
         if not self.safety_ok:
             detail = ("Monitor-only controller: no safety input fitted. Relay not operated."
@@ -332,22 +420,11 @@ class GateController:
         self.journal.audit("command_start", {"id": command_id, "command": target, "source": source})
 
         if target == "open":
-            if source in HOLD_SOURCES:
-                self.relay.hold(source)
-                action = f"Relay held for {source} open"
-            elif self.relay.state.mode == "holding":
-                action = "Gate already held open; no pulse sent"
-            elif self.relay.pulse(self.cfg.cycle_pulse_s):
-                action = f"Relay pulsed {self.cfg.cycle_pulse_s:g} s for an open cycle"
-            else:
-                action = "Pulse refused by relay interlock"
-            self.tracker.movement_started(now)
-            if self.cfg.open_reed_pin is None and self.position != "open":
-                detail = f"{action}. No open-position reed is fitted, so the open cannot be confirmed."
-                self.journal.finish(command_id, "failed", detail)
-                self._queue_ack(command_id, "failed", detail)
+            if self._needs_unlock():
+                self._begin_unlock(command_id, source, now)  # the gate is driven on a later tick
                 return
-            self.job = Job(command_id, "open", source, now + self.cfg.travel_timeout_s, action)
+            self._start_open(command_id, source, now)
+            return
         else:
             released = self.relay.release(f"portal close command ({source})")
             action = "Hold released; operator auto-closes" if released else "No hold active; waiting for auto-close"
@@ -355,11 +432,33 @@ class GateController:
             self.job = Job(command_id, "closed", source, now + self.cfg.auto_close_timeout_s, action)
         self._follow_job(now)
 
+    def _start_open(self, command_id: int, source: str, now: float, prefix: str = "") -> None:
+        """Drive the gate relay for an open (unchanged behaviour, now also reached after an unlock)."""
+        if source in HOLD_SOURCES:
+            self.relay.hold(source)
+            action = f"{prefix}Relay held for {source} open"
+        elif self.relay.state.mode == "holding":
+            action = f"{prefix}Gate already held open; no pulse sent"
+        elif self.relay.pulse(self.cfg.cycle_pulse_s):
+            action = f"{prefix}Relay pulsed {self.cfg.cycle_pulse_s:g} s for an open cycle"
+        else:
+            action = f"{prefix}Pulse refused by relay interlock"
+        self.tracker.movement_started(now)
+        if self.cfg.open_reed_pin is None and self.position != "open":
+            detail = f"{action}. No open-position reed is fitted, so the open cannot be confirmed."
+            self.journal.finish(command_id, "failed", detail)
+            self._queue_ack(command_id, "failed", detail)
+            return
+        self.job = Job(command_id, "open", source, now + self.cfg.travel_timeout_s, action)
+        self._follow_job(now)
+
     # ---------------------------------------------------------------- stop
     def shutdown(self) -> None:
-        """Relay off and GPIO released. Called on SIGTERM, SIGINT and any fatal error."""
+        """Both relays off and GPIO released. Called on SIGTERM, SIGINT and any fatal error."""
         try:
             self.relay.release("controller stopping")
+            if self.unlock is not None:
+                self.unlock.off("controller stopping")
         finally:
             self.io.shutdown()
             self.journal.audit("controller_stopped", {})
