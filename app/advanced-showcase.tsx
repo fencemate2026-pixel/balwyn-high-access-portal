@@ -115,11 +115,11 @@ function StepRail({ steps, step, animated, duration, onChoose, label }: { steps:
   );
 }
 
-function LockStrip({ text }: { text: string }) {
+function LockStrip() {
   return (
     <div className="mk-sc-lock" role="note">
       <LockKeyhole aria-hidden="true" />
-      <p><strong>This module isn&rsquo;t switched on for your site yet.</strong> {text}</p>
+      <p><strong>Contact the team for more information on how to unlock this package.</strong></p>
     </div>
   );
 }
@@ -334,7 +334,7 @@ function CctvShowcase({ name, email, onExplore }: { name?: string; email?: strin
   const story = useStory(CCTV_DURATIONS, 1);
   return (
     <>
-      <LockStrip text="Ask RJL Commercial and we'll show you what it can do for your campus." />
+      <LockStrip />
       <div className="mk-sc-hero">
         <div className="mk-sc-copy">
           <span className="mk-sc-eyebrow"><ScanEye aria-hidden="true" />Magic Keys Sentinel<i className="mk-sc-sep" aria-hidden="true" />AI CCTV</span>
@@ -430,7 +430,7 @@ function GuidanceShowcase({ name, email, onExplore }: { name?: string; email?: s
   const story = useStory(GUIDANCE_DURATIONS, 3);
   return (
     <>
-      <LockStrip text="Ask RJL Commercial about adding it to your campus." />
+      <LockStrip />
       <div className="mk-sc-hero">
         <div className="mk-sc-copy">
           <span className="mk-sc-eyebrow"><BellRing aria-hidden="true" />Magic Keys Emergency Guidance</span>

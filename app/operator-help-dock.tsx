@@ -24,7 +24,7 @@ export default function OperatorHelpDock() {
   const [events, setEvents] = useState<HelpEvent[]>([]);
   const [items, setItems] = useState<ChatItem[]>([{
     role: "assistant",
-    content: "Ask how to add a user, open a gate, change a schedule, or how fire evacuation works. I explain the steps on screen. I cannot press the controls for you.",
+    content: "Ask me where to find anything in Magic Keys: opening gates, schedules, stadium bookings, gate servicing, users, settings or fire evacuation. I explain the steps on screen; I can’t press the controls for you.",
   }]);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -87,7 +87,7 @@ export default function OperatorHelpDock() {
           {tab === "insights" && admin ? (
             <div className="operator-help-list" ref={listRef}>
               {events.length === 0 ? (
-                <p className="operator-help-item is-assistant">No help questions recorded yet. Apply the help_events migration if this stays empty after people ask.</p>
+                <p className="operator-help-item is-assistant">No help questions recorded yet.</p>
               ) : events.map((item) => (
                 <p key={item.id} className="operator-help-item is-assistant">
                   <small>{item.status} · {item.actor_role} · {item.page}</small>

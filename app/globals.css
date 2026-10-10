@@ -373,6 +373,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .legal-content p:last-child { margin-bottom: 0; }
 .legal-content a { color: #0a6ea5; text-underline-offset: 3px; }
 .legal-content code { padding: 1px 5px; color: #153c5a; background: #e8f0f4; border-radius: 4px; }
+.legal-content ul { margin: 0 0 14px; padding-left: 1.25em; list-style: disc; color: #425866; line-height: 1.68; }
+.legal-content li { margin: 0 0 8px; }
+.legal-content li:last-child { margin-bottom: 0; }
 .legal-footer { margin-top: 28px; display: flex; justify-content: space-between; gap: 24px; color: #718692; font-size: .7rem; letter-spacing: .04em; text-transform: uppercase; }
 .legal-footer nav { display: flex; gap: 18px; }
 .legal-footer a { color: #496675; text-decoration: none; }

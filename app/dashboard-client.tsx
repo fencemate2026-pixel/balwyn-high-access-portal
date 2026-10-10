@@ -1,6 +1,7 @@
 "use client";
 
 import GateConditionPanel from "./gate-condition-panel";
+import { GateServiceSummary } from "./gate-service-panel";
 import CampusCalendar from "./campus-calendar";
 import CampusWeather from "./campus-weather";
 import FacilityHirePanel from "./facility-hire-panel";
@@ -101,7 +102,6 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toaster } from "@/components/ui/sonner";
-import PlanUpgradeGate from "./plan-upgrade-gate";
 import AdvancedShowcase from "./advanced-showcase";
 import BrandLogo from "./brand-logo";
 import AdminSettingsUnlock from "./admin-settings-unlock";
@@ -299,8 +299,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const [adminUnlockOpen, setAdminUnlockOpen] = useState(false);
   const adminUnlocked = isAdministrator && adminAccessUntil > currentTime;
   const configurationView = ["settings", "automation"].includes(activeView);
-  // CCTV and Emergency guidance open only after the administrator password (same 10-minute unlock as settings).
-  const passwordLockedView = activeView === "cctv" || activeView === "guidance";
+  // CCTV and Emergency guidance: the real modules open only when the package is included and an administrator
+  // has unlocked settings (System settings, 10 minutes). Otherwise everyone sees the locked-package showcase.
   const [plan, setPlan] = useState(initialData.plan);
   const [serverTime, setServerTime] = useState(initialData.serverTime);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
@@ -312,6 +312,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const [schedules, setSchedules] = useState<Record<string, WeekPlan>>(initialData.schedules);
   const [scheduleDirty, setScheduleDirty] = useState(false);
   const [activity, setActivity] = useState(initialData.activity);
+  const [gateService, setGateService] = useState(initialData.service ?? null);
   const [positionMonitoring, setPositionMonitoring] = useState(initialData.settings.positionMonitoring);
   const [faultAlerts, setFaultAlerts] = useState(initialData.settings.faultAlerts);
   const [voiceAnnouncements, setVoiceAnnouncements] = useState(initialData.settings.voiceAnnouncements);
@@ -401,6 +402,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     setGateRuntime(Object.fromEntries(snapshot.gates.map((gate) => [gate.gateId, gate])));
     if (!preserveSchedule) setSchedules(snapshot.schedules);
     setActivity(snapshot.activity);
+    setGateService(snapshot.service ?? null);
     setAutomations(snapshot.automations);
     setPositionMonitoring(snapshot.settings.positionMonitoring);
     setFaultAlerts(snapshot.settings.faultAlerts);
@@ -748,7 +750,13 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   function exportActivity() {
     if (!activity.length) return;
-    const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
+    // Quote every cell, and neutralise text a spreadsheet would run as a formula
+    // (cells starting with = + - @ or a tab/return), e.g. a hirer name typed as "=HYPERLINK(...)".
+    const escape = (value: string) => {
+      const text = String(value ?? "");
+      const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+      return `"${safe.replaceAll('"', '""')}"`;
+    };
     const rows = ["Time,Actor,Category,Action,Detail", ...activity.map((record) => [activityTime(record.createdAt), record.actorName, record.category, record.action, record.detail].map(escape).join(","))];
     const url = URL.createObjectURL(new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
@@ -820,7 +828,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         <SidebarMenuButton className="portal-nav-button" isActive={activeView === view} tooltip={viewMeta[view].label} onClick={() => setActiveView(view)}>
           <Icon /><span>{viewMeta[view].label}</span>
         </SidebarMenuButton>
-        {locked ? <SidebarMenuBadge><LockKeyhole className="plan-nav-lock" aria-hidden="true" /><span className="sr-only">Password or plan required</span></SidebarMenuBadge> : badge && <SidebarMenuBadge>{badge}</SidebarMenuBadge>}
+        {locked ? <SidebarMenuBadge><LockKeyhole className="plan-nav-lock" aria-hidden="true" /><span className="sr-only">{advancedFeaturesEnabled ? "Unlock administrator settings to open" : "Package not included. Contact the team to unlock"}</span></SidebarMenuBadge> : badge && <SidebarMenuBadge>{badge}</SidebarMenuBadge>}
       </SidebarMenuItem>
     );
   }
@@ -913,14 +921,15 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
           {activeView === "dashboard" && (
             <div className="desk-service-row is-dashboard-utility">
               <button type="button" onClick={() => { setActiveView("activity"); toast.message("Fault report", { description: "Use the activity log to record the gate, time and fault. Controllers stay amber until a verified heartbeat exists." }); }}>Report a fault</button>
-              <span className="service-chip">Next scheduled service<small>Countdown starts after commissioning</small></span>
+              <span className="service-chip">Next scheduled service<small>See Gate service below the gate cards</small></span>
             </div>
           )}
 
           {activeView === "dashboard" && (
             <>
               <div className="sr-only" aria-label="Portal context">Portal sync · {portalTimeLabel(serverTime)} · Timezone · Australia/Melbourne · Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</div>
-              <GateConditionPanel gates={activeGates} runtime={gateRuntime} getPosition={getPosition} monitoring={positionMonitoring} systemMode={systemMode} now={currentTime} canOperate={canOperate} busy={Boolean(busyAction)} onSelect={setSelectedGate} onCommand={(gate, position) => setPendingGateCommand({ gate, position })} />
+              <GateConditionPanel gates={activeGates} runtime={gateRuntime} getPosition={getPosition} monitoring={positionMonitoring} systemMode={systemMode} now={currentTime} canOperate={canOperate} busy={Boolean(busyAction)} service={gateService} onSelect={setSelectedGate} onCommand={(gate, position) => setPendingGateCommand({ gate, position })} />
+              <GateServiceSummary gates={activeGates} service={gateService} isAdministrator={isAdministrator} busy={Boolean(busyAction)} onRecord={async (gateId, servicedOn) => { await postPortal({ action: "record_service", gateId, servicedOn }, `service-${gateId}`); toast.success("Service recorded", { description: "The gate’s cycle count is reset and its next service date is set." }); }} />
               <section className="compact-controller-health" aria-label="Controller verification">
                 <OperationsGauge title="Controller connection" count={respondingGates.length} total={activeGates.length} caption="Recent heartbeat" />
                 <OperationsGauge title="Gate commissioning" count={commissionedCount} total={activeGates.length} caption="Commissioned" />
@@ -930,7 +939,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             </>
           )}
 
-          {activeView === "hire" && <FacilityHirePanel canBook={canOperate} />}
+          {activeView === "hire" && <FacilityHirePanel canBook={canOperate} canLinkGates={isAdministrator} adminUnlocked={adminUnlocked} onRequireUnlock={() => setAdminUnlockOpen(true)} />}
 
           {activeView === "gates" && (
             <section className="view-panel">
@@ -943,10 +952,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             </section>
           )}
 
-          {passwordLockedView && !adminUnlocked && (isAdministrator || advancedFeaturesEnabled) && <section className="admin-settings-locked"><span className="admin-lock-icon"><LockKeyhole /></span><h2>{viewMeta[activeView].label} is password protected</h2><p>{isAdministrator ? "Enter the administrator password to open this section. It locks again after 10 minutes." : "Only an administrator can open this section."}</p>{isAdministrator && <AdminSettingsUnlock onUnlocked={settingsUnlocked} />}</section>}
-          {/* Locked modules: staff see what the service does and how to ask RJL about it. The module itself stays locked. */}
-          {!adminUnlocked && !advancedFeaturesEnabled && (activeView === "cctv" || activeView === "guidance") && <AdvancedShowcase key={activeView} feature={activeView} viewerName={displayName} viewerEmail={user.email} onSwitch={(view) => { setActiveView(view); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}
-          {adminUnlocked && !advancedFeaturesEnabled && (activeView === "cctv" || activeView === "guidance") && <PlanUpgradeGate key={activeView} feature={activeView} onUpgrade={() => setUpgradeOpen(true)} />}
+          {/* Locked packages: everyone sees what the service does and how to contact RJL. No password box is shown here; the real module opens only when the package is included AND an administrator has unlocked settings. */}
+          {(activeView === "cctv" || activeView === "guidance") && !(adminUnlocked && advancedFeaturesEnabled) && <AdvancedShowcase key={activeView} feature={activeView} viewerName={displayName} viewerEmail={user.email} onSwitch={(view) => { setActiveView(view); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}
 
           {activeView === "cctv" && adminUnlocked && advancedFeaturesEnabled && (
             <section className="cctv-workspace"><OperationsRoomConcept variant="cctv" />
@@ -1080,7 +1087,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
           {activeView === "schedule" && (
             <section className="schedule-workspace">
-              <div className="schedule-toolbar"><div><label htmlFor="schedule-gate">Select gate</label><NativeSelect id="schedule-gate" value={selectedScheduleGate.id} onChange={(event) => { setSelectedScheduleGateId(event.target.value); setScheduleDirty(false); }} className="gate-select">{gates.map((gate) => <NativeSelectOption key={gate.id} value={gate.id} disabled={!gate.active}>{gate.name}{gate.active ? "" : " · Inactive"}</NativeSelectOption>)}</NativeSelect></div><div className="schedule-toolbar-actions"><Button variant="outline" disabled={!canOperate} onClick={copyMondayToWeekdays}><Copy /> Copy Monday to weekdays</Button><Button onClick={saveSchedule} disabled={!canOperate || !scheduleDirty || busyAction === `schedule-${selectedScheduleGate.id}`}><Save /> {busyAction === `schedule-${selectedScheduleGate.id}` ? "Saving…" : scheduleDirty ? "Save schedule" : "No unsaved changes"}</Button></div></div>
+              <div className="schedule-toolbar"><div><label htmlFor="schedule-gate">Select gate</label><NativeSelect id="schedule-gate" value={selectedScheduleGate.id} onChange={(event) => { setSelectedScheduleGateId(event.target.value); setScheduleDirty(false); }} className="gate-select">{gates.map((gate) => <NativeSelectOption key={gate.id} value={gate.id} disabled={!gate.active}>{gate.name}{gate.active ? "" : " · Inactive"}</NativeSelectOption>)}</NativeSelect></div><div className="schedule-toolbar-actions"><Button variant="outline" disabled={!isAdministrator} onClick={copyMondayToWeekdays}><Copy /> Copy Monday to weekdays</Button><Button onClick={saveSchedule} disabled={!isAdministrator || !scheduleDirty || busyAction === `schedule-${selectedScheduleGate.id}`}><Save /> {busyAction === `schedule-${selectedScheduleGate.id}` ? "Saving…" : scheduleDirty ? "Save schedule" : "No unsaved changes"}</Button></div></div>
               <div className="schedule-context schedule-context-plain"><div><h2>{selectedScheduleGate.name}</h2><small>{selectedScheduleGate.area} · {selectedScheduleGate.id}</small><p>{selectedScheduleGate.type}</p></div><div className="timezone-card"><Clock3 /><span><strong>Australia / Melbourne</strong><small>Schedule timezone</small></span></div></div>
               <div className="schedule-graph" aria-label={`${selectedScheduleGate.name} weekly schedule timeline`}>
                 <div className="schedule-graph-heading"><div><h3>Weekly operating timeline</h3><p>Scheduled open periods across a full 24-hour day</p></div><span className="timeline-legend"><i /> Open and accessible</span></div>
@@ -1091,7 +1098,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
               </div>
               <div className="week-schedule" role="table" aria-label={`${selectedScheduleGate.name} weekly schedule`}>
                 <div className="week-row week-head" role="row"><span>Day</span><span>Automatic schedule</span><span>Open time</span><span>Close time</span><span>Scheduled request</span></div>
-                {days.map((day) => { const plan = selectedWeek[day]; return <div className={`week-row ${plan.enabled ? "is-enabled" : ""}`} role="row" key={day}><strong>{day}</strong><label className="schedule-switch"><Switch checked={plan.enabled} disabled={!canOperate} onCheckedChange={(enabled) => updateDay(day, { enabled })} /><span>{plan.enabled ? "Enabled" : "No automatic schedule"}</span></label><label><span className="sr-only">{day} open time</span><Input type="time" value={plan.open} disabled={!canOperate || !plan.enabled} onChange={(event) => updateDay(day, { open: event.target.value })} /></label><label><span className="sr-only">{day} close time</span><Input type="time" value={plan.close} disabled={!canOperate || !plan.enabled} onChange={(event) => updateDay(day, { close: event.target.value })} /></label><span className="daily-result">{plan.enabled ? plan.open && plan.close ? <><CheckCircle2 /> Request open {plan.open}–{plan.close}</> : <><AlertTriangle /> Enter approved times</> : <><LockKeyhole /> No scheduled relay commands</>}</span></div>; })}
+                {days.map((day) => { const plan = selectedWeek[day]; return <div className={`week-row ${plan.enabled ? "is-enabled" : ""}`} role="row" key={day}><strong>{day}</strong><label className="schedule-switch"><Switch checked={plan.enabled} disabled={!isAdministrator} onCheckedChange={(enabled) => updateDay(day, { enabled })} /><span>{plan.enabled ? "Enabled" : "No automatic schedule"}</span></label><label><span className="sr-only">{day} open time</span><Input type="time" value={plan.open} disabled={!isAdministrator || !plan.enabled} onChange={(event) => updateDay(day, { open: event.target.value })} /></label><label><span className="sr-only">{day} close time</span><Input type="time" value={plan.close} disabled={!isAdministrator || !plan.enabled} onChange={(event) => updateDay(day, { close: event.target.value })} /></label><span className="daily-result">{plan.enabled ? plan.open && plan.close ? <><CheckCircle2 /> Request open {plan.open}–{plan.close}</> : <><AlertTriangle /> Enter approved times</> : <><LockKeyhole /> No scheduled relay commands</>}</span></div>; })}
               </div>
               <p className="schedule-footnote"><AlertTriangle /> Emergency priority overrides schedules. A gate follows its schedules, bookings and rules only when its controller is commissioned, its safety input is healthy and schedule control is switched on in that controller’s settings.</p>
             </section>
@@ -1127,8 +1134,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
           {activeView === "access" && <>
             <UserProfileEditor ownProfile={userProfile} adminUnlocked={adminUnlocked} isAdministrator={isAdministrator} onUnlock={() => setAdminUnlockOpen(true)} onSaved={profileSaved} />
-            {isAdministrator && <PortalAccountsManager />}
-            <section className="identity-layout"><article className="identity-card"><div className="identity-card-head"><span><KeyRound /></span><div><h2>Signed-in operator</h2><small>Magic Keys server-verified identity</small></div></div><div className="identity-profile"><Avatar size="lg"><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><div><strong>{displayName}</strong><span>{user.email}</span></div><Badge><ShieldCheck /> Authenticated</Badge></div><div className="identity-rows"><div><span>Access role</span><strong>{isAdministrator ? "System administrator" : canOperate ? "Authorised operator" : "View-only operator"}</strong></div><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Session</span><strong>Signed, HTTP-only, 8-hour maximum</strong></div><div><span>Audit</span><strong>Commands and changes retained centrally</strong></div></div></article><article className="permissions-card"><div className="panel-heading"><div><h2>Operator permissions</h2><small>Current role</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> View physical gate feedback</span>{canOperate && <span><CheckCircle2 /> Queue authorised relay commands</span>}{isAdministrator && <span><CheckCircle2 /> Manage schedules after password verification</span>}{isAdministrator && <span><CheckCircle2 /> Issue emergency gate responses</span>}{isAdministrator && <span><CheckCircle2 /> Configure controllers and system policy</span>}<span><CheckCircle2 /> Review and export the audit trail</span></div><p>Gate-specific roles, a second emergency approver and school identity integration can be added before final production handover.</p></article></section>
+            {isAdministrator && <PortalAccountsManager adminUnlocked={adminUnlocked} onRequireUnlock={() => setAdminUnlockOpen(true)} />}
+            <section className="identity-layout"><article className="identity-card"><div className="identity-card-head"><span><KeyRound /></span><div><h2>Signed-in operator</h2><small>Magic Keys server-verified identity</small></div></div><div className="identity-profile"><Avatar size="lg"><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><div><strong>{displayName}</strong><span>{user.email}</span></div><Badge><ShieldCheck /> Authenticated</Badge></div><div className="identity-rows"><div><span>Access role</span><strong>{isAdministrator ? "System administrator" : canOperate ? "Authorised operator" : "View-only operator"}</strong></div><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Session</span><strong>Signed, HTTP-only, 8-hour maximum</strong></div><div><span>Audit</span><strong>Commands and changes retained centrally</strong></div></div></article><article className="permissions-card"><div className="panel-heading"><div><h2>Operator permissions</h2><small>Current role</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> View physical gate feedback</span>{canOperate && <span><CheckCircle2 /> Queue authorised relay commands</span>}{isAdministrator && <span><CheckCircle2 /> Change gate schedules and automation after password verification</span>}{isAdministrator && <span><CheckCircle2 /> Issue emergency gate responses</span>}{isAdministrator && <span><CheckCircle2 /> Configure controllers and system policy</span>}<span><CheckCircle2 /> Review and export the audit trail</span></div><p>Gate-specific roles, a second emergency approver and school identity integration can be added before final production handover.</p></article></section>
 
             <section className="controller-commissioning"><div className="view-panel-heading"><div><h2>Separate controller commissioning</h2><small>Sensor-equipped controller path · separate from the ACB-004 open-only trigger</small></div><Badge variant="outline"><Network /> {commissionedCount} commissioned · {credentialCount} issued</Badge></div>{controllerCredential && <div className="credential-issued" role="status"><ShieldCheck /><span><strong>{controllerCredential.gateId} interface credential ready</strong><small>Transfer it once to the approved Compass interface gateway. It will be removed from this screen after download.</small></span><Button onClick={downloadControllerCredential}><Download /> Download setup file</Button><Button variant="ghost" onClick={() => setControllerCredential(null)}>Close</Button></div>}<div className="controller-list">{activeGates.map((gate) => { const runtime = runtimeFor(gate); return <article key={gate.id}><span className={`controller-state-dot is-${runtime?.controllerState ?? "uncommissioned"}`} /><span><strong>{gate.name}</strong><small>{gate.id} · {runtime?.commissioned ? runtime.controllerState : runtime?.credentialIssued ? "interface credential issued · awaiting verified Compass output and position feedback" : "Compass relay output not mapped"}{runtime?.lastSeen ? ` · last contact ${activityTime(runtime.lastSeen)}` : ""}</small></span><span className="controller-safety">{runtime?.controllerState === "online" && runtime.safetyOk === true ? <><ShieldCheck /> Current safety healthy</> : runtime?.safetyOk === false ? <><AlertTriangle /> Safety fault</> : <><Radio /> No current safety feedback</>}</span><Button variant="outline" disabled={!isAdministrator || busyAction === `provision-${gate.id}`} onClick={() => provisionController(gate.id)}>{busyAction === `provision-${gate.id}` ? "Issuing…" : runtime?.credentialIssued ? "Rotate credential" : "Issue credential"}</Button></article>; })}</div><p className="module-disclaimer">The existing Compass ACB-004 open-only trigger is configured separately and supplies no sensor feedback. This controller list is for the Pi gate controller (one relay contact plus reed switches and a safety input); it must not be used to infer ACB-004 position or commissioning status.</p></section>
           </>}
@@ -1217,7 +1224,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
               <section className="plan-summary"><div><span>Current plan</span><h2>{plan?.name ?? "Gate Operations"}</h2><p>{advancedFeaturesEnabled ? "Advanced features included. Connected equipment requires commissioning." : "CCTV, PTZ tracking, emergency guidance and projector broadcasts require an upgrade."}</p></div>{!advancedFeaturesEnabled && <Button onClick={() => setUpgradeOpen(true)}><LockKeyhole /> Upgrade plan <ChevronRight /></Button>}</section>
               <div className="admin-settings-shortcuts"><Button variant="outline" onClick={() => setActiveView("access")}><Network /> Relay controllers</Button><Button variant="outline" onClick={() => setActiveView("schedule")}><CalendarDays /> Operating schedules</Button><Button variant="outline" onClick={() => setActiveView("automation")}><Workflow /> Automation rules</Button></div>
               <CompassWiringReference />
-              <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Monitoring</h2><small>Persistent system behaviour · administrator only</small></div><Gauge /></div><label><span><strong>Gate-position monitoring</strong><small>Display independent open and closed inputs</small></span><Switch checked={positionMonitoring} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ positionMonitoring: value }, "setting-position")} /></label><label><span><strong>Fault and offline alerts</strong><small>Highlight controllers that stop reporting</small></span><Switch checked={faultAlerts} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ faultAlerts: value }, "setting-faults")} /></label><label><span><strong>Australian English announcements</strong><small>{voiceStatusText}</small></span><Switch checked={voiceAnnouncements} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ voiceAnnouncements: value }, "setting-voice")} /></label></article><article className="settings-card"><div className="panel-heading"><div><h2>Magic Keys</h2><small>System information</small></div><Power /></div><div className="setting-info"><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Access points</span><strong>{gates.length}</strong></div><div><span>Portal</span><strong className="online-text"><i /> Secure service online</strong></div><div><span>Controllers</span><strong>{onlineCount} online · {commissionedCount} commissioned · {credentialCount} credentials</strong></div><div><span>Position feedback</span><strong>{activeGates.length - unknownCount} of {activeGates.length} active gates confirmed</strong></div><div><span>Emergency integration</span><strong>Not complete until school-approved commissioning</strong></div></div></article></section>
+              <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Monitoring</h2><small>Persistent system behaviour · administrator only</small></div><Gauge /></div><label><span><strong>Gate-position monitoring</strong><small>Display independent open and closed inputs</small></span><Switch checked={positionMonitoring} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ positionMonitoring: value }, "setting-position")} /></label><label><span><strong>Fault alerts</strong><small>Email RJL when a commissioned gate reports a fault. Offline alerts are added at commissioning.</small></span><Switch checked={faultAlerts} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ faultAlerts: value }, "setting-faults")} /></label><label><span><strong>Australian English announcements</strong><small>{voiceStatusText}</small></span><Switch checked={voiceAnnouncements} disabled={!isAdministrator} onCheckedChange={(value) => updateSetting({ voiceAnnouncements: value }, "setting-voice")} /></label></article><article className="settings-card"><div className="panel-heading"><div><h2>Magic Keys</h2><small>System information</small></div><Power /></div><div className="setting-info"><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Access points</span><strong>{gates.length}</strong></div><div><span>Portal</span><strong className="online-text"><i /> Secure service online</strong></div><div><span>Controllers</span><strong>{onlineCount} online · {commissionedCount} commissioned · {credentialCount} credentials</strong></div><div><span>Position feedback</span><strong>{activeGates.length - unknownCount} of {activeGates.length} active gates confirmed</strong></div><div><span>Emergency integration</span><strong>Not complete until school-approved commissioning</strong></div></div></article></section>
               <section className="settings-layout"><article className="settings-card"><div className="panel-heading"><div><h2>Compass ACB-004 integration</h2><small>Existing school control system · retained</small></div><Network /></div><div className="setting-info"><div><span>Control platform</span><strong>Existing Compass ACB-004 · four doors</strong></div><div><span>Interface method</span><strong>Pi isolated relay · open-only trigger</strong></div><div><span>ACB-004 feedback</span><strong>No live position or safety feedback</strong></div><div><span>Output mapping</span><strong>Awaiting onsite schedule and terminal verification</strong></div><div><span>Command policy</span><strong>Blocked until each output is commissioned</strong></div></div></article><article className="settings-card"><div className="panel-heading"><div><h2>Integration safeguards</h2><small>Required before live relay control</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> Document each Compass output and served gate</span><span><CheckCircle2 /> Verify NO/NC state and pulse or maintained mode</span><span><CheckCircle2 /> Retain local gate safety and manual controls</span><span><CheckCircle2 /> Confirm independent open and closed feedback</span><span><CheckCircle2 /> Witness normal, fire and lockdown scenarios</span></div></article></section>
               <section className="module-marketplace">
                 <div className="module-heading"><div><h2>Platform modules</h2><p>Add capabilities as the school’s operational requirements expand.</p></div><Badge variant="outline">{enabledModules.size} of {platformModules.length} configured</Badge></div>

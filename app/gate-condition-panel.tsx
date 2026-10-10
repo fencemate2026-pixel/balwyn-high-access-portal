@@ -2,8 +2,9 @@
 
 import { Activity, ArrowUpRight, ShieldCheck, Thermometer, Radio, MousePointer2, RotateCcw } from "lucide-react";
 import GateTile from "./gate-tile";
+import { GateServiceStrip } from "./gate-service-panel";
 import { gateMotion } from "@/lib/gate-motion";
-import { controllerResponsive, type Gate, type GateRuntime, type GateVisualState, type SystemMode } from "@/lib/portal-model";
+import { controllerResponsive, type Gate, type GateRuntime, type GateServiceInfo, type GateVisualState, type SystemMode } from "@/lib/portal-model";
 
 type Tone = "green" | "amber" | "red";
 export function controllerHealth(runtime: GateRuntime | undefined, position: GateVisualState, now: number): { tone: Tone; label: string } {
@@ -15,10 +16,13 @@ export function controllerHealth(runtime: GateRuntime | undefined, position: Gat
   return { tone: "green", label: "Controller online" };
 }
 
-export default function GateConditionPanel({ gates, runtime, getPosition, systemMode, monitoring = true, now, temperatureC = {}, canOperate = false, busy = false, onSelect, onCommand }: {
+export default function GateConditionPanel({ gates, runtime, getPosition, systemMode, monitoring = true, now, temperatureC = {}, canOperate = false, busy = false, service, onSelect, onCommand }: {
   gates: Gate[]; runtime: Record<string, GateRuntime | undefined>; getPosition: (gate: Gate) => GateVisualState;
   systemMode: SystemMode; monitoring?: boolean; now: number; temperatureC?: Record<string, number | undefined>;
-  canOperate?: boolean; busy?: boolean; onSelect?: (gate: Gate) => void; onCommand?: (gate: Gate, position: "open" | "closed") => void;
+  canOperate?: boolean; busy?: boolean;
+  /** Cycle counter per gate (snapshot.service); null/undefined = counting not active yet. */
+  service?: Record<string, GateServiceInfo> | null;
+  onSelect?: (gate: Gate) => void; onCommand?: (gate: Gate, position: "open" | "closed") => void;
 }) {
   return <section className="gate-condition mb-6" aria-label="Gate condition">
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -62,6 +66,7 @@ export default function GateConditionPanel({ gates, runtime, getPosition, system
             <div className="metric-block px-4"><span><Activity /> Heartbeat</span><strong>{age === null ? "—" : age > 3600 ? ">1h" : age}<small>{age !== null && age <= 3600 ? "s" : ""}</small></strong><p><i className={`signal-dot tone-${age !== null && age <= 90 ? "green" : "amber"}`} />{age === null ? "Awaiting heartbeat" : age <= 90 ? "Since last report" : "Stale feedback"}</p></div>
             <div className="metric-block px-4"><span><ShieldCheck /> Safety input</span><strong className="!text-base !leading-8">{run?.safetyOk === false ? "Blocked" : health.tone === "green" && run?.safetyOk === true ? "Healthy" : "Pending"}</strong><p>{health.tone === "green" ? "Verified circuit" : "No current confirmation"}</p></div>
           </div>
+          <GateServiceStrip gateName={gate.name} info={service?.[gate.id]} />
           <footer className="flex items-center justify-between gap-3 px-5 py-4"><span className="text-[11px] text-muted-foreground">{!run?.commissioned ? "Ready for onsite commissioning" : "Position follows physical feedback"}</span><button type="button" className="inline-flex shrink-0 items-center gap-2 rounded-full border border-accent-blue/25 bg-accent-blue/10 px-3 py-2 text-xs font-medium text-accent-blue transition hover:border-accent-blue/60 hover:bg-accent-blue/20 focus-visible:outline-2 focus-visible:outline-accent-blue" onClick={() => onSelect?.(gate)}>Gate controls <ArrowUpRight className="size-3.5" /></button></footer>
         </article>;
       })}

@@ -34,10 +34,16 @@ async function call(body?: Record<string, unknown>) {
     : { cache: "no-store", credentials: "same-origin", signal: AbortSignal.timeout(20000) });
   const result = await response.json().catch(() => ({})) as Record<string, unknown>;
   if (!response.ok) throw new Error(typeof result.error === "string" ? result.error : "The request could not be completed.");
+  // (A 403 with code admin_password_required means the 10-minute unlock ran out.)
   return result;
 }
 
-export default function PortalAccountsManager() {
+/**
+ * adminUnlocked / onRequireUnlock: account changes need the administrator
+ * settings password (10 Oct 2026). Without a current unlock the change is not
+ * sent; the unlock panel opens instead. The server enforces the same rule.
+ */
+export default function PortalAccountsManager({ adminUnlocked = false, onRequireUnlock }: { adminUnlocked?: boolean; onRequireUnlock?: () => void } = {}) {
   const [accounts, setAccounts] = useState<Account[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [loadedAt, setLoadedAt] = useState(0);
@@ -66,6 +72,11 @@ export default function PortalAccountsManager() {
   }, [load]);
 
   async function run(key: string, body: Record<string, unknown>, success: string) {
+    if (!adminUnlocked) {
+      onRequireUnlock?.();
+      toast.error("Enter the administrator settings password, then make the change again.");
+      return false;
+    }
     setBusy(key);
     try {
       const result = await call(body);
@@ -98,7 +109,7 @@ export default function PortalAccountsManager() {
   return (
     <section className="accounts-manager view-panel" aria-labelledby="accounts-title">
       <div className="view-panel-heading">
-        <div><h2 id="accounts-title">Staff sign-in accounts</h2><small>Email and password accounts for staff without Google. Each person sets their own password from a one-time link.</small></div>
+        <div><h2 id="accounts-title">Staff sign-in accounts</h2><small>Email and password accounts for staff without Google. Each person sets their own password from a one-time link. {adminUnlocked ? "Settings unlocked: changes are allowed." : "Changes need the administrator settings password."}</small></div>
         <Button variant="outline" onClick={() => void load()} disabled={Boolean(busy)}><RefreshCw /> Refresh</Button>
       </div>
 
