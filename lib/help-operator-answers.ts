@@ -24,6 +24,15 @@ const COMMON: Array<{ id: string; title: string; patterns: RegExp[]; answer: str
     answer: `Each gate card on Campus overview shows Gate cycles since service: the openings sent through Magic Keys since the gate's last recorded service, out of the 4,000-cycle limit, with the next service date.\n\n- Gates are due for service every 6 months or after 4,000 cycles, whichever comes first.\n- The Gate service panel (below the gate cards) shows the next scheduled service and warns when a gate is near or past its limit.\n- RJL is alerted automatically if a gate reaches the cycle limit before its service date.\n\nTo record a completed service (administrators): press Record service in the Gate service panel, enter the administrator settings password if asked, choose the gate and the service date, then press Record service. The count resets to 0.\n\nThe counter only includes openings sent through Magic Keys. Fob, keypad, exit-button and school-system openings are not counted until position sensors are fitted.`,
   },
   {
+    id: "camera-privacy",
+    title: "What the cameras record",
+    patterns: [
+      /\b(cctv|cameras?|sentinel|footage)\b.{0,60}\b(record\w*|film\w*|footage|keep|kept|store\w*|privacy|private|children|kids|students?|staff|faces?|people|persons?|spy\w*)\b/i,
+      /\b(record\w*|film\w*|keep|kept|store\w*|privacy|children|kids|students?|staff|faces?|people|spy\w*)\b.{0,60}\b(cctv|cameras?|sentinel)\b/i,
+    ],
+    answer: `How the Magic Keys cameras treat students and staff (Magic Keys Sentinel, part of the Magic Keys Advanced package):\n\n- Sentinel is trained to look only for fire, smoke and weapons such as knives, guns and bats. It does not look for people unless they are linked to a threat.\n- In normal operation it does not record or keep any footage or files of students or staff.\n- Recording starts only when it detects a fire or a threat. If a person is linked to that threat, they are included in the recording so staff and emergency services can respond.\n- Where the school has permission from parents, carers and staff, it can also record like the CCTV systems already in schools. Its job stays the same: finding fires and threats.\n\nThe Magic Keys portal itself does not store CCTV footage, and Sentinel only runs where RJL has installed it. For your school's CCTV arrangements, contact your portal administrator or RJL at info@rjlcommercialgroup.com.`,
+  },
+  {
     id: "locked-package",
     title: "CCTV and Emergency guidance packages",
     patterns: [
