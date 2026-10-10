@@ -252,6 +252,17 @@
 .mk-sc.mk-sc .mk-sc-features h3 { margin: 10px 0 6px !important; color: var(--mk-ink) !important; font-size: 15px !important; font-weight: 700 !important; }
 .mk-sc.mk-sc .mk-sc-features p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--mk-muted); }
 
+/* ---- Camera privacy (both pages) -------------------------------------------- */
+.mk-sc.mk-sc .mk-sc-privacy { padding: 22px 24px 24px; background: #f7f9fc; border: 1px solid var(--mk-line); border-top: 0; }
+.mk-sc.mk-sc .mk-sc-privacy-head { display: flex; align-items: flex-start; gap: 12px; }
+.mk-sc.mk-sc .mk-sc-privacy-head svg { flex: none; width: 26px; height: 26px; margin-top: 2px; color: var(--mk-orange); }
+.mk-sc.mk-sc .mk-sc-privacy h3 { margin: 0 !important; color: var(--mk-ink) !important; font-size: 17px !important; font-weight: 800 !important; }
+.mk-sc.mk-sc .mk-sc-privacy-head p { margin: 4px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--mk-muted); }
+.mk-sc.mk-sc .mk-sc-privacy ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 22px; margin: 16px 0 0; padding: 0; list-style: none; }
+.mk-sc.mk-sc .mk-sc-privacy li { padding-left: 12px; border-left: 3px solid var(--mk-orange); }
+.mk-sc.mk-sc .mk-sc-privacy li strong { display: block; color: var(--mk-ink); font-size: 14px; }
+.mk-sc.mk-sc .mk-sc-privacy li span { display: block; margin-top: 3px; font-size: 13.5px; line-height: 1.5; color: var(--mk-muted); }
+
 /* ---- Closing call to action ------------------------------------------------ */
 .mk-sc.mk-sc .mk-sc-closing {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px; padding: 26px 28px;
@@ -273,6 +284,10 @@
   .mk-sc.mk-sc .mk-sc-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mk-sc.mk-sc .mk-sc-hero { padding: 18px; }
   .mk-sc.mk-sc .mk-sc-closing { padding: 22px 20px; }
+}
+@container mk-sc (max-width: 760px) {
+  .mk-sc.mk-sc .mk-sc-privacy ul { grid-template-columns: minmax(0, 1fr); }
+  .mk-sc.mk-sc .mk-sc-privacy { padding: 18px; }
 }
 @container mk-sc (max-width: 480px) {
   .mk-sc.mk-sc .mk-sc-steps, .mk-sc.mk-sc .mk-sc-features { grid-template-columns: minmax(0, 1fr); }

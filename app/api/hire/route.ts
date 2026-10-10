@@ -1,6 +1,7 @@
 import { getSql } from "@/db";
-import { assertSameOrigin, requireOperator } from "@/lib/portal-auth";
-import { defaultGatesForArea, GATES, isGateActive } from "@/lib/portal-model";
+import { assertSameOrigin, getAdminSettingsAccess, requireOperator } from "@/lib/portal-auth";
+import { GATES, isGateActive } from "@/lib/portal-model";
+import { readBoundedText } from "@/lib/request-body";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,22 @@ function validEmail(value: string) {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+const MAX_BODY = 16_384;
+
+/** A real calendar date (2026-02-30 is rejected before it reaches the database). */
+function realDate(value: string) {
+  if (!ISO_DATE.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d && y >= 2020 && y <= 2100;
+}
+
+/** Melbourne calendar date, offset by whole days. */
+function melbourneDate(offsetDays = 0) {
+  return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Australia/Melbourne" })
+    .format(new Date(Date.now() + offsetDays * 86_400_000));
+}
 
 // Calendar reads: occurrences inside the requested date window (Melbourne
 // dates, inclusive). Without a window the next 9 weeks are returned, starting
@@ -36,7 +53,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const from = url.searchParams.get("from") ?? "";
   const to = url.searchParams.get("to") ?? "";
-  if ((from && !ISO_DATE.test(from)) || (to && !ISO_DATE.test(to))) return json({ error: "Dates must be YYYY-MM-DD." }, 400);
+  if ((from && !realDate(from)) || (to && !realDate(to))) return json({ error: "Dates must be valid dates (YYYY-MM-DD)." }, 400);
   if (from && to && to < from) return json({ error: "The end date must not be before the start date." }, 400);
   const showContact = auth.user.role !== "viewer";
   try {
@@ -55,12 +72,8 @@ export async function GET(request: Request) {
         LIMIT 500`,
     ).bind(from || null, to || null).all<Record<string, unknown>>();
     if (!areas.results.length) {
-      return json({
-        areas: [],
-        visits: [],
-        source: "unavailable",
-        error: "No hire areas in balwyn_portal. The directory fallback has been removed.",
-      });
+      console.warn("hire_areas_missing");
+      return json({ areas: [], visits: [], source: "unavailable", error: "Stadium hire is not available right now. Please contact RJL." });
     }
     return json({
       areas: areas.results,
@@ -68,12 +81,9 @@ export async function GET(request: Request) {
       source: "database",
     });
   } catch (reason) {
-    return json({
-      areas: [],
-      visits: [],
-      source: "unavailable",
-      error: reason instanceof Error ? reason.message : "Hire database query failed.",
-    }, 503);
+    // Database detail stays in the server log; staff get a plain message.
+    console.error("hire_read_failed", reason);
+    return json({ areas: [], visits: [], source: "unavailable", error: "Bookings could not be loaded. Please try again shortly." }, 503);
   }
 }
 
@@ -89,7 +99,10 @@ export async function POST(request: Request) {
   if (!assertSameOrigin(request)) return json({ error: "Request rejected." }, 403);
   const auth = await requireOperator(request, "operator");
   if (!auth.user) return auth.response;
-  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  const raw = await readBoundedText(request, MAX_BODY).catch(() => null);
+  if (raw === null) return json({ error: "The booking is too large or unreadable." }, 413);
+  let body: Record<string, unknown> | null = null;
+  try { const parsed = JSON.parse(raw); body = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null; } catch { body = null; }
   const fullName = String(body?.fullName ?? "").trim();
   const email = String(body?.email ?? "").trim() || null;
   const phone = String(body?.phone ?? "").trim() || null;
@@ -100,21 +113,32 @@ export async function POST(request: Request) {
   const comment = String(body?.comment ?? "").trim();
   const depositLeft = Boolean(body?.depositLeft);
   const depositAmount = Number(body?.depositAmount ?? 0);
-  // Gates open automatically for the booked space (HIRE_AREA_GATES). Staff may
-  // send an explicit list instead, including [] to open no gate for this booking.
-  const gateIds = Array.isArray(body?.gateIds) ? [...new Set(body.gateIds.map(String))] : defaultGatesForArea(String(body?.area ?? "").trim());
+  // Gates opened automatically for this booking: only the gates explicitly
+  // ticked (10 Oct 2026: no implicit default, so a booking never holds a gate
+  // open unless someone chose it).
+  const gateIds = Array.isArray(body?.gateIds) ? [...new Set((body.gateIds as unknown[]).slice(0, 20).map(String))] : [];
   const leadMinutes = body?.leadMinutes === undefined ? 15 : Number(body.leadMinutes);
   const lagMinutes = body?.lagMinutes === undefined ? 15 : Number(body.lagMinutes);
   if (fullName.length < 1 || fullName.length > 120) return json({ error: "Enter the client's full name." }, 400);
   if (email && !validEmail(email)) return json({ error: "Enter a valid email address." }, 400);
   if (phone && (phone.length < 6 || phone.length > 40)) return json({ error: "Enter a valid phone number." }, 400);
   if (!AREAS.has(area)) return json({ error: "Choose a hire space." }, 400);
-  if (!ISO_DATE.test(visitDate)) return json({ error: "Choose the hire date." }, 400);
-  if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) return json({ error: "Enter start and end times." }, 400);
+  if (!realDate(visitDate)) return json({ error: "Choose the hire date." }, 400);
+  // Past dates stay allowed (staff record bookings after the event); far-future dates are refused.
+  if (visitDate > melbourneDate(731)) return json({ error: "Choose a hire date up to two years ahead." }, 400);
+  if (!TIME.test(startTime) || !TIME.test(endTime)) return json({ error: "Enter start and end times." }, 400);
   if (endTime <= startTime) return json({ error: "End time must be after start time." }, 400);
-  if (depositLeft && !(depositAmount > 0)) return json({ error: "Enter the deposit amount." }, 400);
+  // Whole cents with a float tolerance (19.99 * 100 is 1998.9999999999998 in binary floating point).
+  const depositCents = Math.round(depositAmount * 100);
+  if (depositLeft && !(Number.isFinite(depositAmount) && depositAmount > 0 && depositAmount <= 100_000 && Math.abs(depositAmount * 100 - depositCents) < 1e-6)) return json({ error: "Enter the deposit amount (up to $100,000, in dollars and cents)." }, 400);
   if (comment.length > 4000) return json({ error: "The comment is too long." }, 400);
   if (gateIds.length > MAX_GATES || gateIds.some((id) => !isGateActive(id))) return json({ error: "Choose only active gates to open for this booking." }, 400);
+  // 10 Oct 2026 (Jarrod): a booking that opens gates automatically decides when
+  // school gates stand open, like a schedule, so it needs an administrator with
+  // the settings password. Operators can still save bookings with no gates.
+  if (gateIds.length && (auth.user.role !== "administrator" || !await getAdminSettingsAccess(request))) {
+    return json({ error: "Opening gates for a booking needs an administrator with settings unlocked. Untick the gates to save the booking without them.", code: "admin_password_required" }, 403);
+  }
   for (const minutes of [leadMinutes, lagMinutes]) {
     if (!Number.isInteger(minutes) || minutes < 0 || minutes > 120) return json({ error: "Gate lead-in and run-out must be 0 to 120 minutes." }, 400);
   }
@@ -150,7 +174,7 @@ export async function POST(request: Request) {
     d1.prepare(`INSERT INTO hire_bookings (id, client_id, name, recurrence, booking_date, start_time, end_time, status, deposit_status, deposit_amount, created_by)
                 SELECT ?::uuid, ${clientId}, ?, 'one_off', ?::date, ?::time, ?::time, 'confirmed', ?::balwyn_portal.hire_deposit, ?, ? WHERE ${noClash}`)
       .bind(bookingId, email, email, newClientId, `${fullName} — ${visitDate}`, visitDate, start, end,
-        depositLeft ? "held" : "not_required", depositLeft ? depositAmount : 0, auth.user.email, ...clashParams),
+        depositLeft ? "held" : "not_required", depositLeft ? depositCents / 100 : 0, auth.user.email, ...clashParams),
     d1.prepare(`INSERT INTO hire_booking_areas (booking_id, area_key) SELECT ?::uuid, ? WHERE ${bookingExists}`).bind(bookingId, area, bookingId),
     d1.prepare(`INSERT INTO hire_booking_occurrences (booking_id, occurs_on, starts_at, ends_at)
                 SELECT ?::uuid, ?::date, ((?::date + ?::time) AT TIME ZONE 'Australia/Melbourne'), ((?::date + ?::time) AT TIME ZONE 'Australia/Melbourne')
@@ -173,6 +197,8 @@ export async function POST(request: Request) {
     if (!saved) return json({ error: "That space is already booked at an overlapping time. Choose another time or space." }, 409);
     return json({ ok: true, clientId: saved.client_id, bookingId: saved.id, gateIds });
   } catch (reason) {
-    return json({ error: reason instanceof Error ? reason.message : "Hire record could not be saved." }, 500);
+    // Database detail stays in the server log; staff get a plain message.
+    console.error("hire_save_failed", reason);
+    return json({ error: "The booking could not be saved. Please check the details and try again." }, 500);
   }
 }

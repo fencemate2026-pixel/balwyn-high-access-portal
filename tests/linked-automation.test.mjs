@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
-import { databaseFixture } from "./auth-fixture.mjs";
+import { databaseFixture, passwordHash } from "./auth-fixture.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const vite = await createServer({ appType: "custom", configFile: false, root, resolve: { alias: { "@": root } }, server: { middlewareMode: true, hmr: false }, plugins: [serverFixturePlugin] });
@@ -65,13 +65,23 @@ function melbourneNow(offsetMinutes) {
   return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
 }
 
+// Bookings that open gates need an administrator with settings unlocked
+// (10 Oct 2026), so gate-linked booking tests use setup(t, "administrator").
 async function setup(t, role = "operator") {
   const { pg, fetchDatabase } = await databaseFixture(t);
   for (const key of Object.keys(env)) delete env[key];
-  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: `op@example.test|${role}` });
+  const password = "A-test-password-934!";
+  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: `op@example.test|${role}`,
+    PORTAL_USERNAME: "Op", PORTAL_OPERATOR_EMAIL: "op@example.test", PORTAL_PASSWORD_SALT: "test-password-salt", PORTAL_PASSWORD_HASH: await passwordHash(password, "test-password-salt") });
   env.fetchDatabase = fetchDatabase;
   const user = { displayName: "Op", email: "op@example.test", role };
-  const cookie = (await auth.createSessionCookie(user)).split(";")[0];
+  let cookie = (await auth.createSessionCookie(user)).split(";")[0];
+  if (role === "administrator") {
+    const adminRoute = await vite.ssrLoadModule("/app/api/auth/admin/route.ts");
+    const unlock = await adminRoute.POST(new Request(`${origin}/api/auth/admin`, { method: "POST", headers: { Origin: origin, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify({ password }) }));
+    assert.equal(unlock.status, 200, JSON.stringify(await unlock.clone().json()));
+    cookie = `${cookie}; ${unlock.headers.getSetCookie()[0].split(";")[0]}`;
+  }
   const headers = { Origin: origin, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json", Cookie: cookie };
   const post = (body, extra = {}) => hire.POST(new Request(`${origin}/api/hire`, { method: "POST", headers: { ...headers, ...extra }, body: JSON.stringify(body) }));
   const feed = (query) => calendar.GET(new Request(`${origin}/api/calendar${query}`, { headers: { Cookie: cookie } }));
@@ -82,7 +92,7 @@ async function setup(t, role = "operator") {
 const booking = (date, startTime, endTime, extra = {}) => ({ fullName: "Basketball Club", email: "club@example.org", phone: "0400 000 000", area: "tony-frizza-stadium", date, startTime, endTime, depositLeft: false, depositAmount: 0, comment: "", ...extra });
 
 test("a booking with a gate appears on the calendar feed as both a booking and a gate window", async (t) => {
-  const { post, feed } = await setup(t);
+  const { post, feed } = await setup(t, "administrator");
   const saved = await post(booking("2026-10-14", "18:00", "21:00", { gateIds: ["TF-ENTRY"], leadMinutes: 15, lagMinutes: 30 }));
   assert.equal(saved.status, 200, JSON.stringify(await saved.clone().json()));
   const body = await (await feed("?from=2026-10-12&to=2026-10-18")).json();
@@ -97,7 +107,7 @@ test("a booking with a gate appears on the calendar feed as both a booking and a
 });
 
 test("an overlapping booking for the same space is refused and writes nothing", async (t) => {
-  const { pg, post } = await setup(t);
+  const { pg, post } = await setup(t, "administrator");
   assert.equal((await post(booking("2026-10-14", "18:00", "21:00"))).status, 200);
   const count = async (table) => Number((await pg.query(`SELECT count(*)::int AS n FROM ${table}`)).rows[0].n);
   const before = { clients: await count("hire_clients"), bookings: await count("hire_bookings"), log: await count("activity_log"), gates: await count("hire_booking_gates") };
@@ -112,7 +122,7 @@ test("an overlapping booking for the same space is refused and writes nothing", 
 });
 
 test("bookings refuse inactive gates, bad run-out values and cross-site posts", async (t) => {
-  const { post } = await setup(t);
+  const { post } = await setup(t, "administrator");
   assert.equal((await post(booking("2026-10-14", "18:00", "21:00", { gateIds: ["TF-EXIT"] }))).status, 400);
   assert.equal((await post(booking("2026-10-14", "18:00", "21:00", { gateIds: ["TF-ENTRY"], lagMinutes: 500 }))).status, 400);
   assert.equal((await post(booking("2026-10-14", "18:00", "21:00"), { Origin: "https://evil.example" })).status, 403);
@@ -121,7 +131,7 @@ test("bookings refuse inactive gates, bad run-out values and cross-site posts", 
 test("the controller engine holds a gate open for a live booking and a typed rule, never for a note, never in fire mode", async (t) => {
   const start = melbourneNow(-30), end = melbourneNow(60);
   if (start.date !== end.date || start.time >= end.time) { t.skip("Too close to Melbourne midnight for a same-day window."); return; }
-  const { pg, post, user } = await setup(t);
+  const { pg, post, user } = await setup(t, "administrator");
   assert.equal((await post(booking(start.date, start.time, end.time, { gateIds: ["TF-ENTRY"], leadMinutes: 0, lagMinutes: 0 }))).status, 200);
   await store.addAutomationRule({ name: "Note only", kind: "note", trigger: "A controller goes offline", action: "Notify" }, user);
   let command = await store.getOrCreateScheduledControllerCommand("TF-ENTRY");
@@ -144,15 +154,15 @@ test("invalid typed rules are refused before storage", async (t) => {
   await assert.rejects(store.addAutomationRule({ name: "", kind: "gate_window", config: {} }, user), /Name/);
 });
 
-test("a stadium booking opens its gate automatically; an unmapped space opens none; staff can opt out", async (t) => {
-  const { pg, post, feed } = await setup(t);
+test("a booking opens only the gates explicitly ticked (none by default), with 15/15 minutes unless set", async (t) => {
+  const { pg, post, feed } = await setup(t, "administrator");
   const gatesFor = async () => (await pg.query("SELECT b.name, g.gate_id, g.lead_minutes, g.lag_minutes FROM hire_booking_gates g JOIN hire_bookings b ON b.id = g.booking_id ORDER BY b.name")).rows;
-  // No gateIds sent: the space's default gate is linked with the default 15/15 minutes.
-  assert.equal((await post(booking("2026-10-20", "18:00", "21:00"))).status, 200);
-  // Gymnasium has no confirmed gate yet: nothing opens.
-  assert.equal((await post(booking("2026-10-20", "18:00", "21:00", { area: "gymnasium", fullName: "Gym Club", email: "gym@example.org" }))).status, 200);
-  // Explicit empty list: staff chose not to open the gate for this stadium booking.
-  assert.equal((await post(booking("2026-10-21", "18:00", "21:00", { fullName: "Quiet Club", email: "quiet@example.org", gateIds: [] }))).status, 200);
+  // Gate ticked, lead/lag not sent: the default 15/15 minutes apply.
+  assert.equal((await post(booking("2026-10-20", "18:00", "21:00", { gateIds: ["TF-ENTRY"] }))).status, 200);
+  // No gateIds sent: nothing opens (10 Oct 2026: no implicit default gate).
+  assert.equal((await post(booking("2026-10-21", "18:00", "21:00", { fullName: "Quiet Club", email: "quiet@example.org" }))).status, 200);
+  // Explicit empty list: nothing opens.
+  assert.equal((await post(booking("2026-10-22", "18:00", "21:00", { fullName: "Gym Club", email: "gym@example.org", area: "gymnasium", gateIds: [] }))).status, 200);
   const rows = await gatesFor();
   assert.equal(rows.length, 1);
   assert.equal(rows[0].gate_id, "TF-ENTRY");
@@ -229,11 +239,14 @@ test("staff pressing CLOSE during a window ends automation for that window", asy
   assert.equal(await store.getOrCreateScheduledControllerCommand("SIDE-ENTRY"), null);
 });
 
-test("staff accounts: administrators manage them without the settings password; others and other sites cannot", async (t) => {
+test("staff accounts: listing needs an administrator; every change also needs the settings password (10 Oct 2026)", async (t) => {
   const accounts = await vite.ssrLoadModule("/app/api/accounts/route.ts");
+  const adminRoute = await vite.ssrLoadModule("/app/api/auth/admin/route.ts");
   const { fetchDatabase } = await databaseFixture(t);
+  const password = "A-test-password-934!";
   for (const key of Object.keys(env)) delete env[key];
-  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: "admin@example.test|administrator,op@example.test|operator" });
+  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: "admin@example.test|administrator,op@example.test|operator",
+    PORTAL_USERNAME: "administrator", PORTAL_OPERATOR_EMAIL: "admin@example.test", PORTAL_PASSWORD_SALT: "test-password-salt", PORTAL_PASSWORD_HASH: await passwordHash(password, "test-password-salt") });
   env.fetchDatabase = fetchDatabase;
   const cookieFor = async (email, role) => (await auth.createSessionCookie({ displayName: role, email, role })).split(";")[0];
   const admin = await cookieFor("admin@example.test", "administrator");
@@ -242,10 +255,17 @@ test("staff accounts: administrators manage them without the settings password; 
   const create = (cookie, from = origin) => accounts.POST(new Request(`${origin}/api/accounts`, { method: "POST",
     headers: { Cookie: cookie, Origin: from, "Sec-Fetch-Site": from === origin ? "same-origin" : "cross-site", "Content-Type": "application/json" },
     body: JSON.stringify({ action: "create", email: "sam@example.test", displayName: "Sam Lee", role: "viewer" }) }));
-  assert.equal((await list(admin)).status, 200, "no settings unlock needed");
+  assert.equal((await list(admin)).status, 200, "listing needs no unlock");
   assert.equal((await list(operator)).status, 403);
-  assert.equal((await create(admin, "https://evil.example")).status, 403);
-  const made = await create(admin);
+  const locked = await create(admin);
+  assert.equal(locked.status, 403, "a change without the settings password is refused");
+  assert.equal((await locked.json()).code, "admin_password_required");
+  const unlockResponse = await adminRoute.POST(new Request(`${origin}/api/auth/admin`, { method: "POST", headers: { Cookie: admin, Origin: origin, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" }, body: JSON.stringify({ password }) }));
+  assert.equal(unlockResponse.status, 200, JSON.stringify(await unlockResponse.clone().json()));
+  const unlocked = `${admin}; ${unlockResponse.headers.getSetCookie()[0].split(";")[0]}`;
+  assert.equal((await create(unlocked, "https://evil.example")).status, 403);
+  assert.equal((await create(operator)).status, 403);
+  const made = await create(unlocked);
   assert.equal(made.status, 200, JSON.stringify(await made.clone().json()));
-  assert.match((await made.json()).setupLink, /\/setup\?token=/);
+  assert.match((await made.json()).setupLink, /^https:\/\/[^/]+\/setup\?token=/);
 });

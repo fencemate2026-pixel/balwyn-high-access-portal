@@ -1,9 +1,12 @@
 import { controllerTokenValid, recordHeartbeat } from "@/lib/portal-store";
 import { GATES, type ReportedPosition } from "@/lib/portal-model";
+import { readControllerRequest } from "@/lib/controller-request";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as {
+    const read = await readControllerRequest(request);
+    if (!read.ok) return read.response;
+    const body = read.body as {
       gateId?: string;
       position?: ReportedPosition;
       safetyOk?: boolean;
@@ -11,7 +14,7 @@ export async function POST(request: Request) {
       softwareVersion?: string;
     };
     const gateId = String(body.gateId ?? "");
-    const token = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const token = read.token;
     if (!GATES.some((gate) => gate.id === gateId) || !(await controllerTokenValid(gateId, token))) {
       return Response.json({ error: "Controller authentication failed." }, { status: 401 });
     }
@@ -24,7 +27,7 @@ export async function POST(request: Request) {
       position,
       safetyOk: body.safetyOk,
       faults: Array.isArray(body.faults) ? body.faults.map(String) : [],
-      softwareVersion: body.softwareVersion,
+      softwareVersion: typeof body.softwareVersion === "string" ? body.softwareVersion : undefined,
     });
     return Response.json({ ok: true, serverTime: new Date().toISOString() });
   } catch (error) {

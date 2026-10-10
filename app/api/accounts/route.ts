@@ -1,10 +1,14 @@
 // Per-person account management — signed-in administrators only.
-// 26 Sep 2026 (client direction): Staff sign-in accounts no longer need the
-// administrator settings password. Still enforced on every request: a verified
-// administrator session (role checked on the server), exact same-origin for
-// every change, and an activity-log entry for every change.
-import { AccountError, assertSameOrigin, createPortalAccount, listPortalAccounts, requireOperator, resetPortalAccount, updatePortalAccount } from "@/lib/portal-auth";
+// 10 Oct 2026 (Jarrod): every CHANGE (create, role, enable/disable, new setup
+// link) again needs the administrator settings password (10-minute unlock),
+// reversing the 26 Sep 2026 direction: a stolen or unattended administrator
+// session alone can no longer create accounts. Listing stays admin-login only.
+// Also enforced on every request: verified administrator session (role checked
+// on the server), exact same-origin for every change, activity-log entry.
+import { AccountError, assertSameOrigin, createPortalAccount, getAdminSettingsAccess, listPortalAccounts, requireOperator, resetPortalAccount, updatePortalAccount } from "@/lib/portal-auth";
 import { recordActivity } from "@/lib/portal-store";
+import { requestOrigin } from "@/lib/request-origin";
+import { readBoundedText } from "@/lib/request-body";
 
 const headers = { "Cache-Control": "no-store" };
 const ROLES = new Set(["viewer", "operator", "administrator"]);
@@ -15,9 +19,10 @@ async function authorise(request: Request) {
   return { user: auth.user };
 }
 
+// The public https origin (the same one assertSameOrigin verified for this
+// request), not the internal address the server listens on behind the proxy.
 function setupLink(request: Request, token: string) {
-  const origin = new URL(request.url).origin;
-  return `${origin}/setup?token=${encodeURIComponent(token)}`;
+  return `${requestOrigin(request)}/setup?token=${encodeURIComponent(token)}`;
 }
 
 export async function GET(request: Request) {
@@ -26,7 +31,8 @@ export async function GET(request: Request) {
   try {
     return Response.json({ accounts: await listPortalAccounts() }, { headers });
   } catch {
-    return Response.json({ error: "Accounts are not available yet. The accounts table has not been created in the database." }, { status: 503, headers });
+    console.warn("accounts_list_unavailable");
+    return Response.json({ error: "Accounts are not available right now. Please try again shortly." }, { status: 503, headers });
   }
 }
 
@@ -34,9 +40,17 @@ export async function POST(request: Request) {
   if (!assertSameOrigin(request)) return Response.json({ error: "Request rejected." }, { status: 403, headers });
   const auth = await authorise(request);
   if (!auth.user) return auth.response;
+  if (!await getAdminSettingsAccess(request)) {
+    return Response.json({ error: "Enter the administrator settings password, then make the change again.", code: "admin_password_required" }, { status: 403, headers });
+  }
   let body: Record<string, unknown>;
-  try { body = await request.json() as Record<string, unknown>; }
-  catch { return Response.json({ error: "Invalid request." }, { status: 400, headers }); }
+  try {
+    const raw = await readBoundedText(request, 4096);
+    if (raw === null) return Response.json({ error: "Invalid request." }, { status: 413, headers });
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+    body = parsed as Record<string, unknown>;
+  } catch { return Response.json({ error: "Invalid request." }, { status: 400, headers }); }
   try {
     if (body.action === "create") {
       const role = String(body.role ?? "");

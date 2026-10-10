@@ -78,6 +78,18 @@ export type PortalPlan = {
   advancedFeatures: boolean;
 };
 
+/** Per-gate operation count and service status (lib/gate-service.ts). */
+export type GateServiceInfo = {
+  operationsSinceService: number;
+  totalOperations: number;
+  operationLimit: number;
+  intervalMonths: number;
+  lastServiceAt: string | null;
+  nextServiceAt: string | null;
+  state: "ok" | "soon" | "due";
+  dueReason: "operations" | "date" | null;
+};
+
 export type PortalSnapshot = {
   systemMode: SystemMode;
   gates: GateRuntime[];
@@ -88,6 +100,8 @@ export type PortalSnapshot = {
   plan: PortalPlan;
   user: PortalUser;
   serverTime: string;
+  /** Gate service counters; null when counting is not set up yet (migration not applied). */
+  service?: Record<string, GateServiceInfo> | null;
 };
 
 export const DAYS: DayKey[] = [

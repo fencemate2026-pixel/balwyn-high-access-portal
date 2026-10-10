@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, lt, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 
 import { getSql, getDb } from "@/db";
 import {
@@ -30,6 +30,8 @@ import {
 } from "@/lib/portal-model";
 import { heartbeatCompletesCommissioning, validateControllerAcknowledgement } from "@/lib/controller-safety";
 import { assertPlanAllowsModules, getPortalPlan, planAllowsModule } from "@/lib/portal-plan";
+import { readGateService, recordGateOperation } from "@/lib/gate-service";
+import { reportGateFault } from "@/lib/gate-faults";
 import {
   addDays,
   melbourneDate,
@@ -113,13 +115,14 @@ export async function getPortalSnapshot(user: PortalUser, seededCheckDone = fals
     d1.prepare("UPDATE command_queue SET state = 'failed', acknowledged_at = CURRENT_TIMESTAMP, detail = 'Command expired before controller confirmation.' WHERE state IN ('queued', 'dispatched') AND expires_at <= ?").bind(expiry),
   ]);
   }
-  const [systemRows, gateRows, scheduleRows, activityRows, ruleRows, settingRows] = await Promise.all([
+  const [systemRows, gateRows, scheduleRows, activityRows, ruleRows, settingRows, service] = await Promise.all([
     db.select().from(systemState).where(eq(systemState.id, 1)).limit(1),
     db.select().from(gateStates).orderBy(asc(gateStates.gateId)),
     db.select().from(schedules).orderBy(asc(schedules.gateId), asc(schedules.id)),
     db.select().from(activityLog).orderBy(desc(activityLog.id)).limit(200),
     db.select().from(automationRules).orderBy(asc(automationRules.id)),
     db.select().from(portalSettings).where(eq(portalSettings.id, 1)).limit(1),
+    readGateService(), // null (never throws) if the counter table is not set up yet
   ]);
   if (!systemRows.length && !seededCheckDone) {
     await ensurePortalSeeded();
@@ -189,13 +192,15 @@ export async function getPortalSnapshot(user: PortalUser, seededCheckDone = fals
     },
     user,
     serverTime: nowIso(),
+    service,
   };
 }
 
 export async function recordActivity(user: PortalUser, action: string, detail: string, category: string) {
   await getDb().insert(activityLog).values({
-    action,
-    detail,
+    action: action.slice(0, 200),
+    // The log is permanent (append-only), so entries are length-capped.
+    detail: detail.slice(0, 1000),
     category,
     actorName: user.displayName,
     actorRole: user.role,
@@ -226,7 +231,7 @@ export async function queueGateCommands(
   for (const gateId of validIds) {
     const insertSql = options.mode
       ? "INSERT INTO command_queue (correlation_id, gate_id, command, source, state, requested_by, expires_at) VALUES (?, ?, ?, ?, 'queued', ?, ?)"
-      : "INSERT INTO command_queue (correlation_id, gate_id, command, source, state, requested_by, expires_at) SELECT ?, ?, ?, ?, 'queued', ?, ? WHERE NOT EXISTS (SELECT 1 FROM command_queue WHERE gate_id = ? AND state IN ('queued', 'dispatched'))";
+      : "INSERT INTO command_queue (correlation_id, gate_id, command, source, state, requested_by, expires_at) SELECT ?, ?, ?, ?, 'queued', ?, ? WHERE NOT EXISTS (SELECT 1 FROM command_queue WHERE gate_id = ? AND state IN ('queued', 'dispatched')) AND (SELECT mode FROM system_state WHERE id = 1) = 'normal'";
     const insert = d1.prepare(insertSql);
     statements.push(options.mode
       ? insert.bind(correlationId, gateId, position, source, user.displayName, expiry)
@@ -241,7 +246,16 @@ export async function queueGateCommands(
   statements.push(d1.prepare(
     "INSERT INTO activity_log (action, detail, category, actor_name, actor_role) SELECT ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM command_queue WHERE correlation_id = ?)",
   ).bind(options.activityAction, options.activityDetail, options.mode ? "emergency" : "gate-command", user.displayName, user.role, correlationId));
-  await d1.batch(statements);
+  const results = await d1.batch(statements);
+  // Manual commands are inserted only if, inside the same locked transaction, the
+  // gate has nothing in flight AND no emergency mode has started since the route
+  // checked (closes the gap between that check and this insert).
+  if (!options.mode) {
+    const inserted = results.filter((_, index) => index % 2 === 0 && index < validIds.length * 2)
+      .reduce((sum, result) => sum + Number(result?.meta?.changes ?? 0), 0);
+    if (inserted === 0) throw new Error("The command was not queued: a command is already awaiting completion for this gate, or emergency priority has started. Refresh and check the gate.");
+    return { correlationId, queuedCount: inserted };
+  }
   return { correlationId, queuedCount: validIds.length };
 }
 
@@ -385,7 +399,7 @@ export async function recordHeartbeat(input: {
   softwareVersion?: string;
 }): Promise<boolean> {
   const faultText = input.faults.map((fault) => fault.trim()).filter(Boolean).slice(0, 8).join("; ").slice(0, 500);
-  const current = await getDb().select({ commissioned: gateStates.commissioned }).from(gateStates).where(eq(gateStates.gateId, input.gateId)).limit(1);
+  const current = await getDb().select({ commissioned: gateStates.commissioned, controllerState: gateStates.controllerState }).from(gateStates).where(eq(gateStates.gateId, input.gateId)).limit(1);
   const hasVerifiedInitialState = heartbeatCompletesCommissioning(input.position, input.safetyOk);
   const commissioned = Boolean(current[0]?.commissioned) || hasVerifiedInitialState;
   await getDb().update(gateStates).set({
@@ -398,6 +412,12 @@ export async function recordHeartbeat(input: {
     softwareVersion: input.softwareVersion?.slice(0, 80),
     updatedAt: nowIso(),
   }).where(eq(gateStates.gateId, input.gateId));
+  // Fault alert to RJL on the change from healthy to fault (commissioned gates only).
+  // Not awaited: an email can never slow or break the controller's poll.
+  const nowFault = Boolean(faultText) || !input.safetyOk;
+  if (nowFault && commissioned && current[0]?.controllerState !== "fault") {
+    void reportGateFault({ gateId: input.gateId, faultText, safetyOk: input.safetyOk });
+  }
   return commissioned;
 }
 
@@ -413,12 +433,17 @@ export async function getNextControllerCommand(gateId: string) {
       and(eq(commandQueue.state, "dispatched"), lt(commandQueue.dispatchedAt, leaseExpired)),
     ),
     gt(commandQueue.expiresAt, currentTime),
+    // Emergency priority (10 Oct 2026 review): while a fire mode is active only
+    // emergency packets are handed out. A schedule or booking CLOSE that slipped
+    // into the queue just as fire started can never release the fire hold.
+    or(eq(commandQueue.source, "emergency"), sql`(SELECT mode FROM system_state WHERE id = 1) = 'normal'`),
   )).orderBy(asc(commandQueue.id)).limit(1);
   const command = commands[0];
   if (!command) return null;
   const d1 = getSql();
   const claimed = await d1.batch([
-    d1.prepare("UPDATE command_queue SET state = 'dispatched', dispatched_at = ? WHERE id = ? AND expires_at > ? AND (state = 'queued' OR (state = 'dispatched' AND dispatched_at < ?))").bind(currentTime, command.id, currentTime, leaseExpired),
+    // Same emergency rule re-checked inside the claim, atomically with the dispatch.
+    d1.prepare("UPDATE command_queue SET state = 'dispatched', dispatched_at = ? WHERE id = ? AND expires_at > ? AND (state = 'queued' OR (state = 'dispatched' AND dispatched_at < ?)) AND (source = 'emergency' OR (SELECT mode FROM system_state WHERE id = 1) = 'normal')").bind(currentTime, command.id, currentTime, leaseExpired),
     d1.prepare("UPDATE gate_states SET last_command_state = 'dispatched', updated_at = CURRENT_TIMESTAMP WHERE gate_id = ? AND EXISTS (SELECT 1 FROM command_queue WHERE id = ? AND state = 'dispatched' AND dispatched_at = ?)").bind(gateId, command.id, currentTime),
   ]);
   if (Number(claimed[0]?.meta?.changes ?? 0) === 0) return null;
@@ -607,7 +632,7 @@ export async function acknowledgeControllerCommand(input: {
   const detail = validated.detail;
   const gate = GATES.find((candidate) => candidate.id === input.gateId);
   const timestamp = nowIso();
-  await getSql().batch([
+  const results = await getSql().batch([
     getSql().prepare("UPDATE command_queue SET state = ?, acknowledged_at = ?, detail = ? WHERE id = ? AND gate_id = ? AND state IN ('queued', 'dispatched')").bind(effectiveState, timestamp, detail, input.commandId, input.gateId),
     getSql().prepare("UPDATE gate_states SET reported_position = ?, controller_state = ?, safety_ok = ?, last_seen = ?, last_command_state = ?, last_error = ?, updated_at = CURRENT_TIMESTAMP WHERE gate_id = ? AND EXISTS (SELECT 1 FROM command_queue WHERE id = ? AND gate_id = ? AND acknowledged_at = ?)").bind(input.position, effectiveState === "acknowledged" ? "online" : "fault", input.safetyOk ? 1 : 0, timestamp, effectiveState, effectiveState === "acknowledged" ? null : detail || "Controller did not complete the relay command.", input.gateId, input.commandId, input.gateId, timestamp),
     getSql().prepare("INSERT INTO activity_log (action, detail, category, actor_name, actor_role) SELECT ?, ?, 'controller', ?, 'device' WHERE EXISTS (SELECT 1 FROM command_queue WHERE id = ? AND gate_id = ? AND acknowledged_at = ?)").bind(
@@ -619,6 +644,17 @@ export async function acknowledgeControllerCommand(input: {
       timestamp,
     ),
   ]);
+  // One confirmed OPEN = one gate operation for the service counter. Only when this
+  // acknowledgement actually completed the command (a duplicate ack changes nothing).
+  const completedNow = Number(results[0]?.meta?.changes ?? 0) === 1;
+  if (completedNow && effectiveState === "acknowledged" && command.command === "open") {
+    await recordGateOperation(input.gateId);
+  }
+  // A command the controller could not complete is a fault: tell RJL (throttled,
+  // not awaited). Covers faults first seen through a command rather than a heartbeat.
+  if (completedNow && effectiveState !== "acknowledged") {
+    void reportGateFault({ gateId: input.gateId, faultText: detail || `Command ${effectiveState}.`, safetyOk: input.safetyOk });
+  }
 }
 
 export async function recentFailedLogins(fingerprint: string) {

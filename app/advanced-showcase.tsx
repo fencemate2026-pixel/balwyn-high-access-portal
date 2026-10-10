@@ -17,6 +17,12 @@
  *
  * Accuracy: a person confirms every alert; nothing here claims to replace the
  * fire detection and warning system, procedures or emergency services.
+ *
+ * Camera privacy (RJL's stated design, 10 Oct 2026): Sentinel looks only for
+ * fire, smoke and weapons. It does not look for people unless they are linked
+ * to a threat, keeps no footage of students or staff in normal operation, and
+ * records standard CCTV only where the school has parent/carer and staff
+ * permission. The pictures and wording must not show it watching people.
  */
 
 import { useEffect, useState } from "react";
@@ -30,6 +36,14 @@ export type ShowcaseFeature = "cctv" | "guidance";
 const RJL_EMAIL = "info@rjlcommercialgroup.com";
 const RJL_PHONE_LINK = "tel:0400101132";
 const RJL_PHONE_TEXT = "0400 101 132";
+
+/** How Sentinel treats students and staff. Shown on both locked pages. */
+const CAMERA_PRIVACY: Step[] = [
+  { title: "Threats only", text: "Sentinel is trained to look only for fire, smoke and weapons such as knives, guns and bats. It does not look for people unless they are linked to a threat." },
+  { title: "Nothing kept of students or staff", text: "In normal operation Sentinel does not record or keep any footage or files of students or staff." },
+  { title: "Recording starts with a threat", text: "Recording starts only when Sentinel detects a fire or a threat. If a person is linked to that threat, they are included in the recording so staff and emergency services can respond." },
+  { title: "Standard CCTV only with permission", text: "Where the school has permission from parents, carers and staff, Sentinel can also record like the CCTV systems already in schools. Its job stays the same: finding fires and threats." },
+];
 
 type Step = { title: string; text: string };
 
@@ -115,11 +129,11 @@ function StepRail({ steps, step, animated, duration, onChoose, label }: { steps:
   );
 }
 
-function LockStrip({ text }: { text: string }) {
+function LockStrip() {
   return (
     <div className="mk-sc-lock" role="note">
       <LockKeyhole aria-hidden="true" />
-      <p><strong>This module isn&rsquo;t switched on for your site yet.</strong> {text}</p>
+      <p><strong>Contact the team for more information on how to unlock this package.</strong></p>
     </div>
   );
 }
@@ -302,6 +316,25 @@ function ProjectorEvac() {
   );
 }
 
+/* ------------------------------------------------- Camera privacy (both pages) */
+
+function CameraPrivacy() {
+  return (
+    <section className="mk-sc-privacy" aria-labelledby="mk-sc-privacy-title">
+      <div className="mk-sc-privacy-head">
+        <ShieldCheck aria-hidden="true" />
+        <div>
+          <h3 id="mk-sc-privacy-title">Students and staff: what the cameras look for</h3>
+          <p>Sentinel has one job: finding fires and threats.</p>
+        </div>
+      </div>
+      <ul>
+        {CAMERA_PRIVACY.map((item) => <li key={item.title}><strong>{item.title}</strong><span>{item.text}</span></li>)}
+      </ul>
+    </section>
+  );
+}
+
 /* --------------------------------------------------------------- CCTV page */
 
 function CctvStage({ step }: { step: number }) {
@@ -312,7 +345,6 @@ function CctvStage({ step }: { step: number }) {
     <figure className="mk-sc-stage" data-step={step}>
       <div className="mk-sc-frame">
         <img src="/showcase/sentinel-cctv-wall.jpg" alt="" width={1400} height={933} decoding="async" />
-        <span className="mk-sc-det" style={{ left: "44.9%", top: "31.3%", width: "6.2%", height: "5.6%" }}><span>PERSON AFTER HOURS</span></span>
         <span className="mk-sc-det" style={{ left: "36.2%", top: "55.6%", width: "6.8%", height: "4.8%", animationDelay: "1.1s" }}><span>GATE OPEN 4 MIN</span></span>
         {step >= 1 && <FireTile />}
         {step >= 1 && <AlarmView instant={step === 2} confirmed={step === 2} />}
@@ -325,7 +357,7 @@ function CctvStage({ step }: { step: number }) {
         <span className="mk-sc-tag">EXAMPLE SCREENS</span>
       </div>
       <StageCaption steps={CCTV_STEPS} step={step} />
-      <figcaption className="mk-sc-sr">Example: the Magic Keys portal on the left screen, the camera wall in the middle and staff prompts on the right. The AI marks a person after hours and a gate left open, then spots smoke and flame on camera 12; the wall switches to that camera and duty staff confirm the alert.</figcaption>
+      <figcaption className="mk-sc-sr">Example: the Magic Keys portal on the left screen, the camera wall in the middle and staff prompts on the right. The portal marks a gate left open, then the AI spots smoke and flame on camera 12; the wall switches to that camera and duty staff confirm the alert.</figcaption>
     </figure>
   );
 }
@@ -334,15 +366,16 @@ function CctvShowcase({ name, email, onExplore }: { name?: string; email?: strin
   const story = useStory(CCTV_DURATIONS, 1);
   return (
     <>
-      <LockStrip text="Ask RJL Commercial and we'll show you what it can do for your campus." />
+      <LockStrip />
       <div className="mk-sc-hero">
         <div className="mk-sc-copy">
           <span className="mk-sc-eyebrow"><ScanEye aria-hidden="true" />Magic Keys Sentinel<i className="mk-sc-sep" aria-hidden="true" />AI CCTV</span>
           <h2 className="mk-sc-title">Eyes on every zone. <em>Even when no one&rsquo;s watching.</em></h2>
-          <p className="mk-sc-lead">Sentinel adds AI to your cameras so they don&rsquo;t just record, they watch. It keeps an eye on the zones you choose, picks out what matters, and puts the decision straight into the hands of your staff.</p>
+          <p className="mk-sc-lead">Sentinel adds AI to your cameras so they look for danger, not people. It watches the zones you choose for fire and weapons, and puts the decision straight into the hands of your staff.</p>
           <ul className="mk-sc-ticks">
             <li>Watches gates, car parks, entries, perimeters and roof lines around the clock</li>
-            <li>Picks out signs of smoke or flame, people where they shouldn&rsquo;t be after hours, gates left open and crowds building</li>
+            <li>Looks only for signs of smoke or flame and weapons such as knives, guns and bats</li>
+            <li>Keeps no footage of students or staff unless a threat is found</li>
             <li>Sends your duty staff a prompt with a live picture and the exact location</li>
             <li>A person confirms every alert before anything happens</li>
             <li>Works hand in hand with your Magic Keys gates and doors</li>
@@ -358,9 +391,10 @@ function CctvShowcase({ name, email, onExplore }: { name?: string; email?: strin
         <article><Hand aria-hidden="true" /><h3>People stay in charge</h3><p>Sentinel suggests, your staff decide. Nothing happens on its own.</p></article>
         <article><ClipboardList aria-hidden="true" /><h3>One system</h3><p>Alerts, gates, schedules and history all live in the Magic Keys portal you already use.</p></article>
         <article><Wrench aria-hidden="true" /><h3>Your cameras assessed</h3><p>We review the cameras you already have and recommend only what&rsquo;s needed.</p></article>
-        <article><ShieldCheck aria-hidden="true" /><h3>Privacy built in</h3><p>Set up to suit your privacy and CCTV policies, with access limited to approved staff.</p></article>
+        <article><ShieldCheck aria-hidden="true" /><h3>Privacy built in</h3><p>Looks for fires and threats, not people. Set up to suit your privacy and CCTV policies, with access limited to approved staff.</p></article>
         <article><Users aria-hidden="true" /><h3>Supported locally</h3><p>Installed, tuned and maintained by RJL Commercial, the team behind your gates.</p></article>
       </div>
+      <CameraPrivacy />
       <div className="mk-sc-closing">
         <div>
           <h3>See Sentinel on your own site.</h3>
@@ -430,7 +464,7 @@ function GuidanceShowcase({ name, email, onExplore }: { name?: string; email?: s
   const story = useStory(GUIDANCE_DURATIONS, 3);
   return (
     <>
-      <LockStrip text="Ask RJL Commercial about adding it to your campus." />
+      <LockStrip />
       <div className="mk-sc-hero">
         <div className="mk-sc-copy">
           <span className="mk-sc-eyebrow"><BellRing aria-hidden="true" />Magic Keys Emergency Guidance</span>
@@ -457,6 +491,7 @@ function GuidanceShowcase({ name, email, onExplore }: { name?: string; email?: s
         <article><ClipboardList aria-hidden="true" /><h3>Every step logged</h3><p>Alerts, confirmations and messages are recorded for your debrief and drills.</p></article>
         <article><ShieldCheck aria-hidden="true" /><h3>Built around your plan</h3><p>Routes, assembly areas and wording are set up with you and tested on site.</p></article>
       </div>
+      <CameraPrivacy />
       <div className="mk-sc-closing">
         <div>
           <h3>Seconds count. Clear directions save them.</h3>

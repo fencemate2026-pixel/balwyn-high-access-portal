@@ -120,7 +120,12 @@ function monthTitle(iso: string): { month: string; year: string } {
   };
 }
 
-export default function FacilityHirePanel({ canBook = true }: { canBook?: boolean }) {
+/**
+ * canLinkGates: only administrators may tick gates to open for a booking, and
+ * the server also requires the settings password (10 Oct 2026). Operators can
+ * still save bookings without gates.
+ */
+export default function FacilityHirePanel({ canBook = true, canLinkGates = false, adminUnlocked = false, onRequireUnlock }: { canBook?: boolean; canLinkGates?: boolean; adminUnlocked?: boolean; onRequireUnlock?: () => void }) {
   const today = melbourneToday();
   const [weekStart, setWeekStart] = useState(() => mondayOf(today));
   const [monthCursor, setMonthCursor] = useState(() => monthStart(today));
@@ -143,7 +148,7 @@ export default function FacilityHirePanel({ canBook = true }: { canBook?: boolea
   const [depositAmount, setDepositAmount] = useState("");
   const [comment, setComment] = useState("");
   // Optional: hold gates open for the booking (runs through lib/gate-windows.ts, shows on the School scheduler).
-  const [gateIds, setGateIds] = useState<string[]>(() => defaultGatesForArea("tony-frizza-stadium"));
+  const [gateIds, setGateIds] = useState<string[]>(() => canLinkGates ? defaultGatesForArea("tony-frizza-stadium") : []);
   const [leadMinutes, setLeadMinutes] = useState("15");
   const [lagMinutes, setLagMinutes] = useState("15");
 
@@ -204,7 +209,13 @@ export default function FacilityHirePanel({ canBook = true }: { canBook?: boolea
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    setSaving(true); setNotice(""); setError("");
+    setNotice(""); setError("");
+    if (gateIds.length && !adminUnlocked) {
+      onRequireUnlock?.();
+      setError("Opening gates for a booking needs the administrator settings password. Enter it, then save again, or untick the gates.");
+      return;
+    }
+    setSaving(true);
     try {
       const response = await fetch("/api/hire", {
         method: "POST",
@@ -289,7 +300,7 @@ export default function FacilityHirePanel({ canBook = true }: { canBook?: boolea
             <label>Full name<input value={fullName} onChange={(event) => setFullName(event.target.value)} required maxLength={120} autoComplete="off" /></label>
             <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="off" /></label>
             <label>Phone<input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} autoComplete="off" /></label>
-            <label>Space<select value={area} onChange={(event) => { setArea(event.target.value); setGateIds(defaultGatesForArea(event.target.value)); }}>{(data?.areas ?? []).filter((item) => item.active !== false).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
+            <label>Space<select value={area} onChange={(event) => { setArea(event.target.value); setGateIds(canLinkGates ? defaultGatesForArea(event.target.value) : []); }}>{(data?.areas ?? []).filter((item) => item.active !== false).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label>
             <label>Date<input type="date" value={date} onChange={(event) => { setDate(event.target.value); if (event.target.value) setSelectedDay(event.target.value); }} required /></label>
             <div className="fh-times">
               <label>Start<input type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} required /></label>
@@ -299,7 +310,8 @@ export default function FacilityHirePanel({ canBook = true }: { canBook?: boolea
             {depositLeft && <label>Deposit amount (AUD)<input type="number" min="0.01" step="0.01" value={depositAmount} onChange={(event) => setDepositAmount(event.target.value)} required /></label>}
             <fieldset className="fh-wide fh-gates">
               <legend>Gates opened automatically for this booking</legend>
-              <div className="fh-gate-options">{ACTIVE_GATES.map((gate) => <label key={gate.id} className="fh-check"><input type="checkbox" checked={gateIds.includes(gate.id)} onChange={(event) => setGateIds((current) => event.target.checked ? [...current, gate.id] : current.filter((id) => id !== gate.id))} /> {gate.name}</label>)}</div>
+              {!canLinkGates && <small className="fh-gate-note">Only an administrator can set gates to open for a booking.</small>}
+              <div className="fh-gate-options">{ACTIVE_GATES.map((gate) => <label key={gate.id} className="fh-check"><input type="checkbox" disabled={!canLinkGates} checked={gateIds.includes(gate.id)} onChange={(event) => setGateIds((current) => event.target.checked ? [...current, gate.id] : current.filter((id) => id !== gate.id))} /> {gate.name}</label>)}</div>
               {gateIds.length > 0 && <div className="fh-times">
                 <label>Open before (min)<input type="number" min={0} max={120} step={5} value={leadMinutes} onChange={(event) => setLeadMinutes(event.target.value)} required /></label>
                 <label>Close after (min)<input type="number" min={0} max={120} step={5} value={lagMinutes} onChange={(event) => setLagMinutes(event.target.value)} required /></label>

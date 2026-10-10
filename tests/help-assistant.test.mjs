@@ -47,7 +47,7 @@ test("the help index is the staff guide only, and every topic is free of interna
 test("the index build refuses a guide that contains internal detail", () => {
   const dir = mkdtempSync(join(tmpdir(), "help-index-"));
   mkdirSync(join(dir, "data"));
-  cpSync(join(root, "docs/internal/TECHNICAL_HELP_NOTES.md"), join(dir, "SOFTWARE_HELP.md"));
+  cpSync(join(root, "docs/INTERNAL_TECHNICAL_HELP_NOTES.md"), join(dir, "SOFTWARE_HELP.md"));
   const run = spawnSync(process.execPath, [join(root, "scripts/build-help-index.mjs")], { cwd: dir, encoding: "utf8" });
   assert.notEqual(run.status, 0);
   assert.match(run.stderr, /Help index refused/);
