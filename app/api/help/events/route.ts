@@ -10,9 +10,10 @@ export async function GET(request: Request) {
     const events = await listHelpEvents(80);
     return Response.json({ events }, { headers: { "Cache-Control": "no-store" } });
   } catch {
+    console.warn("help_events_unavailable");
     return Response.json({
       events: [],
-      error: "help_events is not available yet. Apply supabase/migrations/20260924210000_help_events.sql.",
+      error: "Help questions are not available right now.",
     }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
 }
