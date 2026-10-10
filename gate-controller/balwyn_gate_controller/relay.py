@@ -20,6 +20,12 @@ Interlocks enforced here, whatever the caller asks for:
 
 enforce(now) is called by both the main loop and an independent watchdog
 thread, so a stalled loop cannot leave the relay on past its deadline.
+
+PulseOutput (added 11 Oct 2026) supervises the optional access-board unlock
+relay the same way: it can only give one bounded press at a time, it starts
+and ends OFF, and its deadline is enforced from the same watchdog thread
+(RelaySupervisor.add_companion), so a stalled loop cannot hold the exit-button
+input on.
 """
 
 from __future__ import annotations
@@ -29,7 +35,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from .config import MAX_PULSE_S
+from .config import MAX_PULSE_S, MAX_UNLOCK_PULSE_S
 
 
 @dataclass
@@ -55,7 +61,12 @@ class RelaySupervisor:
         now = clock()
         self._last_feed = now
         self._last_portal_ok = now
+        self._companions: list = []  # other outputs whose deadlines the watchdog must also enforce
         self._set(False)
+
+    def add_companion(self, enforce: Callable[[float], None]) -> None:
+        """Have enforce(now) (main loop and watchdog) also enforce another output's deadline."""
+        self._companions.append(enforce)
 
     # ---------------------------------------------------------------- requests
     def pulse(self, seconds: float) -> bool:
@@ -102,6 +113,13 @@ class RelaySupervisor:
     # ------------------------------------------------------------ enforcement
     def enforce(self, now: Optional[float] = None) -> None:
         now = self._clock() if now is None else now
+        for companion in self._companions:
+            try:
+                companion(now)
+            except Exception:
+                # The companion has already forced its own output off (see PulseOutput.enforce).
+                # Never let it disturb this relay: a fire hold must survive a fault elsewhere.
+                self._audit("companion_enforce_failed", {})
         with self._lock:
             s = self.state
             if s.mode == "pulsing" and now >= s.pulse_until:
@@ -131,3 +149,54 @@ class RelaySupervisor:
         thread.stop = stop  # type: ignore[attr-defined]
         thread.start()
         return thread
+
+
+class PulseOutput:
+    """A relay that only ever gives short, bounded presses.
+
+    Used for the access board's exit-button input: the board, not this
+    program, decides how long the door stays unlocked, so a press never needs
+    to be longer than MAX_UNLOCK_PULSE_S and is never held.
+    """
+
+    def __init__(self, set_output: Callable[[bool], None], audit: Callable[[str, dict], None],
+                 clock: Callable[[], float] = time.monotonic) -> None:
+        self._set = set_output
+        self._audit = audit
+        self._clock = clock
+        self._lock = threading.RLock()
+        self.until = 0.0
+        self.active = False
+        self._set(False)
+
+    def pulse(self, seconds: float) -> bool:
+        """Start one press. Refused (False) while a press is already running."""
+        with self._lock:
+            if self.active:
+                self._audit("unlock_pulse_refused", {"reason": "press already running"})
+                return False
+            seconds = min(max(seconds, 0.3), MAX_UNLOCK_PULSE_S)
+            self.until = self._clock() + seconds
+            self.active = True
+            self._set(True)
+            self._audit("unlock_pulse", {"seconds": round(seconds, 2)})
+            return True
+
+    def off(self, reason: str) -> None:
+        with self._lock:
+            was_on = self.active
+            self.active = False
+            self._set(False)  # always written, so a doubtful state is driven OFF
+            if was_on:
+                self._audit("unlock_release", {"reason": reason})
+
+    def enforce(self, now: Optional[float] = None) -> None:
+        now = self._clock() if now is None else now
+        try:
+            with self._lock:
+                if self.active and now >= self.until:
+                    self.off("press complete")
+        except Exception:  # never leave the exit-button input pressed because of an error
+            self.active = False
+            self._set(False)
+            raise

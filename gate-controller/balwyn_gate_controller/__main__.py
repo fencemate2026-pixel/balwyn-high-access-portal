@@ -2,8 +2,8 @@
 
   python -m balwyn_gate_controller               run (systemd service)
   python -m balwyn_gate_controller check-config  validate settings, touch nothing
-  python -m balwyn_gate_controller read-inputs   print reeds + safety for 30 s.
-                                                 The relay is claimed OFF and never energised.
+  python -m balwyn_gate_controller read-inputs   print reeds, safety and the access board's unlock
+                                                 signal for 30 s. Both relays are claimed OFF and never energised.
 """
 
 from __future__ import annotations
@@ -28,7 +28,8 @@ TICK_S = 0.05
 def _io(config: Config) -> GateIO:
     # lgpio needs a writable directory for its notification FIFO (see hardware.py).
     return GateIO(LgpioBackend(config.state_dir / "lgpio"), config.relay_pin, config.relay_active_low, config.closed_reed_pin,
-                  config.open_reed_pin, config.safety_pin, config.input_active_low, config.input_pull)
+                  config.open_reed_pin, config.safety_pin, config.input_active_low, config.input_pull,
+                  unlock_relay_pin=config.unlock_relay_pin, unlock_sense_pin=config.unlock_sense_pin)
 
 
 def read_inputs(config: Config) -> int:
@@ -36,7 +37,8 @@ def read_inputs(config: Config) -> int:
     try:
         end = time.monotonic() + 30
         while time.monotonic() < end:
-            print(f"closed_reed={io.closed_reed()} open_reed={io.open_reed()} safety={io.safety_healthy()} relay=OFF", flush=True)
+            print(f"closed_reed={io.closed_reed()} open_reed={io.open_reed()} safety={io.safety_healthy()} "
+                  f"board_unlocked={io.unlock_sensed()} relays=OFF", flush=True)
             time.sleep(1)
     finally:
         io.shutdown()
@@ -61,7 +63,9 @@ def run(config: Config) -> int:
     watchdog = controller.relay.start_watchdog()
     journal.audit("controller_started", {"version": __version__, "gate": config.gate_id,
                                          "monitor_only": config.monitor_only, "dry_run": config.dry_run,
-                                         "open_reed": config.open_reed_pin is not None})
+                                         "open_reed": config.open_reed_pin is not None,
+                                         "board_unlock_relay": config.unlock_relay_pin is not None,
+                                         "board_unlock_sense": config.unlock_sense_pin is not None})
     LOG.info("gate %s controller %s started%s%s", config.gate_id, __version__,
              " (MONITOR ONLY)" if config.monitor_only else "", " (DRY RUN)" if config.dry_run else "")
     notify("READY=1")
@@ -92,7 +96,9 @@ def main(argv: list[str]) -> int:
         print(f"OK: gate {config.gate_id}, relay GPIO{config.relay_pin}, closed reed GPIO{config.closed_reed_pin}, "
               f"open reed {('GPIO' + str(config.open_reed_pin)) if config.open_reed_pin is not None else 'not fitted'}, "
               f"safety {('GPIO' + str(config.safety_pin)) if config.safety_pin is not None else 'NOT FITTED (monitor-only)'}, "
-              f"pulse {config.cycle_pulse_s:g} s, schedule control {'on' if config.schedule_control else 'off'}"
+              f"pulse {config.cycle_pulse_s:g} s, schedule control {'on' if config.schedule_control else 'off'}, "
+              f"board unlock relay {('GPIO' + str(config.unlock_relay_pin) + f' ({config.unlock_pulse_s:g} s press)') if config.unlock_relay_pin is not None else 'not fitted'}, "
+              f"board unlock signal {('GPIO' + str(config.unlock_sense_pin)) if config.unlock_sense_pin is not None else 'not fitted'}"
               f"{', DRY RUN' if config.dry_run else ''}")
         return 0
     if command == "read-inputs":
