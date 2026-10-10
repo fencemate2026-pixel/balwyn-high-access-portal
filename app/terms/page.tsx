@@ -10,6 +10,7 @@ export default function TermsPage() {
   return <LegalPage
     eyebrow="Authorised operator use"
     title="Terms of Use"
+    updated="10 October 2026"
     summary="These terms govern access to the Magic Keys Balwyn High School operations portal. By signing in or using the portal, you agree to use it only for authorised school access-control operations."
     sections={[
       {
@@ -29,6 +30,26 @@ export default function TermsPage() {
         content: <p>Where commissioned, Magic Keys may send authorised commands through agreed relay outputs or interfaces associated with the existing Compass control system. Available functions depend on the installed hardware, completed testing and permissions approved by the school. A feature shown in the portal is not evidence that field commissioning is complete.</p>,
       },
       {
+        title: "Roles and protected changes",
+        content: <p>Each account has a role (viewer, operator or administrator) set by the school’s portal administrator or RJL. Some changes, including gate schedules, automation, staff accounts, system settings and service records, also need the separate administrator settings password. Only use the access your role gives you, keep passwords and authenticator codes private, and lock settings when you have finished.</p>,
+      },
+      {
+        title: "Emergency functions",
+        content: <p>The fire / evacuation function is available to administrators only. It queues open commands to active gates; it does not replace the school’s emergency management plan, fire indicator panel, emergency services or local controls, and gates’ own safety devices continue to apply. Clearing an emergency in the portal does not close gates or declare the site safe.</p>,
+      },
+      {
+        title: "Help chat",
+        content: <p>Ask Magic Keys explains how to use the portal from the staff guide. Its answers may be incomplete or wrong and are not safety, legal or emergency advice; follow school procedures and on-screen confirmations. It cannot operate gates or change settings. Do not enter passwords or personal information. Questions are recorded and may be reviewed by RJL as described in the <a href="/privacy">Privacy Policy</a>.</p>,
+      },
+      {
+        title: "Stadium hire bookings",
+        content: <p>Staff who enter a booking must have the hirer’s permission to record their contact details for the booking and must enter accurate times and spaces. Gates linked to a booking open and close automatically around the booked time, subject to controller availability and safety inputs; staff remain responsible for supervising the area.</p>,
+      },
+      {
+        title: "Gate servicing",
+        content: <p>The gate cycle counter counts openings sent through Magic Keys only; openings by fob, keypad, exit button or other systems are not counted until position sensors are fitted, so actual use may be higher. Service reminders are an aid and do not replace the maintenance schedule agreed with RJL or the manufacturer’s requirements.</p>,
+      },
+      {
         title: "Monitoring and records",
         content: <p>Sign-ins, commands, acknowledgements, settings changes and other activity may be recorded for security, safety, troubleshooting, audit and accountability. Use of personal information is described in the <a href="/privacy">Privacy Policy</a>.</p>,
       },
@@ -38,7 +59,7 @@ export default function TermsPage() {
       },
       {
         title: "Ownership and acceptable use",
-        content: <p>Portal software, branding and content remain the property of their respective owners. You must not copy, reverse engineer, probe, overload, misuse or introduce malicious code into the service except where expressly permitted by law and written authorisation.</p>,
+        content: <p>Portal software, branding and content remain the property of their respective owners. You must not copy, reverse engineer, probe, scan, load-test, overload, misuse or introduce malicious code into the service. Security or penetration testing is permitted only with RJL’s prior written authorisation that sets out its scope and timing; please report suspected vulnerabilities to <a href="mailto:info@rjlcommercialgroup.com">info@rjlcommercialgroup.com</a> rather than testing them.</p>,
       },
       {
         title: "Contact and governing law",
