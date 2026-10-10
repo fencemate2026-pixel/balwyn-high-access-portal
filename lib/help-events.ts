@@ -4,10 +4,24 @@ export type HelpEventStatus = "answered" | "not_connected" | "unavailable" | "no
 export type HelpEventMode = "ai" | "knowledge" | "error";
 
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-const SECRET = /\b(ghp_|github_pat_|sk-|Bearer\s+)\S+/gi;
+const SECRET = /\b(ghp_|github_pat_|sk-|re_|Bearer\s+)\S+/gi;
+// "password is X", "code: 123456", "token=abc" → keep the word, mask the value.
+const LABELLED_SECRET = /\b(password|passcode|pin|code|token|key|secret)(\s*(?:is|=|:)\s*)\S+/gi;
+// "my password hunter2" (no "is"): mask the word after the strongest labels too.
+const LOOSE_SECRET = /\b(password|passcode|pin|token|secret)(\s+)(?!is\b|=|:)([^\s,.;!?]+)/gi;
+const LONG_RANDOM = /\b[A-Za-z0-9_-]{24,}\b/g;
+const SIX_DIGITS = /\b\d{6}\b/g;
 
+/** Masks emails, passwords, codes and token-like strings typed into a help question. */
 export function scrubHelpQuestion(value: string) {
-  return value.replace(EMAIL, "[email]").replace(SECRET, "[redacted]").slice(0, 1500);
+  return value
+    .replace(EMAIL, "[email]")
+    .replace(SECRET, "[redacted]")
+    .replace(LABELLED_SECRET, "$1$2[redacted]")
+    .replace(LOOSE_SECRET, "$1$2[redacted]")
+    .replace(LONG_RANDOM, "[redacted]")
+    .replace(SIX_DIGITS, "[code]")
+    .slice(0, 1500);
 }
 
 export async function recordHelpEvent(input: {
@@ -39,7 +53,12 @@ export async function recordHelpEvent(input: {
     ).run();
   } catch {
     // Learning log must never break help.
+    return;
   }
+  try {
+    // Retention: 12 months. Separate statement so a missing DELETE grant never blocks logging.
+    await getSql().prepare("DELETE FROM help_events WHERE created_at < now() - interval '365 days'").run();
+  } catch { /* retention is best effort */ }
 }
 
 export async function listHelpEvents(limit = 80) {
