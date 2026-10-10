@@ -1,106 +1,134 @@
-# Current portal guide
+# Magic Keys staff guide
 
-## Source and hosting
-The website runs on Azure App Service magickeys-balwyn-portal with container magickeysbalwyn.azurecr.io/magickeys-portal:<git-sha>. The current source repository is fencemate2026-pixel/balwyn-high-access-portal. A GitHub merge alone is not live on Azure: rebuild the image from the reviewed SHA and restart the app. Foundry provides Q&A; App Service hosts the website.
+<!--
+This guide is the only source the in-portal help assistant ("Ask Magic Keys") uses. It is written for school staff. It describes what is on screen and how to use it. Keep it free of technical, hosting, security or configuration detail: that belongs in docs/INTERNAL_TECHNICAL_HELP_NOTES.md. The help index build refuses to publish this file if it contains internal details.
+Edit with care: every sentence here can be shown to any signed-in staff member.
+-->
 
-## Opening a gate and six-second pulses
-Use the gate's Remote open control for the Compass ACB-004 Pi integration. The gateway waits up to 5 seconds and accepts pulse acknowledgements from 300 to 10,000 milliseconds. The browser waits up to 8 seconds. Although the acknowledgement validator accepts a six-second pulse duration, the five-second gateway timeout may expire first. The bundled pi-door-service tests constrain pulses to 300–800 ms; do not infer support for a longer installed pulse from gateway validation alone. There is exactly one request and no automatic retry. A pulse acknowledgement confirms the trigger only, not that the gate physically opened. Independent sensors are needed to confirm position. If a request times out, inspect the gate before retrying.
+## What Magic Keys is
+Magic Keys is the school's gate-operations portal for approved staff. It shows the live status of the school's installed gates, lets authorised staff open or close them with a confirmation step, keeps the gate schedules and stadium hire bookings, and records every important action in a permanent activity log. The two active gates are Tony Frizza Stadium Entry and Side Entry. Other gates on the site are listed for future activation and cannot be operated yet. Magic Keys is supplied and supported by RJL Commercial Group.
 
-## Active gates
-Tony Frizza Stadium Entry and Side Entry are the two active single swing gates. The remaining seven registered gates remain inactive, including the office double gates, staff car park gates and boom gates. Channel assignment does not activate an inactive gate.
+## Finding your way around
+The left menu holds every page: Campus overview (the dashboard), Gate schedules, Stadium hire, CCTV & zones, Emergency guidance, Automation, Safety protocol, Access & users, Activity log and System settings. On a phone, tap the menu button to show the menu. The header across the top shows the fire / evacuation button, the system state, controller status and the alerts bell. The week calendar and local weather appear above each page. The Ask Magic Keys button in the corner opens this help chat on every page.
 
-## Equipment settings
-The current portal has no Equipment settings screen. The Compass ACB-004 remote-open path is configured only on the server: DOOR_SERVICE_URL (Pi address), DOOR_SERVICE_TOKEN (secret) and DOOR_GATE_MAP (which relay channel each gate uses). A stored remote-open switch can only disable that path; it never changes the channel mapping. No hardware connection is inferred from a configured mapping.
+## Roles: viewer, operator and administrator
+Every account has one role, shown on screen as View-only operator, Authorised operator or System administrator.
+- Viewer: can see gate status, schedules, bookings and the activity log. Cannot operate gates or change anything.
+- Operator: everything a viewer can do, plus open and close the active gates and add stadium hire bookings (without automatic gate opening).
+- Administrator: everything an operator can do, plus the fire / evacuation button, gate schedules, automation rules, staff accounts, system settings, recording gate services and editing other people's profiles.
+Some administrator changes also need the administrator settings password (see Unlocking administrator settings). Changing your name or photo never changes your role. Only an administrator can change a role.
 
-## Pi configuration export
-Pi pulse duration (300–10,000 ms), four BCM GPIO pins, polarity, GPIO chip and mock/dry-run/hardware mode are saved for export only. Download Pi configuration exports a file for reviewed local installation. Saving the portal does not update the Pi. Existing Pi tokens and journal paths are preserved, not exported. The bundled pi-door-service tests constrain its pulse duration to 300–800 ms with a default of 500 ms. Exported values do not change those bounds. Verify the selected service implementation and commissioning record before applying configuration; do not weaken its safety bounds to match a portal field.
+## Signing in
+On the sign-in page you can use your school email and password, Sign in with Google, or Sign in with Microsoft (when your school uses it). Only approved accounts can sign in. Operators and administrators who sign in with email and password also enter a six-digit code from an authenticator app. The first time, the portal shows how to set up the authenticator. If Google or Microsoft says your account is not approved, ask your school's portal administrator.
 
-## Login and administrator password
-Normal sign-in and the administrator settings unlock are separate. Only an administrator can unlock configuration for ten minutes. Lock settings ends the unlock early. The login page has a password-reset request link. It requests administrator assistance rather than automatically issuing a reset email. Google, Microsoft and email sign-in availability depends on runtime configuration. Never paste passwords or service tokens into the helper.
+## Forgotten password or new account setup
+Select Forgot password? on the sign-in page. Your school's portal administrator can send you a new setup link from Access & users. The link lets you choose a new password (at least 12 characters), works once and expires after 72 hours. Choosing a new password stops the old one working. Google and Microsoft passwords are managed by Google and Microsoft, not by Magic Keys. Never type a password into the help chat.
 
-## Profiles and access
-Use the user profile editor for display name, username, contact details and photo. Photos use the R2 storage binding. Roles remain enforced on the server: viewers can read, operators can issue permitted commands, administrators can change protected configuration after unlocking. Controller credentials are issued separately and are not login passwords.
+## Signing out and session length
+Use the sign-out icon at the bottom of the left menu. For security, Magic Keys also signs you out when you close the tab, leave the site or reload the page, and a sign-in lasts at most 8 hours. If you are signed out unexpectedly, simply sign in again.
 
-## Schedules, automation and controllers
-Schedules and automation have dedicated pages. Operators and administrators can save gate schedules; automation rules need an administrator with the settings password. Schedule data alone is not proof that a physical gate follows it. The sensor-equipped controller workflow uses polling, heartbeats, a command queue and acknowledgements. Offline, uncommissioned or unsafe controllers cannot be treated as working live devices. Compass one-way relay open is a separate workflow without position feedback.
+## Campus overview (dashboard)
+Campus overview is the home page. Each active gate has its own card showing a 3D view of the gate, its current state, a health badge, OPEN and CLOSE buttons, temperature, heartbeat, safety input and the gate cycle counter. Below the gate cards are the Gate service panel and three gauges: Controller connection, Gate commissioning and Safety feedback. Select Gate controls on a card for that gate's full control panel.
 
-## Roger controller and magnetic lock
-The existing Roger F70/IPU36 motor configuration, force, travel limits, safety circuits, local auto-close and maglock release sequence are set at the installed controller. These parameters are not remotely rewritten by this portal. Consult the project's Compass wiring reference and the installed equipment documentation. The helper has no ability to actuate equipment or change safety settings.
+## Gate card health badges and readings
+The health badge on each gate card means:
+- Controller online: the gate controller has reported in recently and its safety input is healthy.
+- Awaiting feedback: the controller is reporting but the gate position or safety input is not confirmed yet.
+- Attention required: the controller reported a fault, the safety input is blocked, or the last command failed or was blocked.
+- Controller offline: nothing has been heard from the controller for more than 90 seconds.
+- Not commissioned: the controller has not been set up and checked on site yet.
+Heartbeat shows how many seconds ago the controller last reported. Temperature shows No sensor fitted when the gate has no temperature sensor. Safety input shows Healthy, Blocked or Pending. On the 3D view you can drag to rotate, use the mouse wheel to zoom, right-drag to move and double-click to reset.
 
-## School site layer and meeting points
-The uploaded balwyn_site.json file is sentinel-layout/2 and contains 22 marked outdoor exits, two meeting points (School oval and Eastern meeting point), and a central shared path called PINCH. These are exit-reference IDs, not the nine gate-control IDs. Routes are advisory, unverified against the approved emergency plan, with distances approximately ±10%. No building interiors, accessible-route distinction or refuges are included. The interactive site reference shows recorded connections and distances, not actual path geometry. Previewing PINCH unavailable excludes routes through that shared path. If there is no recorded alternative, the display says so. The map is not a live evacuation instruction and does not operate gates, doors or projectors.
+## Opening or closing a gate
+1. Sign in as an operator or administrator. Viewers cannot operate gates.
+2. On Campus overview, find the gate card and press OPEN or CLOSE. You can also select Gate controls, then Review open command or Review close command.
+3. Read the confirmation, make sure the gate area is supervised and clear, then press Queue OPEN command (or Queue CLOSE command).
+4. The gate controller collects the command and reports back. The activity log shows the request and the controller's acknowledgement.
+The buttons are greyed out when the controller is offline, the safety input is not healthy, a command is already waiting, or a fire / evacuation is active. The gate's own safety equipment can still stop a command. If something looks wrong, check the gate in person before trying again.
 
-## CCTV, guidance and emergencies
-CCTV, PTZ tracking and projector guidance require the relevant plan and actual commissioned equipment. No camera feed, fire detection, projector broadcast or safe route is inferred from a demonstration. Lockdown is unavailable: resolveEmergencyCommand("lockdown") throws. Fire evacuation queues OPEN on ACTIVE_GATES only; results require controller acknowledgement and independent position feedback. Follow the school's approved emergency plan and authorised staff instructions. The helper cannot select live evacuation routes or initiate emergency actions.
+## Remote open
+Some gates also have a Remote open section in Gate controls (Control tab) when your school has this connection set up. Press Review remote open, check the confirmation, then press Send open pulse. If the screen asks for a remote-open code, use the one supplied to your school and never share it in chat. A success message means the open signal was accepted; it does not prove the gate was seen opening, so look at the gate if it matters. If there is no confirmation, check the gate in person before trying again, and do not press repeatedly. To protect the gates, the portal refuses repeat requests for the same gate within a few seconds, and limits how many requests one person can make in a minute. Every remote-open request is recorded in the activity log with your name.
 
-## Knowledge helper
-The software helper searches the bundled project guides and can use an AI provider to explain matching excerpts. Source excerpts remain available when no AI key is configured. Answers cannot operate gates or edit settings. If the guides do not establish an answer, the helper must say so. For Claude, set AI_PROVIDER=anthropic, store ANTHROPIC_API_KEY as a server secret and optionally set ANTHROPIC_MODEL. For OpenAI, select AI_PROVIDER=openai with OPENAI_API_KEY and optionally OPENAI_MODEL. Deploy after changing server configuration. Never paste keys into the help chat. A configured key is not proof of a successful provider response; the panel says AI connected only after an answer succeeds. Questions, recent conversation, matching guide passages and limited non-secret context are sent to that provider only when configured. No account credentials, user profiles, footage or activity records are automatically included.
+## Gate controls panel
+Select Gate controls on a gate card to open the panel for that gate. Control tab: the command steps, the last command and the open and close buttons (and Remote open when available). If controls are blocked, the panel explains why, for example a view-only role or an active emergency. Schedule tab: that gate's weekly operating schedule, with Edit full schedule. Details tab: asset ID, controlled area, gate type, controller, safety input, last contact and last command.
 
-## Classroom projection screen
-The classroom concept preview uses the new GuidanceProjection component. Its example is the uploaded site layer's Exit 12 → central crossing (70.9 m) → School oval (17.2 m), approximately 88.1 m in total. The first instruction is to leave by Exit 12; the screen also says to stay clear of the internal driveway. This is an outdoor recorded connection, not a verified route from a named classroom. The displayed demonstration label remains visible. No live incident, connected projector or safe route is claimed.
+## Gate cycle counter
+Each gate card shows Gate cycles since service: how many times the gate has been opened through Magic Keys since its last recorded service, out of the service limit (normally 4,000), with a progress bar, the total count and the next service date. The state shows Within service limits, Service soon (from 90 % of the limit), Service due, or Service due: limit reached. The counter only counts openings sent through Magic Keys and confirmed (portal open commands and remote opens). Fob, keypad, exit-button and school-system openings are not counted until gate position sensors are fitted, so real use can be higher. If the card says Not active yet, cycle counting has not been switched on for your site.
 
-## Pi deployment status and commissioning
-At the owner's update on 19 September 2026 no Pi is deployed. There is no existing service URL, issued token or decided relay mapping to recover. School IT must first establish an approved route from the cloud portal to a genuine reachable HTTPS origin. The origin must have a valid certificate, no embedded credentials, no extra path, query or fragment. Generate a private printable service token of at least 32 characters during deployment, and configure the same value as Pi DOOR_API_TOKEN and portal DOOR_SERVICE_TOKEN without placing it in chat or Git. Decide and verify the channel assignment against the actual wiring. Software tests and a published pulse fix do not prove physical gate operation. Field commissioning requires witnessed operation and onsite sign-off using the selected service's verified pulse bounds. A 200 pulse acknowledgement alone is not evidence that the gate opened. The independent sensor-controller agent has its own controller credentials when that workflow is used.
+## Gate service schedule
+Gates are due for service every 6 months or after 4,000 gate cycles, whichever comes first. The Gate service panel on Campus overview shows the next scheduled service date and which gate it is for, and warns when any gate is near or past its limit. RJL is alerted automatically when a gate reaches the cycle limit before its scheduled date, so a service can be booked early. To book or ask about a service, contact RJL.
 
-## Shared-path inspection note
-The recorded shared path to the oval is 17.2 m. Many recorded routes converge there. Inspect the physical opening on site: the route data does not establish its width, whether it is a single fence opening, or its capacity. Do not infer a confirmed bottleneck or a hardware remedy from distance alone.
+## Recording a completed service
+After a gate has been serviced, an administrator records it so the counter starts again:
+1. On Campus overview, find the Gate service panel and press Record service.
+2. If asked, enter the administrator settings password.
+3. Choose the gate and the date the service was completed (not a future date), then press Record service.
+The gate's cycles-since-service count resets to 0, the next scheduled service is set 6 months after the service date, and the activity log records who did it. The total count is kept.
 
-## Dashboard and navigation
-Use the left navigation to open Dashboard, Gates & booms, CCTV & zones, Emergency guidance, Gate schedules, Automation, Safety protocol, Access & users, Activity log, or System settings. On a phone use the menu button to reveal navigation. The dashboard shows the two active gates. The Magic Keys AI-head background is branding, not an indicator that an AI controller is connected. The help button remains available across the signed-in workspace.
+## Gate schedules
+Open Gate schedules from the left menu. Choose the gate in Select gate, then set the Open time and Close time for each day and switch Automatic schedule on or off for that day. Copy Monday to weekdays copies Monday's times to Tuesday to Friday. Press Save schedule when done; the button says No unsaved changes when everything is saved. Changing schedules needs an administrator with the administrator settings password (the portal asks for it when you save). Operators and viewers can look but not change them. A fire / evacuation overrides schedules. A saved schedule is a plan for the controller; the activity log shows what the gate actually did.
 
-## Gate lights, offline status and position
-A green gate light represents confirmed open position and red represents confirmed closed position only when independent position feedback is current. Inactive gates are grey. Unknown, uncommissioned, offline, pending or failed controller states must not be read as open or closed. Controller feedback older than 90 seconds is stale. The ACB-004 open-only pulse has no position sensors; a successful trigger does not turn its physical position into a verified fact.
+## Stadium hire bookings
+Open Stadium hire from the left menu, or New booking on the week calendar. The week board shows each day's bookings by space. Use the arrows and Today to move between weeks, and Calendar for the month view. To add a booking (operators and administrators):
+1. Press New booking.
+2. Fill in the client's Full name, Email and Phone, the Space, Date, Start and End time, and whether a deposit was received (and the amount).
+3. Optional, administrators only: under Gates opened automatically for this booking, tick the gates to open and set how many minutes before the start to open and after the end to close (0 to 120, normally 15). This needs the administrator settings password. Operators save bookings without gates.
+4. Add any comments and press Save client and booking.
+A booking that overlaps another booking in the same space is refused. Viewers can see bookings but not the client's email or phone. Bookings cannot be edited or cancelled in the portal yet: contact your portal administrator or RJL to change one.
 
-## Activity log and CSV export
-Open Activity log to review operator requests, settings changes and controller acknowledgements. Use Export CSV to download the displayed activity records; the button is unavailable when the list is empty. An entry saying requested or queued is not a completed operation. Read the acknowledgement or failure and its time when investigating a fault. The helper does not read or send the activity records to the AI provider.
+## Week calendar and weather
+The week calendar above each page shows bookings and gate open times for the week. Select a day to see its bookings and gate open windows, labelled Weekly schedule, Stadium hire or Automation. Use the arrows and Today to change week. The weather panel shows the local temperature, wind, rain and humidity for Balwyn with a 7-day forecast. The forecast comes from a public weather service and is for information only.
 
-## Editing a profile photo or name
-Open Access & users and use the profile editor to change your own display name, portal username, contact information, job title or profile photo. Save the profile after editing. Use the photo controls to upload or remove your image. Changing a display name does not grant a different access role or change the sign-in password. Managing another person's profile requires administrator authority and the settings unlock.
+## Automation rules
+Automation is for extra operating rules, such as holding a gate open for an event. It needs an administrator who has unlocked settings. Under Build a rule enter a Rule name, choose the Gate, choose Repeat (every week on chosen days, or once on a date), and set Hold open from and Release at, then press Add automation rule. Configured rules lists every rule with a switch to pause or enable it and a button to delete it. Rules are plans for the gate controller; the activity log shows what happened.
 
-## Plan upgrades and locked features
-Gate Operations is the core plan. Camera and advanced emergency-guidance features require Magic Keys Advanced. A module switch, relay assignment or administrator password does not grant a plan upgrade. Use the upgrade enquiry in the locked feature or contact RJL. Upgrading the plan does not connect cameras or commission hardware automatically; those are separate installation tasks. The outdoor site reference remains an advisory reference.
+## Unlocking administrator settings
+Some administrator changes need the separate administrator settings password, as well as an administrator sign-in. This covers gate schedules, automation rules, bookings that open gates automatically, staff sign-in accounts, system settings, gate controller set-up, recording a gate service and editing other people's profiles. Enter the password when the portal asks (for example on Automation or System settings) and press Unlock settings. The unlock lasts 10 minutes and is recorded in the activity log. Press Lock settings to end it early. Operator and viewer accounts cannot unlock settings. If you do not know the password, ask your school's portal administrator or RJL.
 
-## CCTV and camera connections
-Open CCTV & zones for the camera workspace or feature preview. Camera event verification is a module in System settings. No live footage is connected merely because this switch is enabled. Camera feeds and authorised endpoints need separate commissioning. The multi-screen scenes and sample cameras explain the concept; they are not live surveillance. The helper cannot see camera footage, identify people or detect incidents.
+## Access & users: your profile
+Open Access & users and use Your profile to change your Display name, Portal username, Contact email, Phone and Role / job title. Use Change photo to upload a PNG, JPEG or WebP image up to 3 MB, or Remove photo. Press Save profile when done. Contact details do not change your access or role. Administrators who have unlocked settings can use Manage users to edit another person's profile.
 
-## Gate schedules and automation rules
-Open Gate schedules, select the gate and edit its weekly operating times before saving; operators and administrators can do this. Open Automation for operating rules; these need an administrator with the settings password. A saved timetable or enabled rule is stored configuration, not evidence that the Pi or controller has executed it. Check the commissioned controller workflow and activity acknowledgement. Do not assume an overnight hold or an automatic release is supported without confirming the installed controller behaviour.
+## Access & users: staff sign-in accounts
+Administrators manage staff accounts in Staff sign-in accounts on Access & users. Every change needs the administrator settings password; the portal asks for it if settings are locked.
+- To add someone: enter their Full name, School email and Role, then press Create account. Copy the setup link shown and send it to them; it works once, expires after 72 hours and is not shown again.
+- To change a role: choose the new role. The person must sign in again.
+- New setup link: use when someone forgot their password or their link expired. Their old password stops working.
+- Disable: signs the person out and stops them signing in. Enable lets them back in.
+Status shows Active, Waiting for password, Setup link expired or Disabled. Google or Microsoft sign-in for a new person must be approved by RJL.
 
-## Remote-open troubleshooting
-If Remote open says not configured, the HTTPS service endpoint, shared secret and relay assignment have not all been installed. If configuration is incomplete, have the administrator review the endpoint format, token and map without posting them into chat. If no verified pulse acknowledgement is received, the trigger may already have occurred: inspect locally before another request. Do not repeatedly press Open. A dry-run response is a simulation. Inactive gates are blocked; emergency priority can also block manual remote open. Viewer accounts cannot operate gates.
+## Activity log
+Activity log is the permanent record of gate commands, remote opens, controller acknowledgements, schedule and settings changes, settings unlocks, gate services and emergency actions, with the time and the person's name. Entries cannot be edited or deleted. Press Export CSV to download the list as a spreadsheet file. An entry that says requested or queued is not proof that a gate moved: look for the controller's acknowledgement or failure entry after it.
 
-## Administrator unlock and access troubleshooting
-Sign in as an administrator, open System settings, then enter the separate administrator settings password. A normal portal sign-in does not unlock relay settings. The unlock lasts ten minutes and can be ended with Lock settings. If controls relock, unlock again. If access is denied, confirm the approved account and role with RJL; changing profile details cannot bypass approval. Forgot password on the login page requests administrator assistance and does not itself reset the password.
+## System settings
+System settings is for administrators who have unlocked settings. It shows the Current plan, shortcuts to relay controllers, schedules and automation, and the Monitoring switches: Gate-position monitoring (shows or pauses position feedback on screen), Fault alerts (emails RJL when a commissioned gate reports a fault; alerts for a controller that stops reporting are added at commissioning), and Australian English announcements (spoken gate and fire messages). Platform modules switch optional features on or off for your plan. Press Lock settings when finished.
 
-## Voice announcements and refresh interval
-Administrator equipment settings include dashboard refresh from 5 to 60 seconds, announcement speed from 0.5 to 1.5 and volume from 0 to 1. Monitoring settings include Australian English announcements. Device volume, browser speech support and available voices affect playback. Muting voice does not change a gate. Refreshing the dashboard polls portal data and does not prove the physical controller is connected.
+## Fire / evacuation button
+The fire / evacuation button is always at the top of the screen. Only administrators can use it; for everyone else it shows Administrator approval required.
+1. Press START FIRE / EVACUATION.
+2. Read the confirmation and press Issue OPEN commands.
+3. The portal sends an OPEN command to every active gate and shows the Gates & booms page with each gate's status, plus a Triple Zero (000) call link. If voice announcements are on, a spoken warning repeats.
+Always follow the school's emergency management plan and staff instructions first. The gates' own safety equipment still applies. Lockdown is not available on this site.
 
-## Controller credentials and relay commissioning
-Access & users contains Separate controller commissioning for the Pi gate controller (gate-controller/: one relay contact per gate, closed and open reed switches and a safety input). An administrator can issue or rotate a credential and download its setup file once. That credential is not the portal login or Pi DOOR_API_TOKEN. On the Pi it goes in /etc/balwyn-gate/<GATE>.token (root only, mode 600); follow gate-controller/deploy/INSTALL.md. Verify heartbeats, safety and position inputs. A gate follows schedules, bookings and rules only when its controller runs with SCHEDULE_CONTROL=true. Issued credentials alone do not mean a controller is online. Compass ACB-004 remote open is a separate integration; do not mix its token or status with this workflow.
+## Clearing a fire / evacuation
+An administrator presses Clear emergency priority, then Clear priority. This only clears the emergency mode in the portal. It does not close any gate and does not declare the site safe. Gates opened by the fire command can stay open: check each gate and press CLOSE where needed, following the school's all-clear procedure.
 
-## Project files, backups and deployment
-The complete project export includes the app frontend, server API routes, database schema and migrations, controller agent, Pi service, tests, guides and deployment package. Runtime secret values, live D1 records and R2 uploads are not included in a source export. Store secrets separately. Applying a GitHub change alone does not deploy the Azure website; the matching container image must be rebuilt and the App Service restarted. The bundled help index is rebuilt with the hosted build so guide updates ship with the matching version.
+## CCTV & zones and Emergency guidance (Magic Keys Advanced)
+CCTV & zones (AI camera verification and site zones) and Emergency guidance (evacuation directions for staff and classroom screens) are part of the Magic Keys Advanced package. If your school does not have this package, these pages show example screens and the message: Contact the team for more information on how to unlock this package. Use Book a walkthrough, Book a demo or Talk to Jarrod on those pages to arrange a demonstration. The example screens are illustrations, not live cameras or live evacuation routes.
 
-## Help chat, sources and privacy
-The Magic Keys help panel supports questions, follow-ups, current-page context, suggested questions, guide search and source passages. New chat clears the conversation in this browser tab. Reloading the page clears it too; conversations are not saved to the portal database or browser storage. When AI is configured, the current question, up to six recent messages, matching guides, page name, account role, plan and a non-secret configuration summary are sent to the configured provider, Anthropic (Claude) or OpenAI, named in the help panel. The account email, profile, activity log, footage, passwords and secret configuration values are not automatically sent. OpenAI requests use store:false. Claude uses the Anthropic Messages API. Provider handling and retention follow the applicable provider data policy; neither setting guarantees zero retention. Never type secrets or personal records into chat. Without a connection, the helper displays matching guide text clearly labelled as a guide excerpt. It cannot repair or operate hardware, change settings or reset passwords.
+## Safety protocol
+Safety protocol is the school emergency safety protocol for the portal. Magic Keys supports trained staff; it does not replace the school's Emergency Management Plan, the fire indicator panel, emergency services, onsite judgement or physical emergency controls. Its six principles are: 01 Named human authority (only the school's authorised incident controller activates, changes or clears an emergency mode; staff call Triple Zero when required); 02 Independent manual fallback (physical alarms, keys, releases and local controls still work if the portal, power, internet, cameras or a controller is unavailable); 03 No camera-only decisions; 04 Movement is locally protected (safety beams, edges, loops and obstruction sensing have the final say, and a fault blocks the command); 05 Only approved guidance (screens show routes from the school-approved emergency plan only); 06 Test, record and review. The Stop rule: if information conflicts, a safety input is unhealthy, confirmation is missing or the real situation is uncertain, stop automation, use the approved manual procedure and follow authorised staff and emergency services. On the core plan this page shows Please contact RJL for access.
 
-## Per-account roles and existing accounts
-Each approved account can be assigned viewer, operator or administrator. Google approval entries accept email|role; Microsoft entries accept tenant-id:object-id|role. Password accounts use PORTAL_ROLE and PORTAL_SECONDARY_ROLE. Existing unannotated accounts retain administrator access for compatibility; this does not mean that school staff have already been assigned lower-privilege roles. RJL must explicitly configure those assignments. Invalid or duplicate role entries fail closed. Changing or removing an assignment invalidates the affected signed-in session and pending password verification; sign in again. Viewer access can read, operator access can issue permitted gate commands, and administrator access can manage protected settings after password verification. The helper cannot assign a role.
+## Plans and upgrades
+Gate Operations is the core plan. Magic Keys Advanced adds CCTV & zones, Emergency guidance and related modules. An administrator can press Upgrade plan in System settings or Discuss your school's upgrade on Campus overview to contact RJL. Upgrading does not connect cameras or other equipment by itself; installation is arranged with RJL.
 
-## Controller reporting versus field commissioning
-Controller reporting indicates current received heartbeat data. The internal legacy commissioned flag records that an initial healthy heartbeat with a known position was received; it is not a field commissioning record. No gate movement is required to set that flag. Reserve field commissioning for witnessed open-and-auto-close and the required onsite checks and sign-off. Neither a heartbeat nor the dashboard counts certify that this has happened.
+## Alerts bell, system state and controller status
+The header shows System state (No emergency active, or the emergency in progress), Controller status (All systems ready, or Commissioning while gates are still being set up) and the alerts bell. If a gate shows Attention required or Controller offline for more than a few minutes, check the gate and contact RJL.
 
-## Detection trial and false-alarm performance
-Site-specific detection and false-alarm performance established at the paid trial stage. The portal does not publish a validated detection accuracy or false-alarm rate for the school. Concept demonstrations do not establish real-camera performance and must not be described as a tested live detection service.
+## Reporting a fault or getting support
+For gate faults, damage, a gate that will not open or close, the portal not loading or showing an error, or anything that looks unsafe: make the area safe first, then contact RJL Commercial Group at info@rjlcommercialgroup.com. Include the gate name, the time and what happened. The activity log time stamps help RJL find the problem quickly. For account or password problems, ask your school's portal administrator first.
 
-## Missing recorded alternatives are not blocked physical exits
-When the shared path is excluded, 17 of the 22 exits have no recorded alternative in the supplied outdoor layer. This is a limitation of the traced data, not evidence that those exits are physically stranded or that no other route exists. The layer contains the routes drawn in the supplied overlay. Inspect and measure the opening and have the school verify routes before presenting any bottleneck finding or proposing a hardware remedy.
+## Using the help chat
+Ask Magic Keys answers questions about using the portal: where things are, what a screen means and the steps to follow. It cannot press buttons, open gates, change settings, reset passwords or see cameras. It does not know live gate positions. Questions are recorded (without your email address) so RJL can improve the help, and may be reviewed by RJL; see the privacy policy. Do not type passwords, codes or personal details into the chat. For anything the chat cannot answer, contact your portal administrator or RJL.
 
-## Owner access and restricted school accounts
-A server-configured owner account has administrator permissions and access to advanced software sections. Owner access is established from verified Google sign-in or the configured password account, not from profile edits or browser claims. Other accounts retain their assigned roles and the school's plan. The deployment can restrict all sign-in paths to an explicit email list; removing an email rejects its existing sessions too. School operator accounts can use permitted controls for the two active gates and read status, but cannot unlock administrator settings, manage other users, issue controller credentials or issue emergency commands. The settings password, authenticator and physical safety checks still apply to owner actions. Owner access does not make unconfigured equipment or AI services live.
-
-## How the helper learns the app
-The helper reads relevant passages from the bundled project guides each time you ask a question. It uses your current page, account role and plan to explain the documented controls. It does not retrain itself, permanently remember conversations or accept file uploads in the help panel. To update its knowledge, update the project guides and publish the site; the help index is rebuilt during each hosted build. It can explain documented settings but cannot apply changes or operate equipment.
-
-## One process per relay and help boundaries
-Do not run pi-door-service and balwyn-gate on the same relay board. The selected controller must be the sole output owner; retaining mock tests is not permission to start a second service. Map active gates explicitly to verified REX channels, never by array position. Foundry and help/MCP integrations are Q&A only: no tools may call /api/doors/open or submit action:emergency. DOOR_SERVICE_TOKEN, DOOR_API_TOKEN and FOUNDRY_API_KEY stay server-side, never in NEXT_PUBLIC_* or client bundles.
+## Privacy, cookies and security
+The Privacy policy and Terms of use are linked at the bottom of the sign-in page. They explain what information Magic Keys keeps (such as account details, the activity log, stadium hire bookings and help questions), why, where it is stored and who to contact with a privacy question. Your browser needs cookies enabled: Magic Keys uses a secure sign-in cookie to keep you signed in, and connections to the portal are encrypted. The cookies are not used for advertising or tracking. Never share your password or authenticator codes with anyone, including in this chat.
