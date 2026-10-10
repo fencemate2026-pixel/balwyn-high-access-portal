@@ -66,6 +66,10 @@ test("the real controller commissions, opens on a portal command and is confirme
   assert.equal(command.command, "open");
   assert.equal(command.state, "acknowledged", `${command.detail}\n${output}`);
   assert.match(command.detail, /open confirmed by reed switch/);
+  // The confirmed OPEN is one gate cycle on the service counter (counted once, not per heartbeat).
+  const cycles = (await pg.query("SELECT operations_since_service, total_operations FROM gate_service_counters WHERE gate_id = 'TF-ENTRY'")).rows[0];
+  assert.equal(cycles?.operations_since_service, 1);
+  assert.equal(cycles?.total_operations, 1);
   const gate = (await pg.query("SELECT commissioned, safety_ok FROM gate_states WHERE gate_id = 'TF-ENTRY'")).rows[0];
   assert.ok(gate.commissioned);
   assert.match(output, /relay_on_writes=1/);

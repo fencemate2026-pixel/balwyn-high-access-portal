@@ -62,3 +62,35 @@ test("malformed or reversed date windows are refused", async (t) => {
   assert.equal((await get("?from=24-09-2026")).status, 400);
   assert.equal((await get("?from=2026-10-01&to=2026-09-01")).status, 400);
 });
+
+test("impossible dates and times are refused before reaching the database, with plain messages", async (t) => {
+  const { post } = await setup(t, "operator");
+  for (const [change, message] of [
+    [{ date: "2026-02-30" }, /hire date/], [{ date: "2099-01-01" }, /two years ahead/], [{ startTime: "25:00" }, /start and end times/],
+    [{ endTime: "21:61" }, /start and end times/], [{ depositLeft: true, depositAmount: 1e9 }, /deposit amount/], [{ depositLeft: true, depositAmount: 10.005 }, /deposit amount/],
+  ]) {
+    const response = await post({ ...booking("2026-11-20", "Edge Case"), ...change });
+    assert.equal(response.status, 400, JSON.stringify(change));
+    const body = await response.json();
+    assert.match(body.error, message);
+    assert.doesNotMatch(body.error, /balwyn_portal|syntax|relation|column|invalid input/i);
+  }
+});
+
+test("deposits in dollars and cents save exactly, including amounts like $19.99", async (t) => {
+  const { post } = await setup(t, "operator");
+  for (const [amount, date] of [[19.99, "2026-11-21"], [4.35, "2026-11-22"], [0.29, "2026-11-23"], [150, "2026-11-24"]]) {
+    const response = await post({ ...booking(date, `Deposit ${amount}`), depositLeft: true, depositAmount: amount });
+    assert.equal(response.status, 200, `${amount}: ${JSON.stringify(await response.clone().json())}`);
+  }
+});
+
+test("operators can book without gates, but a booking that opens gates needs an administrator with settings unlocked", async (t) => {
+  const { post } = await setup(t, "operator");
+  const withGates = await post({ ...booking("2026-11-25", "Gate Club"), gateIds: ["TF-ENTRY"], leadMinutes: 120, lagMinutes: 120 });
+  assert.equal(withGates.status, 403);
+  assert.equal((await withGates.json()).code, "admin_password_required");
+  assert.equal((await post({ ...booking("2026-11-25", "Gate Club"), gateIds: [] })).status, 200);
+  assert.equal((await post(booking("2026-11-26", "Default Club"))).status, 200, "no gates unless explicitly ticked");
+});
+

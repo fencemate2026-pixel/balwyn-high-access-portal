@@ -15,6 +15,9 @@ export async function databaseFixture(t) {
   // Hire tables and the linked gate automation migration: the controller engine reads both.
   await pg.exec(readFileSync(new URL("../supabase/migrations/20260921103400_hire_bookings_balwyn_portal.sql", import.meta.url), "utf8"));
   await pg.exec(readFileSync(new URL("../supabase/migrations/20260926090000_linked_gate_automation.sql", import.meta.url), "utf8"));
+  await pg.exec(readFileSync(new URL("../supabase/migrations/20260924210000_help_events.sql", import.meta.url), "utf8"));
+  // Gate service counters, RJL alert outbox, append-only activity log (10 Oct 2026).
+  await pg.exec(readFileSync(new URL("../supabase/migrations/20261010090000_gate_service_and_rjl_alerts.sql", import.meta.url), "utf8"));
   await pg.exec("SET ROLE balwyn_app; SET search_path = balwyn_portal, pg_catalog;");
   const statement = (sql, values = []) => ({
     sql: postgresPlaceholders(sql), values,
