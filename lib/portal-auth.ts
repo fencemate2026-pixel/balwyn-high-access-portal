@@ -8,6 +8,7 @@ import { googleAccountRoles, microsoftAccountRoles } from "./auth-settings";
 import { configuredRole } from "./account-roles";
 import { portalEmailAllowed, withOwnerAccess } from "./owner-access";
 import { requestOrigin, requestProtocol } from "./request-origin.ts";
+import { clientAddress } from "./client-address.ts";
 
 const COOKIE_NAME = "balwyn_operator_session";
 const MFA_COOKIE_NAME = "balwyn_operator_mfa";
@@ -507,7 +508,7 @@ export async function requireOperator(request: Request, minimum: "viewer" | "ope
 }
 
 export async function requestFingerprint(request: Request): Promise<string> {
-  const address = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const address = clientAddress(request);
   const agent = request.headers.get("user-agent") ?? "unknown";
   return hmac(`${address}\n${agent}`, sessionSecret());
 }
