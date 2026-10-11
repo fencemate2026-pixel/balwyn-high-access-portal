@@ -1,4 +1,5 @@
 import { getSql } from "@/db";
+import { clientAddress } from "@/lib/client-address";
 import { createMfaChallengeCookie, clearMfaChallengeCookie, createSessionCookie, credentialIdentity, getOrCreateTotpEnrollment, recordAccountSignIn, requestFingerprint, signInRateKey, verifyAccountCredentials, verifyOperatorCredentials } from "@/lib/portal-auth";
 import { recordActivity, getPortalSnapshot } from "@/lib/portal-store";
 import { isSameOriginSignInRequest } from "@/lib/google-signin";
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   try {
     // Both rate-limit reservations in one database round trip.
     await reserveSignInAttempts(getSql(), [
-      { key: await signInRateKey(`email:ip:${request.headers.get("cf-connecting-ip") ?? "unknown"}`), limit: 24 },
+      { key: await signInRateKey(`email:ip:${clientAddress(request)}`), limit: 24 },
       { key: await signInRateKey(`email:account:${body.email.trim().toLowerCase()}`) },
     ]);
     // Site accounts (Render/Azure settings) win over per-person accounts; both

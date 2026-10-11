@@ -1,4 +1,5 @@
 import { getSql } from "@/db";
+import { clientAddress } from "@/lib/client-address";
 import { microsoftSettings } from "@/lib/auth-settings";
 import { createMicrosoftSignInChallenge } from "@/lib/microsoft-signin";
 import { isSameOriginSignInRequest } from "@/lib/google-signin";
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
   try {
     const settings = microsoftSettings();
     const db = getSql();
-    await reserveSignInAttempt(db, await signInRateKey(`microsoft:ip:${request.headers.get("cf-connecting-ip") ?? "unknown"}`), 30);
+    await reserveSignInAttempt(db, await signInRateKey(`microsoft:ip:${clientAddress(request)}`), 30);
     const { cookie, url } = await createMicrosoftSignInChallenge(db, request, settings);
     headers.append("Set-Cookie", cookie);
     return Response.json({ url }, { headers });
