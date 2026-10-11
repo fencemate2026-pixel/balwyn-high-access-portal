@@ -21,6 +21,19 @@ function prepareWorkspace() {
   void import("./dashboard-client").catch(() => { /* Loading is retried when the workspace renders. */ });
 }
 
+/**
+ * Message shown when a sign-in request fails. A browser timeout or abort raises a
+ * DOMException whose text is engine wording ("signal timed out" in Chrome, "The
+ * operation timed out." in Firefox), which staff saw verbatim on 12 Oct 2026.
+ * Those are replaced with plain English; server messages pass through unchanged.
+ */
+function signInFailureMessage(reason: unknown, fallback: string): string {
+  if (reason instanceof DOMException && (reason.name === "TimeoutError" || reason.name === "AbortError")) {
+    return "The portal took too long to respond. Please try again in a moment.";
+  }
+  return reason instanceof Error ? reason.message : fallback;
+}
+
 let googleIdentityRequest: Promise<void> | null = null;
 function loadGoogleIdentity(): Promise<void> {
   if (window.google) return Promise.resolve();
@@ -133,7 +146,7 @@ export default function DemoLogin() {
       if (!result.ok || !body.snapshot) throw new Error(body.error || "Google sign-in was not accepted.");
       setSnapshot(body.snapshot);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Google sign-in was not accepted.");
+      setError(signInFailureMessage(reason, "Google sign-in was not accepted."));
       await refreshGoogleSignIn();
     } finally {
       signInBusyRef.current = false;
@@ -224,7 +237,7 @@ export default function DemoLogin() {
       if (body.snapshot) { setSnapshot(body.snapshot); setEnrollment(null); setCode(""); }
       else if (body.requiresAuthenticator) { setAuthenticator(true); setEnrollment(body.enrollment ?? null); setPassword(""); }
       else throw new Error("Sign-in could not be completed. Please try again.");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Sign-in could not be completed."); }
+    } catch (reason) { setError(signInFailureMessage(reason, "Sign-in could not be completed.")); }
     finally { signInBusyRef.current = false; setSubmitting(false); }
   }
 
