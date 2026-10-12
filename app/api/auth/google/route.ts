@@ -3,7 +3,7 @@ import { googleAccountRoles } from "@/lib/auth-settings";
 import { getSql } from "@/db";
 import { createSessionCookie, googleAllowedEmails, googleClientId } from "@/lib/portal-auth";
 import { authenticateGoogleSignIn, clearGoogleSignInCookie, isSameOriginSignInRequest } from "@/lib/google-signin";
-import { getPortalSnapshot } from "@/lib/portal-store";
+import { getPortalSnapshot, recordActivity } from "@/lib/portal-store";
 
 export async function POST(request: Request) {
   const headers = new Headers({ "Cache-Control": "no-store" });
@@ -21,8 +21,13 @@ export async function POST(request: Request) {
     if (!verifiedUser || !portalEmailAllowed(verifiedUser.email)) return Response.json({ error: "This sign-in request has expired or the Google account is not approved. Please try again with an approved account." }, { status: 403, headers });
     const user = withOwnerAccess(verifiedUser, "google");
     // getPortalSnapshot seeds a brand-new portal itself (no extra round trip).
+    // The sign-in is written to the permanent activity log in parallel, so the
+    // audit trail covers every sign-in method, not only view-only accounts.
     stage = "read_portal_snapshot";
-    const snapshot = await getPortalSnapshot(user);
+    const [snapshot] = await Promise.all([
+      getPortalSnapshot(user),
+      recordActivity(user, "Signed in", "Google account", "access"),
+    ]);
     stage = "create_session";
     headers.append("Set-Cookie", await createSessionCookie(user));
     headers.append("Set-Cookie", clearGoogleSignInCookie());

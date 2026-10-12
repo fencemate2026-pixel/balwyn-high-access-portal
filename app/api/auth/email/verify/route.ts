@@ -1,7 +1,7 @@
 import { getSql } from "@/db";
 import { clearMfaChallengeCookie, createSessionCookie, credentialIdentity, getMfaChallenge, recordAccountSignIn, requestFingerprint, signInRateKey, verifyAuthenticatorCode } from "@/lib/portal-auth";
 import { isSameOriginSignInRequest } from "@/lib/google-signin";
-import { getPortalSnapshot } from "@/lib/portal-store";
+import { getPortalSnapshot, recordActivity } from "@/lib/portal-store";
 import { reserveSignInAttempt, SignInRateLimitError } from "@/lib/signin-rate-limit";
 import { readSignInBody } from "@/lib/signin-request";
 
@@ -24,7 +24,12 @@ export async function POST(request: Request) {
     if (!await verifyAuthenticatorCode(challenge.user, body.code)) return Response.json({ error: "That code was not accepted. Enter the current code from your authenticator." }, { status: 401, headers });
     // getPortalSnapshot seeds a brand-new portal itself; the separate seeding
     // query was an extra round trip on every sign-in.
-    const [snapshot] = await Promise.all([getPortalSnapshot(challenge.user), recordAccountSignIn(challenge.user)]);
+    // The sign-in is also written to the permanent activity log (same round trip).
+    const [snapshot] = await Promise.all([
+      getPortalSnapshot(challenge.user),
+      recordAccountSignIn(challenge.user),
+      recordActivity(challenge.user, "Signed in", "Email, password and authenticator code", "access"),
+    ]);
     headers.append("Set-Cookie", await createSessionCookie(challenge.user, identity));
     headers.append("Set-Cookie", clearMfaChallengeCookie());
     return Response.json({ snapshot }, { headers });
