@@ -375,3 +375,21 @@ controller that is killed, must never leave a gate held open.
 * Service log: `journalctl -u balwyn-gate@TF-ENTRY`
 * Audit trail (every relay action, command and portal outage): `/var/lib/balwyn-gate/TF-ENTRY/audit.jsonl`
 * Portal: **Activity log** records every command and the controller's acknowledgement.
+
+
+## Fire / evacuation hold after a restart (15 Oct 2026)
+
+The controller remembers an active fire hold in `state.json`. If the controller stops and starts again (crash, power cut,
+update) within `EMERGENCY_RESTORE_MAX_S` (12 h) of the hold beginning, it switches the hold back on, logs
+`emergency_hold_restored`, and keeps it until the portal sends the all-clear close. Test C7b: during a fire hold run
+`sudo systemctl restart balwyn-gate@TF-ENTRY`; the relay must come back on within about 5 s and stay on. Then send the
+all-clear from the portal; the relay must go off, and another restart must NOT switch it on.
+
+To clear a hold the portal cannot end (portal down for good): stop the service, then
+`sudo python3 -c "import json,sys;p='/var/lib/balwyn-gate/TF-ENTRY/state.json';d=json.load(open(p));d['emergency_since']=None;json.dump(d,open(p,'w'))"`
+and start it again. Write that down on the site sheet; nothing else ends a restored hold.
+
+A hold older than `EMERGENCY_ALARM_S` (4 h) shows a fault on the portal ("Fire / evacuation hold has been on for N h").
+Opens are limited to `OPEN_RATE_MAX` (30) per `OPEN_RATE_WINDOW_S` (10 min); a fire open is never limited.
+While the local safety circuit is not healthy the portal now hands the controller a CLOSE (never an OPEN), so a fire hold
+can still be ended remotely.

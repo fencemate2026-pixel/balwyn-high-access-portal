@@ -24,7 +24,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "Invalid controller state." }, { status: 400 });
     }
     const commissioned = await recordHeartbeat({ gateId, position, safetyOk: body.safetyOk, faults: Array.isArray(body.faults) ? body.faults.map(String) : [], softwareVersion: typeof body.softwareVersion === "string" ? body.softwareVersion : undefined });
-    let command = body.safetyOk && commissioned ? await getNextControllerCommand(gateId) : null;
+    // An unhealthy safety input never receives an OPEN, but it may receive a CLOSE (releases a hold).
+    let command = commissioned ? await getNextControllerCommand(gateId, { closeOnly: !body.safetyOk }) : null;
     if (!command && body.safetyOk && commissioned && body.scheduleControl === true) {
       command = await getOrCreateScheduledControllerCommand(gateId);
     }

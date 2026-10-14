@@ -72,7 +72,7 @@ SETTINGS = (
     "TRAVEL_TIMEOUT_S", "AUTO_CLOSE_TIMEOUT_S", "DEBOUNCE_S", "SCHEDULE_CONTROL", "HOLD_MAX_S",
     "NETWORK_LOSS_RELEASE_S", "LOOP_STALL_S", "DRY_RUN", "CA_FILE",
     "UNLOCK_RELAY_PIN", "UNLOCK_SENSE_PIN", "UNLOCK_PULSE_S", "UNLOCK_CONFIRM_TIMEOUT_S", "UNLOCK_LEAD_S",
-    "RELAY_BOARD",
+    "RELAY_BOARD", "EMERGENCY_ALARM_S", "EMERGENCY_RESTORE_MAX_S", "OPEN_RATE_MAX", "OPEN_RATE_WINDOW_S",
 )
 MAX_UNLOCK_PULSE_S = 2.0  # an exit-button press, never a hold: the board times the unlock itself
 # GPIO lines that are pulled or driven HIGH by the Pi itself when the controller
@@ -130,6 +130,21 @@ def _pin(env: Mapping[str, str], name: str, required: bool) -> Optional[int]:
     if not (raw.isascii() and raw.isdigit()) or int(raw) not in VALID_PINS:
         raise ConfigError(f"{name} must be a BCM GPIO number between 2 and 27")
     return int(raw)
+
+
+def _check_token_file_mode(token_file: str, credentials_dir: str) -> None:
+    """A credential file other users can read is a leaked credential. The private copy systemd makes under
+    $CREDENTIALS_DIRECTORY is exempt (systemd already controls it)."""
+    if os.name == "nt":
+        return
+    try:
+        mode = os.stat(token_file).st_mode
+    except OSError:
+        return  # the read below reports the problem
+    if credentials_dir and os.path.realpath(token_file).startswith(os.path.realpath(credentials_dir) + os.sep):
+        return
+    if mode & 0o077:
+        raise ConfigError("CONTROLLER_TOKEN_FILE must not be readable by other users: chmod 600 it")
 
 
 def _relay_board(env: Mapping[str, str]) -> str:
@@ -206,6 +221,14 @@ class Config:
     unlock_confirm_timeout_s: float = 2.0
     unlock_lead_s: float = 0.5
     relay_board: str = "generic"
+    # A fire / evacuation hold is never ended by a timer. After this long it raises a visible fault instead.
+    emergency_alarm_s: float = 4 * 3600.0
+    # A fire hold that was on when the controller stopped is switched on again at start-up if it began less than
+    # this long ago (0 = never restore).
+    emergency_restore_max_s: float = 12 * 3600.0
+    # At most this many non-emergency OPEN commands per window: a runaway or hostile portal cannot cycle the gate.
+    open_rate_max: int = 30
+    open_rate_window_s: float = 600.0
 
     @property
     def monitor_only(self) -> bool:
@@ -241,6 +264,7 @@ class Config:
             token = env.get("CONTROLLER_TOKEN", "").strip()
             token_file = env.get("CONTROLLER_TOKEN_FILE", "").strip()
             if token_file:
+                _check_token_file_mode(token_file, env.get("CREDENTIALS_DIRECTORY", ""))
                 try:
                     token = Path(token_file).read_text(encoding="utf-8").strip()
                 except (OSError, UnicodeDecodeError) as error:
@@ -300,6 +324,10 @@ class Config:
             unlock_confirm_timeout_s=_num(env, "UNLOCK_CONFIRM_TIMEOUT_S", 2.0, 0.5, 10.0),
             unlock_lead_s=_num(env, "UNLOCK_LEAD_S", 0.5, 0.0, 5.0),
             relay_board=relay_board,
+            emergency_alarm_s=_num(env, "EMERGENCY_ALARM_S", 4 * 3600.0, 60.0, 48 * 3600.0),
+            emergency_restore_max_s=_num(env, "EMERGENCY_RESTORE_MAX_S", 12 * 3600.0, 0.0, 48 * 3600.0),
+            open_rate_max=int(_num(env, "OPEN_RATE_MAX", 30, 1, 1000)),
+            open_rate_window_s=_num(env, "OPEN_RATE_WINDOW_S", 600.0, 60.0, 3600.0),
         )
         pins = [p for p in (config.relay_pin, config.closed_reed_pin, config.open_reed_pin, config.safety_pin,
                             config.unlock_relay_pin, config.unlock_sense_pin) if p is not None]

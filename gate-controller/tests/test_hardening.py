@@ -498,5 +498,142 @@ class DeploymentHardeningTests(unittest.TestCase):
             self.assertIn(needed, text)
 
 
+class FireHoldSurvivesRestartTests(unittest.TestCase):
+    def fire(self, rig: Rig) -> None:
+        rig.run(1)
+        rig.portal.queue.append({"id": 10, "command": "open", "source": "emergency"})
+        rig.run(20)
+        self.assertTrue(rig.gate.relay_on())
+
+    def test_a_restart_switches_a_fire_hold_back_on(self) -> None:
+        rig = Rig(self)
+        self.fire(rig)
+        rig.ctl.shutdown()          # a service restart: the controller releases its relay on the way out
+        rig.build()                 # the new process
+        self.assertTrue(rig.gate.relay_on(), "the evacuation hold was silently ended by the restart")
+        self.assertIn("emergency_hold_restored", rig.audit_events())
+
+    def test_an_explicit_close_ends_it_for_good(self) -> None:
+        rig = Rig(self)
+        self.fire(rig)
+        rig.portal.queue.append({"id": 11, "command": "closed", "source": "emergency"})
+        rig.run(5)
+        self.assertFalse(rig.gate.relay_on())
+        rig.ctl.shutdown()
+        rig.build()
+        self.assertFalse(rig.gate.relay_on(), "the all-clear was forgotten by the restart")
+
+    def test_a_stale_record_is_not_restored(self) -> None:
+        rig = Rig(self)
+        self.fire(rig)
+        rig.ctl.shutdown()
+        state = Path(rig.tmp.name, "state.json")
+        data = json.loads(state.read_text(encoding="utf-8"))
+        data["emergency_since"] = data["emergency_since"] - 13 * 3600
+        state.write_text(json.dumps(data), encoding="utf-8")
+        rig.build()
+        self.assertFalse(rig.gate.relay_on())
+        self.assertIn("emergency_hold_not_restored", rig.audit_events())
+
+    def test_dry_run_never_restores_a_hold(self) -> None:
+        rig = Rig(self)
+        self.fire(rig)
+        rig.ctl.shutdown()
+        rig.extra["DRY_RUN"] = "true"
+        rig.build()
+        self.assertFalse(rig.gate.relay_on())
+
+    def test_a_long_fire_hold_raises_a_visible_alarm_but_is_not_ended(self) -> None:
+        rig = Rig(self, EMERGENCY_ALARM_S="60")
+        self.fire(rig)
+        self.assertFalse(any("Fire / evacuation hold has been on" in f for f in rig.ctl.faults))
+        rig.run(70)
+        self.assertTrue(any("Fire / evacuation hold has been on" in f for f in rig.ctl.faults))
+        self.assertTrue(rig.gate.relay_on())
+
+    def test_journal_remembers_and_forgets(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            journal = Journal(Path(tmp))
+            journal.set_emergency_hold(True)
+            self.assertIsNotNone(Journal(Path(tmp)).emergency_since)
+            journal.set_emergency_hold(False)
+            self.assertIsNone(Journal(Path(tmp)).emergency_since)
+            Path(tmp, "state.json").write_text(json.dumps({"done": {}, "in_flight": None, "emergency_since": "soon"}), encoding="utf-8")
+            self.assertIsNone(Journal(Path(tmp)).emergency_since)
+
+
+class OpenRateLimitTests(unittest.TestCase):
+    def test_too_many_opens_are_blocked_but_a_fire_open_never_is(self) -> None:
+        rig = Rig(self, OPEN_RATE_MAX="2", CYCLE_PULSE_S="2", TRAVEL_TIMEOUT_S="15", AUTO_CLOSE_TIMEOUT_S="40")
+        rig.run(1)
+        for command_id in (1, 2, 3):
+            rig.portal.queue.append({"id": command_id, "command": "open", "source": "manual"})
+            rig.run(60)
+        self.assertEqual(rig.acks_for(1)[0]["state"], "acknowledged")
+        self.assertEqual(rig.acks_for(2)[0]["state"], "acknowledged")
+        self.assertEqual(rig.acks_for(3)[0]["state"], "blocked")
+        self.assertIn("open commands in", rig.acks_for(3)[0]["detail"])
+        rig.portal.queue.append({"id": 4, "command": "open", "source": "emergency"})
+        rig.run(30)
+        self.assertEqual(rig.acks_for(4)[0]["state"], "acknowledged")
+
+
+class AckRouteTests(unittest.TestCase):
+    def test_a_404_that_is_not_the_portals_command_not_found_is_retried(self) -> None:
+        rig = Rig(self)
+        rig.run(1)
+        calls = []
+
+        def route_missing(command_id: int, *_a: object) -> None:
+            calls.append(command_id)
+            raise PortalError("HTTP 404", status=404)
+
+        rig.ctl.portal.ack = route_missing
+        rig.portal.queue.append({"id": 60, "command": "open", "source": "manual"})
+        rig.run(30)
+        self.assertGreater(len(calls), 1)
+        self.assertEqual(len(rig.ctl.pending_acks), 1)
+
+
+class TokenFileTests(unittest.TestCase):
+    def values(self, path: str, **extra: str) -> dict:
+        base = env(URL, "/tmp/x")
+        del base["CONTROLLER_TOKEN"]
+        return {**base, "CONTROLLER_TOKEN_FILE": path, **extra}
+
+    def make(self, directory: str, mode: int) -> str:
+        path = os.path.join(directory, "token")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(TOKEN)
+        os.chmod(path, mode)
+        return path
+
+    def test_a_token_file_other_users_can_read_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            for mode in (0o644, 0o640, 0o604):
+                with self.assertRaisesRegex(ConfigError, "readable by other users"):
+                    Config.from_env(self.values(self.make(tmp, mode)))
+
+    def test_a_private_token_file_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(Config.from_env(self.values(self.make(tmp, 0o600))).token, TOKEN)
+
+    def test_systemds_private_copy_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.make(tmp, 0o644)
+            self.assertEqual(Config.from_env(self.values(path, CREDENTIALS_DIRECTORY=tmp)).token, TOKEN)
+
+
+class NewSettingsTests(unittest.TestCase):
+    def test_defaults_and_ranges(self) -> None:
+        config = Config.from_env(env(URL, "/tmp/x"))
+        self.assertEqual((config.open_rate_max, config.open_rate_window_s), (30, 600.0))
+        self.assertEqual((config.emergency_alarm_s, config.emergency_restore_max_s), (4 * 3600.0, 12 * 3600.0))
+        for bad in ({"OPEN_RATE_MAX": "0"}, {"OPEN_RATE_WINDOW_S": "5"}, {"EMERGENCY_ALARM_S": "1"},
+                    {"EMERGENCY_RESTORE_MAX_S": "-1"}, {"OPEN_RATE_MAX": "x"}):
+            with self.assertRaises(ConfigError):
+                Config.from_env({**env(URL, "/tmp/x"), **bad})
+
+
 if __name__ == "__main__":
     unittest.main()

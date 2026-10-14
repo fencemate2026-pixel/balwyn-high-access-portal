@@ -4,12 +4,11 @@ Execution journal (state.json, atomic write + fsync):
   * the command id is written BEFORE the relay is touched ("in_flight");
   * after a restart, an id found there is never actuated again, even if the
     portal re-dispatches it (its 30 s lease expired while we were down);
-  * the last 200 ids are kept.
+  * the last 1000 ids are kept.
 A corrupt journal is moved aside (state.json.corrupt-<ts>) and reported as a
 fault, instead of stopping the controller forever with no heartbeat.
 
 Audit log (audit.jsonl): one JSON line per event, rotated at 2 MB, 5 files.
-Threat detection and labelling are tracked for continuous learning.
 """
 
 from __future__ import annotations
@@ -21,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-MAX_IDS = 200
+MAX_IDS = 1000   # each id is ~100 bytes; a bigger memory makes a replayed old command id much less likely
 AUDIT_MAX_BYTES = 2 * 1024 * 1024
 AUDIT_KEEP = 5
 
@@ -36,6 +35,9 @@ class Journal:
         self.faults: List[str] = []
         self.done: Dict[str, Dict[str, Any]] = {}
         self.in_flight: Optional[Dict[str, Any]] = None
+        # Wall-clock time a fire / evacuation hold began, while one is on. Kept across restarts so a crash or an
+        # update does not silently end an evacuation hold (the controller switches it on again at start-up).
+        self.emergency_since: Optional[float] = None
         # audit() is called from the control loop AND the relay watchdog thread.
         self._audit_lock = threading.Lock()
         self._write_fault_reported = False
@@ -59,6 +61,8 @@ class Journal:
                     raise ValueError("unexpected shape")
             self.done = done
             self.in_flight = flight
+            since = data.get("emergency_since")
+            self.emergency_since = float(since) if isinstance(since, (int, float)) and not isinstance(since, bool) and since == since else None
         except (ValueError, OSError) as error:
             aside = self.state_path.with_name(f"state.json.corrupt-{int(time.time())}")
             try:
@@ -70,7 +74,7 @@ class Journal:
 
     def _save(self) -> None:
         ids = list(self.done)[-MAX_IDS:]
-        payload = {"done": {k: self.done[k] for k in ids}, "in_flight": self.in_flight}
+        payload = {"done": {k: self.done[k] for k in ids}, "in_flight": self.in_flight, "emergency_since": self.emergency_since}
         tmp = self.state_path.with_suffix(".tmp")
         with open(tmp, "w", encoding="utf-8") as handle:
             json.dump(payload, handle)
@@ -123,6 +127,21 @@ class Journal:
                 self.faults.append(f"Execution journal could not be written ({error.strerror or type(error).__name__})")
             self.audit("journal_write_failed", {"id": command_id})
 
+    def set_emergency_hold(self, active: bool) -> None:
+        """Remember (or forget) that a fire / evacuation hold is on. A disk error is reported, never raised."""
+        if active:
+            if self.emergency_since is None:
+                self.emergency_since = time.time()
+        else:
+            self.emergency_since = None
+        try:
+            self._save()
+        except OSError as error:
+            if not self._write_fault_reported:
+                self._write_fault_reported = True
+                self.faults.append(f"Execution journal could not be written ({error.strerror or type(error).__name__})")
+            self.audit("journal_write_failed", {"emergency_hold": active})
+
     def interrupted(self) -> Optional[Dict[str, Any]]:
         """A command that was in flight when the process last stopped."""
         return self.in_flight
@@ -146,62 +165,3 @@ class Journal:
                 os.chmod(self.audit_path, 0o600)
             except OSError:
                 pass  # an audit write failure must never stop gate control; journal state is separate
-
-    # ----------------------------------------------------------------- threats (for learning)
-    def threat_detected(self, detection_id: str, source: str, confidence: float,
-                       location: str, distance_m: float, approach_speed: float = 0.0) -> None:
-        """Record a perimeter threat detection from thermal/radar/video."""
-        self.audit("threat_detected", {
-            "detection_id": detection_id,
-            "source": source,  # "THERMAL", "RADAR", "VIDEO", "FUSION"
-            "confidence": round(confidence, 4),
-            "location": location,  # "FRONT", "SPORTS", "STAFF", "EMERGENCY"
-            "distance_m": round(distance_m, 1),
-            "approach_speed": round(approach_speed, 2),
-        })
-
-    def threat_proposed(self, detection_id: str, model_id: str,
-                       confidence: float, proposed_action: str,
-                       reasoning: Dict[str, Any] | None = None) -> None:
-        """Record AI model's proposal before staff approval."""
-        data = {
-            "detection_id": detection_id,
-            "model_id": model_id,
-            "confidence": round(confidence, 4),
-            "proposed_action": proposed_action,  # "FULL_LOCKDOWN", "HEIGHTENED_ALERT", "MONITOR"
-        }
-        if reasoning:
-            data["reasoning"] = reasoning
-        self.audit("threat_proposed", data)
-
-    def threat_approved(self, detection_id: str, approved_by: str,
-                       action: str, door_sequence: List[str] | None = None) -> None:
-        """Record staff approval of threat response."""
-        data = {
-            "detection_id": detection_id,
-            "approved_by": approved_by,
-            "action": action,
-        }
-        if door_sequence:
-            data["door_sequence"] = door_sequence
-        self.audit("threat_approved", data)
-
-    def threat_rejected(self, detection_id: str, rejected_by: str, reason: str = "") -> None:
-        """Record staff rejection of threat proposal."""
-        self.audit("threat_rejected", {
-            "detection_id": detection_id,
-            "rejected_by": rejected_by,
-            "reason": reason[:200],
-        })
-
-    def threat_labelled(self, detection_id: str, label: str, labelled_by: str,
-                       confidence_in_label: float = 1.0) -> None:
-        """Record staff label for a past threat (for learning)."""
-        if label not in ("true_positive", "false_positive", "unsure"):
-            raise ValueError("label must be true_positive, false_positive, or unsure")
-        self.audit("threat_labelled", {
-            "detection_id": detection_id,
-            "label": label,
-            "labelled_by": labelled_by,
-            "confidence_in_label": round(confidence_in_label, 2),
-        })

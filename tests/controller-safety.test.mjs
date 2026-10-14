@@ -54,3 +54,9 @@ test("mismatched or unsafe acknowledgements are recorded as failures", () => {
   assert.equal(unsafe.state, "failed");
   assert.match(unsafe.detail, /not healthy/);
 });
+
+test("a CLOSE confirmed by the reed is accepted even while the safety circuit is not healthy; an OPEN is not", () => {
+  assert.equal(validateControllerAcknowledgement({ expected: "closed", state: "acknowledged", position: "closed", safetyOk: false, detail: null }).state, "acknowledged");
+  assert.equal(validateControllerAcknowledgement({ expected: "open", state: "acknowledged", position: "open", safetyOk: false, detail: null }).state, "failed");
+  assert.equal(validateControllerAcknowledgement({ expected: "closed", state: "acknowledged", position: "open", safetyOk: false, detail: null }).state, "failed");
+});

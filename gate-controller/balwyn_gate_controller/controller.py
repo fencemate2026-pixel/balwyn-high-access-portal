@@ -45,6 +45,7 @@ import logging
 import math
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -64,7 +65,9 @@ VALID_SOURCES = {"manual", "schedule", "emergency"}
 EMERGENCY_RELEASE_SOURCES = {"emergency", "manual"}
 # 4xx replies that mean "the portal will never accept this acknowledgement": drop it instead of retrying for ever.
 # (401 / 403 / 408 / 429 are NOT here: those can be fixed by waiting or by correcting the credential.)
-ACK_REJECTED_STATUSES = {400, 404, 409, 410, 422}
+ACK_REJECTED_STATUSES = {400, 409, 410, 422}
+# A 404 means "this command is unknown" ONLY when it carries the portal's own message ("Command not found.").
+# A 404 from anything else (a proxy, a route that does not exist during a portal update) is retried.
 MAX_PENDING_ACKS = 50
 EXCHANGE_ABANDON_S = 60.0     # a portal exchange still unfinished after this long is abandoned and a new one started
 ACK_RETRY_S = 2.0            # after a failed acknowledgement, retry no sooner than this
@@ -200,6 +203,8 @@ class GateController:
         self.tracker = PositionTracker(config.debounce_s, config.travel_timeout_s, config.open_reed_pin is not None)
         self.job: Optional[Job] = None
         self.pending_acks: List[Dict[str, Any]] = []
+        self._open_times: "deque[float]" = deque()   # when recent non-emergency OPEN commands were started
+        self._alarm_reported = False
         # No portal exchange at all (heartbeat OR acknowledgement) until the reeds have
         # been read stable for one debounce period after the FIRST tick, so a restart
         # never reports "unknown" for a gate that is shut. Counted from the first tick,
@@ -212,8 +217,24 @@ class GateController:
         self.safety_ok = False
         self.faults: List[str] = []
         self._recover_interrupted()
+        self._restore_emergency_hold()
 
     # ------------------------------------------------------------- start-up
+    def _restore_emergency_hold(self) -> None:
+        """A fire / evacuation hold that was on when the controller stopped (crash, update, power cut) is switched on
+        again, unless it is older than EMERGENCY_RESTORE_MAX_S. Only an explicit close, or the process being stopped
+        on purpose by an installer, ends it; a restart must not quietly end an evacuation."""
+        since = self.journal.emergency_since
+        if since is None:
+            return
+        age = time.time() - since
+        if self.cfg.dry_run or self.cfg.monitor_only or self.cfg.emergency_restore_max_s <= 0 or not 0 <= age <= self.cfg.emergency_restore_max_s:
+            self.journal.audit("emergency_hold_not_restored", {"age_s": round(age)})
+            self.journal.set_emergency_hold(False)
+            return
+        self.relay.hold("emergency")
+        self.journal.audit("emergency_hold_restored", {"age_s": round(age)})
+
     def _recover_interrupted(self) -> None:
         flight = self.journal.interrupted()
         if not flight:
@@ -236,6 +257,15 @@ class GateController:
             faults.append(f"Relay hold released: {self.relay.state.released_reason}")
         if self.unlock_fault:
             faults.append(self.unlock_fault)
+        state = self.relay.state
+        if state.mode == "holding" and state.hold_kind == "emergency" and now - state.hold_since > self.cfg.emergency_alarm_s:
+            hours = (now - state.hold_since) / 3600.0
+            faults.append(f"Fire / evacuation hold has been on for {hours:.1f} h. Send the all-clear close when it is over")
+            if not self._alarm_reported:
+                self._alarm_reported = True
+                self.journal.audit("emergency_hold_long", {"hours": round(hours, 1)})
+        elif state.mode != "holding" or state.hold_kind != "emergency":
+            self._alarm_reported = False
         self._watch_board(now)
         self.position = reading.position
         self.safety_ok = safety is True and not reading.faults
@@ -379,7 +409,8 @@ class GateController:
                 self.portal.ack(ack["id"], ack["state"], ack["position"], ack["safety_ok"], ack["detail"])
                 result.delivered.append(ack)
             except PortalError as error:
-                if error.status in ACK_REJECTED_STATUSES:
+                unknown_command = error.status == 404 and "command not found" in str(error).lower()
+                if error.status in ACK_REJECTED_STATUSES or unknown_command:
                     result.delivered.append(ack)  # the portal will never take this one (unknown / already closed): stop retrying
                     result.rejected += 1
                 else:
@@ -542,6 +573,16 @@ class GateController:
             self._refuse(command_id, "blocked", f"Fire / evacuation hold kept: a {source} close cannot end it.")
             return
 
+        if target == "open" and source != "emergency":
+            window = self.cfg.open_rate_window_s
+            while self._open_times and now - self._open_times[0] > window:
+                self._open_times.popleft()
+            if len(self._open_times) >= self.cfg.open_rate_max:
+                self._refuse(command_id, "blocked", f"More than {self.cfg.open_rate_max} open commands in {window / 60:g} minutes. "
+                                                    "Relay not operated.")
+                return
+            self._open_times.append(now)
+
         try:
             self.journal.begin({"id": command_id, "command": target, "source": source})
         except OSError as error:
@@ -556,7 +597,10 @@ class GateController:
                 return
             self._start_open(command_id, source, now)
             return
+        was_emergency = self.relay.state.mode == "holding" and self.relay.state.hold_kind == "emergency"
         released = self.relay.release(f"portal close command ({source})")
+        if was_emergency or self.journal.emergency_since is not None:
+            self.journal.set_emergency_hold(False)
         action = "Hold released; operator auto-closes" if released else "No hold active; waiting for auto-close"
         self.tracker.movement_started(now)
         self.job = Job(command_id, "closed", source, now + self.cfg.auto_close_timeout_s, action)
@@ -566,6 +610,8 @@ class GateController:
         """Drive the gate relay for an open (unchanged behaviour, now also reached after an unlock)."""
         if source in HOLD_SOURCES:
             self.relay.hold(source)
+            if source == "emergency":
+                self.journal.set_emergency_hold(True)
             action = f"{prefix}Relay held for {source} open"
         elif self.relay.state.mode == "holding":
             action = f"{prefix}Gate already held open; no pulse sent"

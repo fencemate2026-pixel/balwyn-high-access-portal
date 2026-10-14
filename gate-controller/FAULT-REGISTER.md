@@ -43,6 +43,14 @@ tests B0 to B4 and commissioning C1 to C7 in `deploy/INSTALL.md`.
 | 27 | `After=network-online.target` | Relay pin claimed OFF up to two minutes after boot | Removed (the controller polls with back-off) |
 | 28 | `config.txt` early-boot line was "recommended" | With `RELAY_ACTIVE_LOW=true`, the relay is ON from power-up | Documented as required for every board |
 | 29 | INSTALL pointed everyone at the KS0212 env file; generic example had a 1 s pulse | A Venus closes again if released while opening | Venus file is the default; warning added |
+| 31 | Portal handed no command at all while `safetyOk` was false, so a fire hold could not be ended remotely (portal code) | Fire hold stuck until a site visit | Portal now hands a CLOSE (never an OPEN) to an unsafe controller; a CLOSE confirmed by the reed is accepted without a healthy safety input. `tests/gate-service.test.mjs` and `controller-safety.test.mjs` (both fail on the old portal code) |
+| 32 | Fire hold ended silently by a crash, update or power cut | Evacuation hold lost | Remembered in `state.json`, switched back on at start-up (12 h limit), ended only by a close |
+| 33 | Fire hold had no visible age | Forgotten hold, or a stolen credential holding a gate open | Fault shown after 4 h (`EMERGENCY_ALARM_S`); not ended by a timer |
+| 34 | Only 200 command ids remembered | Old ids replayable after 200 newer ones | 1000 ids |
+| 35 | No limit on opens | Hostile or runaway portal could cycle the gate and lock | 30 per 10 min, fire exempt |
+| 36 | Any 404 on an ack was treated as "command unknown" | A portal update with a missing route silently threw acks away | Only the portal's own "Command not found." drops the ack |
+| 37 | Token file could be world-readable | Leaked credential | Refused unless mode 600 (or systemd's private copy) |
+| 38 | Unused `threat_*` helpers in the journal (unauthenticated free text into the audit log) | Possible forged "approval" lines if ever wired up | Removed |
 | 30 | Extra sandboxing missing | Defence in depth | Added `RestrictNamespaces`, `RestrictSUIDSGID`, `RestrictRealtime`, `ProtectKernelLogs`, `ProtectClock`, `ProtectHostname`, `SystemCallArchitectures=native`, `UMask=0077` (UNVERIFIED on the Pi: a directive systemd rejects would stop the service; run `systemd-analyze verify` on the Pi) |
 
 Tests that pass on old code too (guard unchanged correct behaviour): open still blocked by a safety trip, manual close
@@ -50,15 +58,9 @@ still ends a fire hold, an unconfirmed fire hold is kept, a 401 ack is kept, an 
 
 ## OPEN: not fixed, and why
 
-| # | Item | Why it is open | Who decides |
-|---|---|---|---|
-| A | **Portal gives no commands at all while `safetyOk` is false** (`app/api/controller/commands/route.ts`: `body.safetyOk && commissioned ? getNextControllerCommand`) | Fix 2 makes the Pi accept a close, but the portal still will not send one while a safety device is tripped. A fire hold therefore cannot be ended remotely in that state | Portal change: your decision |
-| B | An emergency hold has no time limit (intended for fire) | A compromised portal credential could hold a gate open for ever | Set a maximum, or accept |
-| C | Venus holds: the controller holds the single IN1 contact for schedule and fire opens. The Venus has a separate "hold to keep open" input (IN2) | Whether a maintained IN1 contact holds a Venus open is UNVERIFIED. With `SCHEDULE_CONTROL=false` (the example files) nothing holds IN1 except fire | Bench test V-series with the real Venus; may need a second relay channel on IN2 |
-| D | After a crash or restart the controller reports the interrupted command "failed" and does not re-apply a fire hold | The portal does not re-send an acknowledged emergency command (UNVERIFIED how it behaves) | Portal design |
-| E | Only the last 200 command ids are remembered | Rejecting older ids would refuse every command if the portal database ever restarted its numbering | Needs a decision on portal id guarantees |
-| F | No cap on how often a hostile portal can cycle the gate | Needs a chosen limit | Your decision |
-| G | `DynamicUser=` and a system-call filter not added | Cannot be tested without a Pi; a wrong filter breaks `lgpio` | Bench |
-| H | Both gates share one Linux user | One compromised service could read the other's token | Low |
-| I | `journal.threat_*` helpers (unused by the controller) accept unauthenticated free text | Nothing calls them; `threat-learning/learner.py` only reads their events | Remove if you agree |
-| J | An unreadable SD card in the middle of `pulse()` could hold the relay lock while the audit write waits | Rare; the pulse deadline is still enforced by the watchdog thread | Low |
+| # | Item | Why it is open |
+|---|---|---|
+| C | **Venus hold-open.** The controller holds the single IN1 contact for schedule and fire opens. The Venus also has a separate "hold to keep open" input (IN2) | Whether a maintained IN1 contact holds a Venus open is UNVERIFIED and cannot be settled in code. With `SCHEDULE_CONTROL=false` (the example files) only a fire open holds IN1. Bench test V-series with the real Venus decides whether a second relay channel on IN2 is needed |
+| G | `DynamicUser=` and a system-call filter | A wrong filter stops `lgpio` working; cannot be tested without a Pi. Run `systemd-analyze verify` and the B-tests on the Pi first |
+| H | Both gates run as one Linux user | One compromised service could read the other's token. Low; needs a per-gate user, which changes the install |
+| J | A stalled SD card during `pulse()` can hold the relay lock while the audit write waits | The pulse deadline is still enforced by the watchdog thread. Low |

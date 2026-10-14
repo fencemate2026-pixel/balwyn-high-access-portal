@@ -223,7 +223,7 @@ class ControllerKillers(unittest.TestCase):
 
         def gone(command_id, *a):
             calls.append(command_id)
-            raise PortalError("not found", status=404)
+            raise PortalError("Command not found.", status=404)
 
         rig.ctl.portal.ack = gone
         rig.portal.queue.append({"id": 73, "command": "open", "source": "manual"})
@@ -311,14 +311,15 @@ class HardwareKillers(unittest.TestCase):
 
 
 class JournalKillers(unittest.TestCase):
-    def test_only_the_newest_200_ids_are_kept(self) -> None:                             # M71
+    def test_only_the_newest_ids_are_kept(self) -> None:                                 # M71
+        keep = journal_mod.MAX_IDS
         with tempfile.TemporaryDirectory() as d:
             j = Journal(Path(d))
-            for i in range(250):
+            for i in range(keep + 50):
                 j.begin({"id": i, "command": "open", "source": "manual"}); j.finish(i, "acknowledged", "ok")
             j2 = Journal(Path(d))
-            self.assertEqual(len(j2.done), 200)
-            self.assertTrue(j2.seen(249))
+            self.assertEqual(len(j2.done), keep)
+            self.assertTrue(j2.seen(keep + 49))
             self.assertFalse(j2.seen(0))
 
     def test_state_is_fsynced_before_the_rename(self) -> None:                           # M75
