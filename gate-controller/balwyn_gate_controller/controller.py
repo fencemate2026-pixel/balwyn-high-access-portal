@@ -159,6 +159,11 @@ class GateController:
         self.tracker = PositionTracker(config.debounce_s, config.travel_timeout_s, config.open_reed_pin is not None)
         self.job: Optional[Job] = None
         self.pending_acks: List[Dict[str, Any]] = []
+        # No portal exchange at all (heartbeat OR acknowledgement) until the reeds have
+        # been read stable for one debounce period after the FIRST tick, so a restart
+        # never reports "unknown" for a gate that is shut. Counted from the first tick,
+        # not construction, so slow start-up work cannot use the margin up.
+        self._first_tick: Optional[float] = None
         self.next_poll = 0.0
         self.next_ack = 0.0
         self.poll_failures = 0
@@ -174,7 +179,7 @@ class GateController:
             return
         detail = "Controller restarted during this command. It was not repeated; the relay is off."
         self.journal.finish(int(flight["id"]), "failed", detail)
-        self._queue_ack(int(flight["id"]), "failed", detail)
+        self._queue_ack(int(flight["id"]), "failed", detail, live=True)  # no reading exists yet: report at send time
         self.journal.audit("command_interrupted", {"id": flight["id"]})
 
     # ---------------------------------------------------------------- sensing
@@ -211,6 +216,11 @@ class GateController:
         self._board_unlocked = bool(sensed)
 
     # ------------------------------------------------------------------ tick
+    def _inputs_settled(self, now: float) -> bool:
+        if self._first_tick is None:
+            self._first_tick = now
+        return now - self._first_tick >= self.cfg.debounce_s + 0.2
+
     def tick(self) -> None:
         now = self.clock()
         self.relay.feed()
@@ -218,7 +228,8 @@ class GateController:
         self._sense(now)
         self._advance_pending(now)
         self._follow_job(now)
-        self._network(now)
+        if self._inputs_settled(now):
+            self._network(now)
 
     # ------------------------------------------------------- access-board unlock
     def _needs_unlock(self) -> bool:
@@ -299,6 +310,10 @@ class GateController:
         poll_due = now >= self.next_poll or acks_due
         if not poll_due:
             return
+        if acks_due:
+            for ack in self.pending_acks:
+                if ack.get("live"):
+                    ack["position"], ack["safety_ok"], ack["live"] = self.position, self.safety_ok, False
         acks = list(self.pending_acks) if acks_due else []
         status = (self.position, self.safety_ok, list(self.faults), self.cfg.schedule_control)
         self.link.start(lambda: self._exchange(acks, status), now)
@@ -363,12 +378,13 @@ class GateController:
         if isinstance(command, dict):
             self._handle(command, now)
 
-    def _queue_ack(self, command_id: int, state: str, detail: str) -> None:
+    def _queue_ack(self, command_id: int, state: str, detail: str, live: bool = False) -> None:
         # Position and safety are captured when the result is known, so an
         # acknowledgement sent later (after a network delay) still reports the
-        # reading that the result was based on.
+        # reading that the result was based on. live=True (a command interrupted
+        # by a restart, queued before any reading) takes the reading at send time.
         self.pending_acks.append({"id": command_id, "state": state, "detail": detail,
-                                  "position": self.position, "safety_ok": self.safety_ok})
+                                  "position": self.position, "safety_ok": self.safety_ok, "live": live})
 
     # ------------------------------------------------------------- commands
     def _handle(self, command: Dict[str, Any], now: float) -> None:

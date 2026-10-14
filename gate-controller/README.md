@@ -5,6 +5,10 @@ contact, a closed reed, an optional open reed and a safety input. Outbound
 HTTPS polling only. See `deploy/INSTALL.md` for wiring, install and the
 commissioning sheet.
 
+Relay board: set `RELAY_BOARD`. For the Keyestudio KS0212 Pi relay shield use
+`deploy/ks0212-TF-ENTRY.env.example` and `deploy/ks0212-SIDE-ENTRY.env.example`
+(both gates on one Pi, INSTALL.md section 1c). Any other board: `deploy/gate.env.example`.
+
 Supersedes `controller-agent/` for the single-contact auto-closing operators at
 Balwyn (that agent needs separate open/close relays, two limit switches and an
 e-stop input, and exits at start-up on the agreed hardware). Remove

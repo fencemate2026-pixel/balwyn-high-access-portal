@@ -20,9 +20,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from balwyn_gate_controller.config import Config, ConfigError  # noqa: E402
+from balwyn_gate_controller.config import Config, ConfigError, relay_outputs_from_env  # noqa: E402
 from balwyn_gate_controller.controller import GateController  # noqa: E402
-from balwyn_gate_controller.hardware import FakeBackend, GateIO, lgpio_work_dir  # noqa: E402
+from balwyn_gate_controller.hardware import FakeBackend, GateIO, GpioBusyError, force_relays_off, lgpio_work_dir  # noqa: E402
 from balwyn_gate_controller.journal import Journal  # noqa: E402
 from balwyn_gate_controller.portal import PortalClient, PortalError  # noqa: E402
 from balwyn_gate_controller.relay import PulseOutput, RelaySupervisor  # noqa: E402
@@ -420,8 +420,9 @@ class ControllerTests(unittest.TestCase):
     def test_fire_command_pre_empts_and_holds_through_portal_loss(self) -> None:
         rig = Rig(self, NETWORK_LOSS_RELEASE_S="60")
         rig.run(1)
-        rig.portal.queue.append({"id": 9, "command": "closed", "source": "manual"})
         rig.gate.angle = 0.5; rig.gate.direction = 0; rig.gate.publish()  # stuck half-open: close job pending
+        rig.run(0.5)  # let the debounced reeds see it (the first poll now waits for stable reeds too)
+        rig.portal.queue.append({"id": 9, "command": "closed", "source": "manual"})
         rig.run(1)
         rig.portal.queue.append({"id": 10, "command": "open", "source": "emergency"})
         rig.run(20)
@@ -759,6 +760,292 @@ class ThreadedNetworkTests(unittest.TestCase):
         self.assertTrue(acks, "no acknowledgement reached the portal")
         self.assertEqual(acks[0]["state"], "acknowledged")
         self.assertEqual(acks[0]["position"], "open")
+
+
+# ------------------------------------------------- added 15 Oct 2026 review
+KS = {"RELAY_BOARD": "keyestudio-ks0212", "RELAY_ACTIVE_LOW": "false", "RELAY_PIN": "22", "UNLOCK_RELAY_PIN": "4",
+      "CLOSED_REED_PIN": "17", "OPEN_REED_PIN": "27", "SAFETY_INPUT": "5", "UNLOCK_SENSE_PIN": "13"}
+
+
+def ks_env(**extra: str) -> dict:
+    values = env("https://magickeys-balwyn-portal.com", "/tmp/x", **KS)
+    values.pop("ALLOW_INSECURE_HTTP_FOR_TESTS")
+    values.update(extra)
+    return values
+
+
+class RelayBoardTests(unittest.TestCase):
+    def test_ks0212_accepts_its_own_pins_switched_on_high(self) -> None:
+        config = Config.from_env(ks_env())
+        self.assertEqual((config.relay_board, config.relay_pin, config.unlock_relay_pin, config.relay_active_low),
+                         ("keyestudio-ks0212", 22, 4, False))
+
+    def test_ks0212_refuses_the_old_example_wiring(self) -> None:
+        # The generic example's relay GPIO 17 / active-low / closed reed on GPIO 22
+        # would leave the gate relay dead and put a reed on the shield's relay 2.
+        cases = [
+            ({"RELAY_ACTIVE_LOW": "true"}, "RELAY_ACTIVE_LOW must be false"),
+            ({"RELAY_PIN": "17", "CLOSED_REED_PIN": "23"}, "RELAY_PIN must be one of GPIO 4, 22, 6, 26"),
+            ({"UNLOCK_RELAY_PIN": "25"}, "UNLOCK_RELAY_PIN must be one of GPIO 4, 22, 6, 26"),
+            ({"RELAY_PIN": "26", "CLOSED_REED_PIN": "22"}, "CLOSED_REED_PIN must not be GPIO 22"),
+            ({"SAFETY_INPUT": "6"}, "SAFETY_INPUT must not be GPIO 6"),
+            ({"OPEN_REED_PIN": "26"}, "OPEN_REED_PIN must not be GPIO 26"),
+            ({"UNLOCK_SENSE_PIN": "26"}, "UNLOCK_SENSE_PIN must not be GPIO 26"),
+            ({"RELAY_BOARD": "keyestudio"}, "RELAY_BOARD must be"),
+        ]
+        for change, message in cases:
+            with self.subTest(change=change), self.assertRaisesRegex(ConfigError, message):
+                Config.from_env(ks_env(**change))
+
+    def test_relay_outputs_never_on_pins_the_pi_pulls_high_itself(self) -> None:
+        for pin in ("2", "3", "14", "15"):
+            for name in ("RELAY_PIN", "UNLOCK_RELAY_PIN"):
+                with self.subTest(pin=pin, name=name), self.assertRaisesRegex(ConfigError, f"{name} must not be GPIO {pin}"):
+                    extra = {name: pin}
+                    if name == "UNLOCK_RELAY_PIN":
+                        extra["RELAY_PIN"] = "17"
+                    Config.from_env({**env("https://magickeys-balwyn-portal.com", "/tmp/x"), **extra,
+                                     "CLOSED_REED_PIN": "22", "OPEN_REED_PIN": "23", "SAFETY_INPUT": "24"})
+        # An INPUT on such a pin is still allowed (a reed only reads it).
+        Config.from_env({**env("https://magickeys-balwyn-portal.com", "/tmp/x"), "SAFETY_INPUT": "14"})
+
+    def test_relays_off_settings_need_no_portal_or_credential(self) -> None:
+        pins, active_low = relay_outputs_from_env({"RELAY_BOARD": "keyestudio-ks0212", "RELAY_PIN": "26",
+                                                   "UNLOCK_RELAY_PIN": "6", "RELAY_ACTIVE_LOW": "false"})
+        self.assertEqual((pins, active_low), ([26, 6], False))
+        with self.assertRaisesRegex(ConfigError, "RELAY_ACTIVE_LOW must be false"):
+            relay_outputs_from_env({"RELAY_BOARD": "keyestudio-ks0212", "RELAY_PIN": "26", "RELAY_ACTIVE_LOW": "true"})
+        with self.assertRaisesRegex(ConfigError, "RELAY_PIN is required"):
+            relay_outputs_from_env({"RELAY_ACTIVE_LOW": "true"})
+
+
+class RelayPinSafetyTests(unittest.TestCase):
+    def test_relays_are_claimed_off_with_the_pull_that_keeps_them_off(self) -> None:
+        for active_low, off_level, pull in ((True, 1, "up"), (False, 0, "down")):
+            with self.subTest(active_low=active_low):
+                backend = FakeBackend()
+                io = GateIO(backend, 22, active_low, 17, 27, 5, True, "up", unlock_relay_pin=4, unlock_sense_pin=13)
+                self.assertEqual(backend.output_pulls, {22: pull, 4: pull})
+                self.assertEqual((backend.levels[22], backend.levels[4]), (off_level, off_level))
+                self.assertEqual(io.pull_fallback, [])
+
+    def test_a_kernel_refusing_the_pull_still_gets_the_relay_claimed_off(self) -> None:
+        backend = FakeBackend()
+        backend.refuse_output_pull = True
+        io = GateIO(backend, 22, False, 17, 27, 5, True, "up", unlock_relay_pin=4)
+        self.assertEqual(io.pull_fallback, [22, 4])
+        self.assertEqual((backend.levels[22], backend.levels[4]), (0, 0))
+
+    def test_force_relays_off_drives_off_then_releases(self) -> None:
+        for active_low, off_level in ((True, 1), (False, 0)):
+            backend = FakeBackend()
+            force_relays_off(backend, [26, 6], active_low, settle_s=0)
+            self.assertEqual(backend.writes, [(26, off_level), (6, off_level)])
+            self.assertTrue(backend.closed)
+
+    def test_relays_off_command_works_without_portal_settings(self) -> None:
+        import balwyn_gate_controller.__main__ as entry
+        backend = FakeBackend()
+        saved_env = dict(os.environ)
+        saved_backend = entry.LgpioBackend
+        self.addCleanup(lambda: (os.environ.clear(), os.environ.update(saved_env)))
+        self.addCleanup(lambda: setattr(entry, "LgpioBackend", saved_backend))
+        entry.LgpioBackend = lambda _work_dir: backend  # type: ignore[assignment]
+        for name in ("PORTAL_URL", "CONTROLLER_TOKEN", "CONTROLLER_TOKEN_FILE", "GATE_ID"):
+            os.environ.pop(name, None)
+        os.environ.update({"RELAY_BOARD": "keyestudio-ks0212", "RELAY_PIN": "22", "UNLOCK_RELAY_PIN": "4",
+                           "RELAY_ACTIVE_LOW": "false"})
+        self.assertEqual(entry.main(["x", "relays-off"]), 0)
+        self.assertEqual(backend.levels, {22: 0, 4: 0})
+        self.assertTrue(backend.closed)
+
+    def test_two_gates_on_one_pi_cannot_share_a_pin(self) -> None:
+        backend = FakeBackend(strict_claims=True)
+        GateIO(backend, 22, False, 17, 27, 5, True, "up", unlock_relay_pin=4, unlock_sense_pin=13)
+        GateIO(backend, 26, False, 23, 24, 25, True, "up", unlock_relay_pin=6, unlock_sense_pin=16)  # SIDE-ENTRY: no overlap
+        # A third service whose relay pin is SIDE-ENTRY's is refused with a message naming the pin.
+        with self.assertRaisesRegex(GpioBusyError, "GPIO 26 is already in use"):
+            GateIO(backend, 26, False, 19, None, None, True, "up")
+        # And an input that overlaps the other gate's reed is refused too.
+        with self.assertRaisesRegex(GpioBusyError, "GPIO 17 is already in use"):
+            GateIO(backend, 21, False, 17, None, None, True, "up")
+
+
+class StartupReportTests(unittest.TestCase):
+    def test_first_heartbeat_waits_for_stable_reeds_and_reports_closed(self) -> None:
+        rig = Rig(self)
+        rig.run(0.2)
+        self.assertEqual(rig.portal.polls, [], "no heartbeat before the reeds are debounced")
+        rig.run(1)
+        self.assertEqual(rig.portal.polls[0]["position"], "closed")
+
+
+class DeploymentFileReviewTests(unittest.TestCase):
+    def test_unit_forces_relays_off_after_every_stop(self) -> None:
+        unit = (DEPLOY / "balwyn-gate@.service").read_text(encoding="utf-8")
+        self.assertIn("ExecStopPost=-/usr/bin/python3 -m balwyn_gate_controller relays-off", unit)
+
+    def test_ks0212_examples_pass_check_config_and_never_overlap(self) -> None:
+        used: dict[int, str] = {}
+        gates = []
+        for name in ("ks0212-TF-ENTRY.env.example", "ks0212-SIDE-ENTRY.env.example"):
+            values = systemd_env_file(DEPLOY / name)
+            config = Config.from_env({**values, "CONTROLLER_TOKEN": TOKEN, "STATE_DIRECTORY": "/tmp/x"})
+            self.assertTrue(config.dry_run)
+            self.assertFalse(config.schedule_control)
+            self.assertEqual(config.relay_board, "keyestudio-ks0212")
+            gates.append(config.gate_id)
+            for pin in (config.relay_pin, config.unlock_relay_pin, config.closed_reed_pin, config.open_reed_pin,
+                        config.safety_pin, config.unlock_sense_pin):
+                self.assertIsNotNone(pin)
+                self.assertNotIn(pin, used, f"GPIO {pin} used by both {used.get(pin)} and {config.gate_id}")
+                used[pin] = config.gate_id
+        self.assertEqual(gates, ["TF-ENTRY", "SIDE-ENTRY"])
+        self.assertEqual({p for p, g in used.items() if p in (4, 22, 6, 26)}, {4, 22, 6, 26})
+
+
+class StubLgpio:
+    """Stands in for the lgpio module so LgpioBackend's own code is tested (no GPIO)."""
+
+    SET_PULL_UP, SET_PULL_DOWN, SET_PULL_NONE = 32, 64, 128
+
+    class error(Exception):  # noqa: N801 - lgpio's name
+        pass
+
+    def __init__(self, busy: set[int] = frozenset(), refuse_pull: bool = False, broken: set[int] = frozenset()) -> None:
+        self.busy, self.refuse_pull, self.broken = set(busy), refuse_pull, set(broken)
+        self.claims: list[tuple] = []
+        self.closed = False
+
+    def gpiochip_open(self, _chip: int) -> int:
+        return 7
+
+    def _check(self, gpio: int, flags: int) -> None:
+        if gpio in self.busy:
+            raise self.error("GPIO busy")
+        if gpio in self.broken or (self.refuse_pull and flags):
+            raise self.error("unexpected error")
+
+    def gpio_claim_output(self, _h: int, gpio: int, level: int, flags: int = 0) -> int:
+        self._check(gpio, flags)
+        self.claims.append(("out", gpio, level, flags))
+        return 0
+
+    def gpio_claim_input(self, _h: int, gpio: int, flags: int = 0) -> int:
+        self._check(gpio, 0)
+        self.claims.append(("in", gpio, flags))
+        return 0
+
+    def gpiochip_close(self, _h: int) -> None:
+        self.closed = True
+
+
+class LgpioBackendTests(unittest.TestCase):
+    def backend(self, stub: StubLgpio):
+        from balwyn_gate_controller.hardware import LgpioBackend
+        saved = sys.modules.get("lgpio")
+        sys.modules["lgpio"] = stub  # type: ignore[assignment]
+        self.addCleanup(lambda: sys.modules.__setitem__("lgpio", saved) if saved else sys.modules.pop("lgpio", None))
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        saved_wd = os.environ.pop("LG_WD", None)
+        self.addCleanup(lambda: os.environ.__setitem__("LG_WD", saved_wd) if saved_wd else os.environ.pop("LG_WD", None))
+        return LgpioBackend(Path(tmp.name))
+
+    def test_output_is_claimed_with_the_pull_flag(self) -> None:
+        stub = StubLgpio()
+        self.assertTrue(self.backend(stub).claim_output(22, 0, "down"))
+        self.assertEqual(stub.claims, [("out", 22, 0, StubLgpio.SET_PULL_DOWN)])
+
+    def test_refused_pull_falls_back_to_a_plain_off_claim(self) -> None:
+        stub = StubLgpio(refuse_pull=True)
+        self.assertFalse(self.backend(stub).claim_output(22, 0, "down"))
+        self.assertEqual(stub.claims, [("out", 22, 0, 0)])
+
+    def test_busy_pin_gives_the_plain_english_error(self) -> None:
+        stub = StubLgpio(busy={22})
+        with self.assertRaisesRegex(GpioBusyError, "GPIO 22 is already in use by another program"):
+            self.backend(stub).claim_output(22, 0, "down")
+        with self.assertRaisesRegex(GpioBusyError, "GPIO 22"):
+            self.backend(StubLgpio(busy={22})).claim_input(22, "up")
+
+    def test_a_real_error_is_not_masked_by_the_fallback(self) -> None:
+        stub = StubLgpio(broken={22})
+        with self.assertRaises(StubLgpio.error):
+            self.backend(stub).claim_output(22, 0, "down")
+        self.assertEqual(stub.claims, [])
+
+    def test_force_off_carries_on_past_a_busy_pin(self) -> None:
+        stub = StubLgpio(busy={26})
+        done, failed = force_relays_off(self.backend(stub), [26, 6], False, settle_s=0)
+        self.assertEqual(done, [6])
+        self.assertIn("GPIO 26", failed[26])
+        self.assertEqual(stub.claims, [("out", 6, 0, StubLgpio.SET_PULL_DOWN)])
+        self.assertTrue(stub.closed)
+
+
+class RelaysOffCommandTests(unittest.TestCase):
+    def setUp(self) -> None:
+        import balwyn_gate_controller.__main__ as entry
+        self.entry = entry
+        self.backend = FakeBackend()
+        saved_env, saved_backend = dict(os.environ), entry.LgpioBackend
+        self.addCleanup(lambda: (os.environ.clear(), os.environ.update(saved_env)))
+        self.addCleanup(lambda: setattr(entry, "LgpioBackend", saved_backend))
+        entry.LgpioBackend = lambda _work_dir: self.backend  # type: ignore[assignment]
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        os.environ["STATE_DIRECTORY"] = self.tmp.name
+
+    def test_recorded_pins_are_switched_off_even_after_the_env_file_was_edited(self) -> None:
+        from balwyn_gate_controller.hardware import record_relay_outputs
+        record_relay_outputs(Path(self.tmp.name), [22, 4], False)       # what the dead process drove
+        os.environ.update({"RELAY_BOARD": "keyestudio-ks0212", "RELAY_PIN": "26", "RELAY_ACTIVE_LOW": "false"})
+        self.assertEqual(self.entry.main(["x", "relays-off"]), 0)
+        self.assertEqual(self.backend.levels, {22: 0, 4: 0, 26: 0})
+
+    def test_a_broken_env_file_still_switches_the_recorded_pins_off(self) -> None:
+        from balwyn_gate_controller.hardware import record_relay_outputs
+        record_relay_outputs(Path(self.tmp.name), [22, 4], False)
+        os.environ.update({"RELAY_PIN": "22  # edited", "RELAY_ACTIVE_LOW": "false"})
+        self.assertEqual(self.entry.main(["x", "relays-off"]), 2)       # reported, not silent
+        self.assertEqual(self.backend.levels, {22: 0, 4: 0})
+
+    def test_recorded_polarity_wins_over_an_edited_one(self) -> None:
+        from balwyn_gate_controller.hardware import record_relay_outputs
+        record_relay_outputs(Path(self.tmp.name), [17], True)           # active-low board: OFF = HIGH
+        os.environ.update({"RELAY_PIN": "17", "RELAY_ACTIVE_LOW": "false"})
+        self.entry.main(["x", "relays-off"])
+        self.assertEqual(self.backend.levels, {17: 1})
+
+    def test_run_records_its_relay_pins_before_operating_anything(self) -> None:
+        from balwyn_gate_controller.hardware import recorded_relay_outputs
+        os.environ.update({**ks_env(STATE_DIRECTORY=self.tmp.name)})
+        config = Config.from_env()
+        self.backend.strict_claims = True
+        # run() fails at the portal client only after the record is written; stop it straight away.
+        import balwyn_gate_controller.__main__ as entry
+        saved = entry.GateController
+        self.addCleanup(lambda: setattr(entry, "GateController", saved))
+        def boom(*_a, **_k):
+            raise SystemExit(9)
+        entry.GateController = boom  # type: ignore[assignment]
+        with self.assertRaises(SystemExit):
+            entry.run(config)
+        self.assertEqual(recorded_relay_outputs(Path(self.tmp.name)), ([22, 4], False))
+
+
+class InterruptedRestartTests(unittest.TestCase):
+    def test_interrupted_command_ack_reports_the_real_position_not_unknown(self) -> None:
+        rig = Rig(self)
+        rig.ctl.journal.begin({"id": 41, "command": "open", "source": "manual"})  # crashed mid-command
+        rig.build()                                                               # the restart
+        rig.run(0.1)
+        self.assertEqual((rig.portal.polls, rig.acks_for(41)), ([], []), "nothing sent before the reeds settle")
+        rig.run(1)
+        ack = rig.acks_for(41)[0]
+        self.assertEqual((ack["state"], ack["position"], ack["safetyOk"]), ("failed", "closed", True))
+        self.assertEqual(rig.portal.polls[0]["position"], "closed")
 
 
 if __name__ == "__main__":
