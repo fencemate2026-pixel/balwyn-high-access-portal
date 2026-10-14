@@ -14,6 +14,26 @@ chdir()s into it. The service runs from a read-only /opt directory as an
 unprivileged user, where that FIFO cannot be created and the import raised
 FileNotFoundError, so the controller could never start. LG_WD is now always
 set to a private, writable directory before lgpio is imported.
+
+Relay pin bias (added 15 Oct 2026): every relay output is claimed with the
+internal pull resistor that holds that relay OFF (pull-down on a board that
+switches on HIGH, pull-up on a board that switches on LOW). While the
+controller runs, the pin is driven and the pull has no effect. It matters
+when the controller is killed without running its clean-up (systemd
+watchdog, out of memory) and the kernel returns the released line to an
+input: only the pull then decides what the relay driver sees. lgpio passes the
+pull to the kernel with the output request (GPIO_V2_LINE_FLAG_BIAS_PULL_*,
+read from lgpio 0.2.2 source). If a kernel refuses a pull on an output, the
+claim is retried without it and the fallback is reported, so start-up never
+fails because of it.
+
+What a Raspberry Pi kernel does with a released output is UNVERIFIED here:
+recent Raspberry Pi kernels may keep a freed output DRIVING its last level
+(pinctrl_bcm2835 parameter persist_gpio_outputs). In that case a relay that
+was ON when the controller was killed stays ON, the pull does nothing, and only
+`relays-off` (systemd ExecStopPost) switches it off. So: relays-off drives
+every pin it can, one at a time, including the pins the dead process recorded
+as claimed (relay-outputs.json), and install test B4 proves it on the Pi.
 """
 
 from __future__ import annotations
@@ -22,7 +42,7 @@ import os
 import tempfile
 import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Protocol, Tuple
+from typing import Callable, Dict, List, Optional, Protocol, Tuple
 
 
 def lgpio_work_dir(preferred: Optional[Path]) -> str:
@@ -45,8 +65,12 @@ def lgpio_work_dir(preferred: Optional[Path]) -> str:
     return tempfile.mkdtemp(prefix="balwyn-lgpio-")
 
 
+class GpioBusyError(RuntimeError):
+    """A GPIO line is already claimed by another program."""
+
+
 class Backend(Protocol):
-    def claim_output(self, pin: int, level: int) -> None: ...
+    def claim_output(self, pin: int, level: int, pull: str = "off") -> bool: ...
     def claim_input(self, pin: int, pull: str) -> None: ...
     def read(self, pin: int) -> int: ...
     def write(self, pin: int, level: int) -> None: ...
@@ -66,11 +90,33 @@ class LgpioBackend:
         self._chip = lgpio.gpiochip_open(0)
         self._pulls = {"up": lgpio.SET_PULL_UP, "down": lgpio.SET_PULL_DOWN, "off": lgpio.SET_PULL_NONE}
 
-    def claim_output(self, pin: int, level: int) -> None:
-        self._lgpio.gpio_claim_output(self._chip, pin, level)
+    def _claim(self, pin: int, call: Callable[[], object]) -> None:
+        try:
+            call()
+        except self._lgpio.error as error:
+            if "busy" in str(error).lower():
+                raise GpioBusyError(
+                    f"GPIO {pin} is already in use by another program: the other gate's service with an "
+                    "overlapping pin, pi-door-service, controller-agent, or a test script. Only one program "
+                    "may own each pin.") from None
+            raise
+
+    def claim_output(self, pin: int, level: int, pull: str = "off") -> bool:
+        """Claim an output at `level`. Returns False if the pull had to be dropped."""
+        if pull == "off":
+            self._claim(pin, lambda: self._lgpio.gpio_claim_output(self._chip, pin, level))
+            return True
+        try:
+            self._claim(pin, lambda: self._lgpio.gpio_claim_output(self._chip, pin, level, self._pulls[pull]))
+            return True
+        except GpioBusyError:
+            raise
+        except self._lgpio.error:
+            self._claim(pin, lambda: self._lgpio.gpio_claim_output(self._chip, pin, level))
+            return False
 
     def claim_input(self, pin: int, pull: str) -> None:
-        self._lgpio.gpio_claim_input(self._chip, pin, self._pulls[pull])
+        self._claim(pin, lambda: self._lgpio.gpio_claim_input(self._chip, pin, self._pulls[pull]))
 
     def read(self, pin: int) -> int:
         return int(self._lgpio.gpio_read(self._chip, pin))
@@ -85,21 +131,37 @@ class LgpioBackend:
 class FakeBackend:
     """In-memory GPIO. Records every write so tests can prove what the relay did."""
 
-    def __init__(self) -> None:
+    def __init__(self, strict_claims: bool = False) -> None:
+        # strict_claims=True models two programs sharing one chip: a second claim of a
+        # pin is refused, as the kernel does. Off by default so a test can model a
+        # restart (a new process) on the same simulated hardware.
+        self.strict_claims = strict_claims
         self.levels: Dict[int, int] = {}
         self.outputs: set[int] = set()
+        self.output_pulls: Dict[int, str] = {}
+        self.refuse_output_pull = False  # simulate a kernel that rejects a pull on an output
+        self.claimed: set[int] = set()
         self.writes: List[Tuple[int, int]] = []
         self.closed = False
         self._lock = threading.Lock()
 
-    def claim_output(self, pin: int, level: int) -> None:
+    def claim_output(self, pin: int, level: int, pull: str = "off") -> bool:
         with self._lock:
+            if self.strict_claims and pin in self.claimed:
+                raise GpioBusyError(f"GPIO {pin} is already in use by another program")
+            self.claimed.add(pin)
             self.outputs.add(pin)
+            accepted = not (self.refuse_output_pull and pull != "off")
+            self.output_pulls[pin] = pull if accepted else "off"
             self.levels[pin] = level
             self.writes.append((pin, level))
+            return accepted
 
     def claim_input(self, pin: int, pull: str) -> None:
         with self._lock:
+            if self.strict_claims and pin in self.claimed:
+                raise GpioBusyError(f"GPIO {pin} is already in use by another program")
+            self.claimed.add(pin)
             self.levels.setdefault(pin, 1 if pull == "up" else 0)
 
     def read(self, pin: int) -> int:
@@ -119,6 +181,65 @@ class FakeBackend:
 
     def close(self) -> None:
         self.closed = True
+        self.claimed.clear()
+
+
+def relay_off_pull(relay_active_low: bool) -> str:
+    """The pull that keeps an undriven relay input OFF."""
+    return "up" if relay_active_low else "down"
+
+
+def force_relays_off(backend: Backend, pins: List[int], relay_active_low: bool,
+                     settle_s: float = 0.2) -> Tuple[List[int], Dict[int, str]]:
+    """Claim each relay output OFF (with the OFF pull), hold briefly, release. For ExecStopPost.
+
+    Every pin is tried on its own: one busy or failing pin never stops the
+    others being driven OFF. Returns (pins driven OFF, {pin: error})."""
+    off = 1 if relay_active_low else 0
+    done: List[int] = []
+    failed: Dict[int, str] = {}
+    try:
+        for pin in pins:
+            try:
+                backend.claim_output(pin, off, relay_off_pull(relay_active_low))
+                done.append(pin)
+            except Exception as error:  # noqa: BLE001 - report and carry on to the next pin
+                failed[pin] = str(error) or type(error).__name__
+        if done and settle_s > 0:
+            import time
+            time.sleep(settle_s)
+    finally:
+        backend.close()
+    return done, failed
+
+
+RELAY_RECORD = "relay-outputs.json"
+
+
+def record_relay_outputs(state_dir: Path, pins: List[int], relay_active_low: bool) -> None:
+    """Remember which relay pins this process claimed, for relays-off after a crash.
+
+    The env file may be edited while the controller runs; relays-off must still
+    switch off the pins the dead process actually drove. Atomic write. A failure
+    is not fatal (relays-off still has the env file's pins)."""
+    import json
+    try:
+        tmp = state_dir / (RELAY_RECORD + ".tmp")
+        tmp.write_text(json.dumps({"pins": pins, "active_low": relay_active_low}), encoding="utf-8")
+        tmp.replace(state_dir / RELAY_RECORD)
+    except OSError:
+        pass
+
+
+def recorded_relay_outputs(state_dir: Path) -> Optional[Tuple[List[int], bool]]:
+    """The record written by record_relay_outputs, or None if absent or unreadable."""
+    import json
+    try:
+        data = json.loads((state_dir / RELAY_RECORD).read_text(encoding="utf-8"))
+        pins = [int(p) for p in data["pins"] if 2 <= int(p) <= 27]
+        return pins, bool(data["active_low"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 class GateIO:
@@ -141,9 +262,12 @@ class GateIO:
         self.unlock_sense_pin = unlock_sense_pin
         # Relays claimed OFF first, before any input, so a start-up fault can never leave one on.
         # Both relay channels sit on the same relay board, so they share RELAY_ACTIVE_LOW.
-        backend.claim_output(relay_pin, self._relay_off)
-        if unlock_relay_pin is not None:
-            backend.claim_output(unlock_relay_pin, self._relay_off)
+        # The pull holds the relay OFF if the line is ever released undriven (module docstring).
+        self.relay_off_pull = relay_off_pull(relay_active_low)
+        self.pull_fallback: List[int] = []
+        for pin in (relay_pin, unlock_relay_pin):
+            if pin is not None and not backend.claim_output(pin, self._relay_off, self.relay_off_pull):
+                self.pull_fallback.append(pin)
         for pin in (closed_reed_pin, open_reed_pin, safety_pin, unlock_sense_pin):
             if pin is not None:
                 backend.claim_input(pin, input_pull)

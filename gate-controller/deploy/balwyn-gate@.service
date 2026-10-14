@@ -9,8 +9,9 @@ Description=Balwyn gate controller for %i (Magic Keys portal)
 # boot; if it is missing the controller stops with an error and is restarted.
 After=network-online.target
 Wants=network-online.target
-StartLimitIntervalSec=120
-StartLimitBurst=10
+# Never give up restarting: a unit left "failed" sends no heartbeat, so the portal
+# would only show it offline. ExecStopPost forces the relays OFF after each attempt.
+StartLimitIntervalSec=0
 
 [Service]
 Type=notify
@@ -27,6 +28,11 @@ StateDirectory=balwyn-gate/%i
 StateDirectoryMode=0700
 ExecStartPre=/usr/bin/python3 -m balwyn_gate_controller check-config
 ExecStart=/usr/bin/python3 -m balwyn_gate_controller run
+# After EVERY stop - clean exit, crash, watchdog kill, out-of-memory kill - drive
+# this gate's relay pins OFF again. A killed controller never runs its own
+# clean-up, and the relay must not be left in whatever state the kernel leaves
+# the released pin. "-" = a failure here never blocks the restart.
+ExecStopPost=-/usr/bin/python3 -m balwyn_gate_controller relays-off
 # systemd restarts the controller if its main loop stops reporting for 15 s.
 # The relay is released on every stop and is claimed OFF on every start.
 WatchdogSec=15

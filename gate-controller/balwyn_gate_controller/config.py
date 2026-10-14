@@ -34,6 +34,22 @@ lock is powered by the school's ACB-004 access board.
     has unlocked the door. When fitted, the controller only drives the gate
     after this confirms the unlock (a fire / evacuation command proceeds
     anyway). It also logs unlocks the board makes by itself (card, QR, button).
+
+Relay board (added 15 Oct 2026): RELAY_BOARD names the relay hardware so a
+wiring that cannot work is refused before any GPIO is touched.
+  * keyestudio-ks0212: the Keyestudio "RPI 4-channel Relay Shield" (KS0212).
+    Its four relays are hard-wired to BCM GPIO 4, 22, 6 and 26 (Keyestudio's
+    own sample code, docs.keyestudio.com/projects/KS0212), and that code turns
+    a relay ON by setting the pin HIGH, so RELAY_ACTIVE_LOW must be false.
+    The relay pins must be among those four, and no reed / safety / sense
+    input may use any of them: the shield's relay driver is connected to all
+    four whether this gate uses it or not.
+  * generic: any other board driven by one GPIO per channel. Only the
+    general rules below apply; prove the polarity on the bench (test B0).
+Whatever the board, a relay output may not use GPIO 2 or 3 (they carry the
+board's fixed I2C pull-up resistors, so the line sits HIGH whenever the
+controller is not driving it) or GPIO 14 or 15 (the serial port: GPIO 14
+idles HIGH during boot when the serial console is on).
 """
 
 from __future__ import annotations
@@ -56,8 +72,20 @@ SETTINGS = (
     "TRAVEL_TIMEOUT_S", "AUTO_CLOSE_TIMEOUT_S", "DEBOUNCE_S", "SCHEDULE_CONTROL", "HOLD_MAX_S",
     "NETWORK_LOSS_RELEASE_S", "LOOP_STALL_S", "DRY_RUN", "CA_FILE",
     "UNLOCK_RELAY_PIN", "UNLOCK_SENSE_PIN", "UNLOCK_PULSE_S", "UNLOCK_CONFIRM_TIMEOUT_S", "UNLOCK_LEAD_S",
+    "RELAY_BOARD",
 )
 MAX_UNLOCK_PULSE_S = 2.0  # an exit-button press, never a hold: the board times the unlock itself
+# GPIO lines that are pulled or driven HIGH by the Pi itself when the controller
+# is not driving them (I2C pull-up resistors on 2/3, serial TX/RX on 14/15).
+# A relay output there can switch on during boot or after the controller stops.
+FORBIDDEN_RELAY_PINS = frozenset({2, 3, 14, 15})
+# Known relay boards: the pins the board's relay drivers are wired to, and
+# whether a relay switches on when its pin is LOW.
+RELAY_BOARDS = {
+    # Keyestudio KS0212 RPI 4-channel Relay Shield. Channel order J2..J5 is
+    # not stated by Keyestudio; the pins are, in their sample-code order.
+    "keyestudio-ks0212": {"pins": (4, 22, 6, 26), "active_low": False},
+}
 
 
 class ConfigError(ValueError):
@@ -104,6 +132,50 @@ def _pin(env: Mapping[str, str], name: str, required: bool) -> Optional[int]:
     return int(raw)
 
 
+def _relay_board(env: Mapping[str, str]) -> str:
+    board = env.get("RELAY_BOARD", "generic").strip().lower() or "generic"
+    if board != "generic" and board not in RELAY_BOARDS:
+        raise ConfigError("RELAY_BOARD must be generic or " + " or ".join(sorted(RELAY_BOARDS)))
+    return board
+
+
+def _check_relay_outputs(board: str, active_low: bool, outputs: Mapping[str, Optional[int]]) -> None:
+    """Rules for relay OUTPUT pins, shared by Config.from_env and relay_outputs_from_env."""
+    for name, pin in outputs.items():
+        if pin is not None and pin in FORBIDDEN_RELAY_PINS:
+            raise ConfigError(f"{name} must not be GPIO {pin}: GPIO 2, 3, 14 and 15 sit HIGH by themselves "
+                              "(I2C pull-ups / serial port), which can switch a relay on")
+    if board == "generic":
+        return
+    spec = RELAY_BOARDS[board]
+    allowed = ", ".join(str(p) for p in spec["pins"])
+    if active_low != spec["active_low"]:
+        raise ConfigError(f"RELAY_ACTIVE_LOW must be {'true' if spec['active_low'] else 'false'} for RELAY_BOARD={board}")
+    for name, pin in outputs.items():
+        if pin is not None and pin not in spec["pins"]:
+            raise ConfigError(f"{name} must be one of GPIO {allowed} for RELAY_BOARD={board} (the board's relays are fixed to those pins)")
+
+
+def relay_outputs_from_env(env: Mapping[str, str] | None = None) -> tuple[list[int], bool]:
+    """Only what is needed to force the relays OFF: (relay output pins, active_low).
+
+    Used by `relays-off` (systemd ExecStopPost), which must work even when the
+    rest of the configuration (portal address, credential) is unavailable.
+    """
+    env = os.environ if env is None else env
+    for name in ("RELAY_PIN", "UNLOCK_RELAY_PIN", "RELAY_ACTIVE_LOW", "RELAY_BOARD"):
+        if "#" in env.get(name, ""):
+            raise ConfigError(f"{name} contains '#'. Put comments on their own line")
+    board = _relay_board(env)
+    active_low = _bool(env, "RELAY_ACTIVE_LOW")
+    relay = _pin(env, "RELAY_PIN", required=True)
+    unlock = _pin(env, "UNLOCK_RELAY_PIN", required=False)
+    _check_relay_outputs(board, active_low, {"RELAY_PIN": relay, "UNLOCK_RELAY_PIN": unlock})
+    if relay == unlock:
+        raise ConfigError("RELAY_PIN and UNLOCK_RELAY_PIN must be different pins")
+    return [p for p in (relay, unlock) if p is not None], active_low
+
+
 @dataclass(frozen=True)
 class Config:
     portal_url: str
@@ -133,6 +205,7 @@ class Config:
     unlock_pulse_s: float = 0.5
     unlock_confirm_timeout_s: float = 2.0
     unlock_lead_s: float = 0.5
+    relay_board: str = "generic"
 
     @property
     def monitor_only(self) -> bool:
@@ -179,6 +252,8 @@ class Config:
         else:
             safety_pin = _pin(env, "SAFETY_INPUT", required=True)
 
+        relay_board = _relay_board(env)
+
         config = cls(
             portal_url=portal_url,
             gate_id=gate_id,
@@ -209,12 +284,21 @@ class Config:
             unlock_pulse_s=_num(env, "UNLOCK_PULSE_S", 0.5, 0.3, MAX_UNLOCK_PULSE_S),
             unlock_confirm_timeout_s=_num(env, "UNLOCK_CONFIRM_TIMEOUT_S", 2.0, 0.5, 10.0),
             unlock_lead_s=_num(env, "UNLOCK_LEAD_S", 0.5, 0.0, 5.0),
+            relay_board=relay_board,
         )
         pins = [p for p in (config.relay_pin, config.closed_reed_pin, config.open_reed_pin, config.safety_pin,
                             config.unlock_relay_pin, config.unlock_sense_pin) if p is not None]
         if len(set(pins)) != len(pins):
             raise ConfigError("RELAY_PIN, CLOSED_REED_PIN, OPEN_REED_PIN, SAFETY_INPUT, UNLOCK_RELAY_PIN and "
                               "UNLOCK_SENSE_PIN must all be different pins")
+        _check_relay_outputs(relay_board, config.relay_active_low,
+                             {"RELAY_PIN": config.relay_pin, "UNLOCK_RELAY_PIN": config.unlock_relay_pin})
+        if relay_board != "generic":
+            reserved = set(RELAY_BOARDS[relay_board]["pins"])
+            for name, pin in (("CLOSED_REED_PIN", config.closed_reed_pin), ("OPEN_REED_PIN", config.open_reed_pin),
+                              ("SAFETY_INPUT", config.safety_pin), ("UNLOCK_SENSE_PIN", config.unlock_sense_pin)):
+                if pin is not None and pin in reserved:
+                    raise ConfigError(f"{name} must not be GPIO {pin}: on RELAY_BOARD={relay_board} that pin drives a relay")
         if config.travel_timeout_s <= config.cycle_pulse_s:
             raise ConfigError("TRAVEL_TIMEOUT_S must be longer than CYCLE_PULSE_S")
         return config

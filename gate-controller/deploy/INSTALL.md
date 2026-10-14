@@ -19,7 +19,7 @@ SSH apps, e.g. Termius, scramble multi-line pastes).
 | Raspberry Pi | Pi 4 or Pi 5, with the official Raspberry Pi power supply for that model (Pi 5: 27 W USB-C) | Under-voltage causes random resets, and every reset drops a hold. |
 | OS | Raspberry Pi OS Lite 64-bit (Bookworm or Trixie), current updates | On a current kernel the 40-pin header is `/dev/gpiochip0` on both Pi 4 and Pi 5; the controller opens chip 0. |
 | Relay board | Driven directly by ONE GPIO pin per channel, works with 3.3 V logic, opto-isolated, contacts rated for the operator input (F70 AP/COM is a low-voltage dry contact) | The controller switches a GPIO line. **I²C relay HATs (e.g. PiRelay V2, 8 Relays Card) will not work.** A 5 V module whose input needs 5 V logic may never switch fully off from a 3.3 V pin. |
-| Relay pin | The GPIO your board actually uses for its channel, e.g. Waveshare 3-channel RPi Relay Board = GPIO 26 / 20 / 21. Set `RELAY_PIN` to it, and keep reed and safety inputs off the board's other relay pins | Using the example's GPIO 17 on a board wired to GPIO 26 drives nothing, or the wrong thing. |
+| Relay pin | The GPIO your board actually uses for its channel, e.g. Waveshare 3-channel RPi Relay Board = GPIO 26 / 20 / 21; **Keyestudio KS0212 shield = GPIO 4 / 22 / 6 / 26, ON when HIGH** (section 1c). Set `RELAY_PIN` to it, and keep reed and safety inputs off the board's other relay pins | Using the example's GPIO 17 on a board wired to GPIO 26 drives nothing, or the wrong thing. With `RELAY_BOARD=keyestudio-ks0212` the controller refuses any pin plan that breaks this. |
 | Reed switches | Normally-open (make when the magnet is present), one at closed, one at open | See section 1. |
 | Meter | Continuity/resistance across relay COM–NO | Tests B0 and B3. |
 
@@ -101,6 +101,60 @@ Bench checks before site (all UNVERIFIED until done):
   for a long time" alarms for this door in the S4A software, or a schedule hold
   will raise them.
 
+## 1c. Keyestudio KS0212 relay shield, both gates on one Pi (added 15 Oct 2026)
+
+Source: Keyestudio KS0212 documentation (docs.keyestudio.com/projects/KS0212):
+the sample code drives the four relays from BCM GPIO **4, 22, 6, 26** and
+switches a relay ON by setting its pin **HIGH**. Contacts: 10 A 250 VAC /
+30 VDC. Which physical relay answers to which GPIO is not stated: identify each
+one by its LED during test B0 and label it.
+
+**If your Keyestudio board is a loose module with jumper wires (not a shield
+that plugs onto the header), this section does not apply:** use
+`gate.env.example` with `RELAY_BOARD=generic` and prove the pins and polarity at B0.
+
+Proposed pin plan (copy `ks0212-TF-ENTRY.env.example` and `ks0212-SIDE-ENTRY.env.example`):
+
+| Function | TF-ENTRY | SIDE-ENTRY | Header pin (TF / SIDE) |
+|---|---|---|---|
+| Gate relay -> F70 34 (AP) / 32 (COM) | GPIO 22 | GPIO 26 | shield |
+| Unlock relay -> ACB-004 P*n* / GND | GPIO 4 | GPIO 6 | shield |
+| Closed reed | GPIO 17 | GPIO 23 | 11 / 16 |
+| Open reed | GPIO 27 | GPIO 24 | 13 / 18 |
+| Safety (F70 COR 19/18) | GPIO 5 | GPIO 25 | 29 / 22 |
+| K1 spare contact (board unlocked) | GPIO 13 | GPIO 16 | 33 / 36 |
+| Input common | GND | GND | 9, 14, 20, 25, 30, 34, 39 |
+
+Why gate relays on 22 / 26: from power-on, before Linux runs, GPIO 0-8 have a
+pull-UP and GPIO 9-27 a pull-DOWN (BCM2711 reset state). On an ON-when-HIGH
+board a pull-down keeps the relay off; a pull-up on GPIO 4 / 6 might be enough
+to switch a relay on during boot. That is UNVERIFIED for this shield, so:
+
+1. Add this line to `/boot/firmware/config.txt` (drives all four relay pins LOW
+   from early boot): `gpio=4,6,22,26=op,dl`
+2. Test B0 with the meter on each of the four relays in turn, including the two
+   unlock relays (GPIO 4 and 6): open through power-on, the whole boot and a reboot.
+
+Reaching the input pins: if the shield covers the 40-pin header and does not
+pass the pins through, fit a stacking header or GPIO breakout between the Pi
+and the shield. Check this on the actual shield before site day (UNVERIFIED).
+
+The ACB-004 door number for each gate (P1, P2 ...) must come from the S4A
+software and the as-built wiring, not from this table.
+
+Read-only checks on the Pi before the first start:
+* `grep -n 'w1-gpio' /boot/firmware/config.txt` must print nothing: GPIO 4 is
+  the default 1-Wire pin, and the controller would then find it busy.
+* `cat /sys/module/pinctrl_bcm2835/parameters/persist_gpio_outputs` (if the
+  file exists): `Y` means a released output keeps driving its last level, so a
+  killed controller relies entirely on `relays-off` (test B4). Record the value.
+* After test B0, power-cycle the Pi five times with the ACB-004 connected and
+  "Record Push Button Events" ticked: the ACB log must show NO push-button event
+  from the boots (an unlock relay on GPIO 4 / 6 must not press during power-up).
+
+Power: four relay coils come off the Pi's 5 V. Use the official Raspberry Pi 4
+power supply (5.1 V 3 A).
+
 ## 2. Install (fresh Pi OS Lite 64-bit)
 
 Copy the `gate-controller` folder from this repository to the Pi first. From a
@@ -122,6 +176,13 @@ sudo systemctl daemon-reload
 Check: `python3 -c "import lgpio"` prints nothing (no error), and
 `id balwyn-gate` lists the `gpio` group.
 
+Set the clock zone so the audit log reads in school time:
+`sudo timedatectl set-timezone Australia/Melbourne`
+
+Only ONE program may drive the relay board. This must print nothing:
+`systemctl list-unit-files | grep -E 'compass-door-open|balwyn-relay-agent'`
+(those are older programs in this repository; never install them on this Pi).
+
 Check the network the Pi will actually use (the school's):
 * `timedatectl` must show `System clock synchronized: yes`. A Pi has no
   battery-backed clock, and HTTPS certificate checks fail until the time is
@@ -133,10 +194,11 @@ Check the network the Pi will actually use (the school's):
   traffic: ask school IT to exempt the Pi, or obtain their root certificate
   and set `CA_FILE` to it.
 
-Optional, recommended: make the firmware hold the relay pin OFF from early boot,
-before Linux and the controller start. Add ONE line to `/boot/firmware/config.txt`
-(use your `RELAY_PIN`): `gpio=17=op,dh` for an active-low board
-(`RELAY_ACTIVE_LOW=true`), or `gpio=17=op,dl` for an active-high board. The
+Recommended (required for the KS0212 shield, section 1c): make the firmware hold
+every relay pin OFF from early boot, before Linux and the controller start. Add
+ONE line to `/boot/firmware/config.txt` listing every relay pin of BOTH gates:
+`gpio=4,6,22,26=op,dl` for the KS0212 (ON when HIGH). For an active-low board
+(`RELAY_ACTIVE_LOW=true`) use `op,dh` instead, e.g. `gpio=17=op,dh`. The
 Raspberry Pi documentation notes a delay of a few seconds between power being
 applied and this taking effect, so test B0 is still required.
 
@@ -159,10 +221,12 @@ passes.
    ```
    sudo install -m 600 -o root -g root /dev/null /etc/balwyn-gate/TF-ENTRY.token
    sudo nano /etc/balwyn-gate/TF-ENTRY.token        # paste the credential, save
-   sudo cp deploy/gate.env.example /etc/balwyn-gate/TF-ENTRY.env
+   sudo cp deploy/ks0212-TF-ENTRY.env.example /etc/balwyn-gate/TF-ENTRY.env
    sudo chgrp balwyn-gate /etc/balwyn-gate/TF-ENTRY.env && sudo chmod 640 /etc/balwyn-gate/TF-ENTRY.env
    sudo nano /etc/balwyn-gate/TF-ENTRY.env
    ```
+   (KS0212 shield. Any other board: `deploy/gate.env.example`. For the second
+   gate repeat this step with `SIDE-ENTRY` and `ks0212-SIDE-ENTRY.env.example`.)
    Set the pins and timings; keep `DRY_RUN=true` and `SCHEDULE_CONTROL=false`.
    Comments must stay on their own lines: `RELAY_PIN=17  # note` is refused.
 3. Check the settings. With `DRY_RUN=true` still set, start the service once and read its first lines:
@@ -214,8 +278,10 @@ gate follows every schedule, booking and rule that includes it.
 | C6 fire | START FIRE / EVACUATION, then unplug the network for 2 minutes | Gate opens and **stays held** with the network down. Reconnect, clear fire, press CLOSE: released and closes. |
 | C7 restart mid-window | During a C2 or C3 window, `sudo reboot` the Pi | Gate releases and auto-closes during the reboot; about 1 minute after the controller is back, the portal re-sends OPEN and the gate re-opens for the rest of the window (activity log: "Scheduled relay command re-sent"). If staff pressed CLOSE in that window, it must NOT re-open. |
 | B3 reboot | Assert a hold, then `sudo reboot`. Meter across relay COM/NO | Contact opens at shutdown and **stays open through the whole boot**; gate auto-closes; controller comes back and reports closed. |
+| B4 killed controller | Assert a hold, then `sudo systemctl kill -s SIGKILL balwyn-gate@TF-ENTRY` (the controller gets no chance to clean up). Meter across relay COM/NO | Contact opens within about 2 s and stays open until the controller restarts; `journalctl -u balwyn-gate@TF-ENTRY` shows `relays-off: GPIO ... driven OFF`. The other gate is not disturbed. Repeat with the unlock relay: start an OPEN and kill during the 0.5 s press; the unlock relay must be off afterwards. |
 
-B3 is the test the design rests on: a Pi that restarts must never leave a gate held open.
+B3 and B4 are the tests the design rests on: a Pi that restarts, or a
+controller that is killed, must never leave a gate held open.
 
 ## 7. Logs
 
