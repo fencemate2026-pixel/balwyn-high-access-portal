@@ -399,6 +399,20 @@ test("emergency priority: a non-emergency packet queued during fire is never han
   assert.equal((await store.getNextControllerCommand("TF-ENTRY")).source, "emergency");
 });
 
+test("an unsafe controller is handed a CLOSE but never an OPEN (a fire hold must be endable)", async (t) => {
+  const { pg } = await fixture(t);
+  await store.ensurePortalSeeded();
+  await pg.query("UPDATE gate_states SET commissioned = 1, controller_state = 'online' WHERE gate_id = 'TF-ENTRY'");
+  const future = new Date(Date.now() + 600_000).toISOString();
+  await pg.query("INSERT INTO command_queue (correlation_id, gate_id, command, source, state, requested_by, expires_at) VALUES ($1, 'TF-ENTRY', 'open', 'manual', 'queued', 'Staff', $2)", [crypto.randomUUID(), future]);
+  assert.equal(await store.getNextControllerCommand("TF-ENTRY", { closeOnly: true }), null, "only an OPEN is queued: nothing is handed to an unsafe gate");
+  assert.equal((await pg.query("SELECT state FROM command_queue WHERE gate_id = 'TF-ENTRY' AND command = 'open'")).rows[0].state, "queued", "the OPEN was not claimed");
+  await pg.query("INSERT INTO command_queue (correlation_id, gate_id, command, source, state, requested_by, expires_at) VALUES ($1, 'TF-ENTRY', 'closed', 'emergency', 'queued', 'Staff', $2)", [crypto.randomUUID(), future]);
+  const next = await store.getNextControllerCommand("TF-ENTRY", { closeOnly: true });
+  assert.equal(next.command, "closed");
+  assert.equal((await pg.query("SELECT state FROM command_queue WHERE gate_id = 'TF-ENTRY' AND command = 'open'")).rows[0].state, "queued", "the OPEN is still not claimed");
+});
+
 test("manual commands are refused atomically once emergency priority has started", async (t) => {
   const { pg } = await fixture(t);
   await store.ensurePortalSeeded();

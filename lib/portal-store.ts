@@ -421,7 +421,12 @@ export async function recordHeartbeat(input: {
   return commissioned;
 }
 
-export async function getNextControllerCommand(gateId: string) {
+/**
+ * closeOnly (15 Oct 2026): while the controller reports its local safety circuit as NOT healthy, only a CLOSE is
+ * handed out. A CLOSE just releases a hold, which is always the safe direction, and without this a fire / evacuation
+ * hold could not be ended remotely while any safety device was tripped. An OPEN is never handed to an unsafe gate.
+ */
+export async function getNextControllerCommand(gateId: string, options: { closeOnly?: boolean } = {}) {
   if (!isGateActive(gateId)) return null;
   const db = getDb();
   const leaseExpired = new Date(Date.now() - 30_000).toISOString();
@@ -433,6 +438,7 @@ export async function getNextControllerCommand(gateId: string) {
       and(eq(commandQueue.state, "dispatched"), lt(commandQueue.dispatchedAt, leaseExpired)),
     ),
     gt(commandQueue.expiresAt, currentTime),
+    ...(options.closeOnly ? [eq(commandQueue.command, "closed")] : []),
     // Emergency priority (10 Oct 2026 review): while a fire mode is active only
     // emergency packets are handed out. A schedule or booking CLOSE that slipped
     // into the queue just as fire started can never release the fire hold.
@@ -443,7 +449,7 @@ export async function getNextControllerCommand(gateId: string) {
   const d1 = getSql();
   const claimed = await d1.batch([
     // Same emergency rule re-checked inside the claim, atomically with the dispatch.
-    d1.prepare("UPDATE command_queue SET state = 'dispatched', dispatched_at = ? WHERE id = ? AND expires_at > ? AND (state = 'queued' OR (state = 'dispatched' AND dispatched_at < ?)) AND (source = 'emergency' OR (SELECT mode FROM system_state WHERE id = 1) = 'normal')").bind(currentTime, command.id, currentTime, leaseExpired),
+    d1.prepare("UPDATE command_queue SET state = 'dispatched', dispatched_at = ? WHERE id = ? AND expires_at > ? AND (state = 'queued' OR (state = 'dispatched' AND dispatched_at < ?)) AND (source = 'emergency' OR (SELECT mode FROM system_state WHERE id = 1) = 'normal')" + (options.closeOnly ? " AND command = 'closed'" : "")).bind(currentTime, command.id, currentTime, leaseExpired),
     d1.prepare("UPDATE gate_states SET last_command_state = 'dispatched', updated_at = CURRENT_TIMESTAMP WHERE gate_id = ? AND EXISTS (SELECT 1 FROM command_queue WHERE id = ? AND state = 'dispatched' AND dispatched_at = ?)").bind(gateId, command.id, currentTime),
   ]);
   if (Number(claimed[0]?.meta?.changes ?? 0) === 0) return null;

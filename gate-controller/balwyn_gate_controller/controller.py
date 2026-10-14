@@ -42,8 +42,10 @@ is meant to survive network loss. Tests run the same exchange inline.
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -56,6 +58,18 @@ from .relay import PulseOutput, RelaySupervisor
 
 LOG = logging.getLogger("balwyn-gate")
 HOLD_SOURCES = {"schedule", "emergency"}
+# Exactly the sources the portal can create (lib/portal-store.ts: queueGateCommands "manual" / "emergency",
+# getOrCreateScheduledControllerCommand "schedule"). Anything else is refused, never guessed at.
+VALID_SOURCES = {"manual", "schedule", "emergency"}
+# Who may end a fire / evacuation hold. A schedule window ending during a fire must not.
+EMERGENCY_RELEASE_SOURCES = {"emergency", "manual"}
+# 4xx replies that mean "the portal will never accept this acknowledgement": drop it instead of retrying for ever.
+# (401 / 403 / 408 / 429 are NOT here: those can be fixed by waiting or by correcting the credential.)
+ACK_REJECTED_STATUSES = {400, 409, 410, 422}
+# A 404 means "this command is unknown" ONLY when it carries the portal's own message ("Command not found.").
+# A 404 from anything else (a proxy, a route that does not exist during a portal update) is retried.
+MAX_PENDING_ACKS = 50
+EXCHANGE_ABANDON_S = 60.0     # a portal exchange still unfinished after this long is abandoned and a new one started
 ACK_RETRY_S = 2.0            # after a failed acknowledgement, retry no sooner than this
 EXCHANGE_STALL_WARN_S = 30.0  # log once when one portal exchange has run this long
 
@@ -83,6 +97,7 @@ class Exchange:
     """The outcome of one portal exchange: acknowledgements first, then (if due) a poll."""
     delivered: List[Dict[str, Any]] = field(default_factory=list)  # acks the portal took, or no longer knows (404)
     ack_failed: bool = False
+    rejected: int = 0
     polled: bool = False
     response: Optional[Dict[str, Any]] = None
     poll_error: Optional[PortalError] = None
@@ -96,6 +111,12 @@ class PortalLink:
     can stall relay supervision, the safety interlock or the systemd watchdog.
     threaded=False (tests): the exchange runs inline, inside tick(), so tests
     driven by a simulated clock stay deterministic. Both run the same code.
+
+    A worker that never returns (a name lookup that hangs, a server that sends
+    one byte a minute) would otherwise hold the link busy for ever: no
+    heartbeat, no acknowledgement, no remote release of a fire hold. check()
+    abandons an exchange after EXCHANGE_ABANDON_S; if the stuck worker ever
+    finishes, its result is discarded (generation number).
     """
 
     def __init__(self, threaded: bool) -> None:
@@ -103,6 +124,7 @@ class PortalLink:
         self._lock = threading.Lock()
         self._busy = False
         self._result: Optional[Exchange] = None
+        self._generation = 0
         self.started_at = 0.0
         self.stall_reported = False
 
@@ -117,6 +139,12 @@ class PortalLink:
             self._result = job()
             return
 
+        with self._lock:
+            self._generation += 1
+            generation = self._generation
+            self._busy = True
+            self._result = None
+
         def run() -> None:
             try:
                 result = job()
@@ -124,17 +152,33 @@ class PortalLink:
                 LOG.exception("portal exchange failed unexpectedly")
                 result = Exchange(ack_failed=True, polled=True, poll_error=PortalError(f"internal error: {type(error).__name__}"))
             with self._lock:
-                self._result = result
-                self._busy = False
+                if generation == self._generation:  # not abandoned meanwhile
+                    self._result = result
+                    self._busy = False
 
-        with self._lock:
-            self._busy = True
         threading.Thread(target=run, name="portal-exchange", daemon=True).start()
 
     def take(self) -> Optional[Exchange]:
         with self._lock:
             result, self._result = self._result, None
             return result
+
+    def check(self, now: float, abandon_after_s: float) -> Tuple[Optional[Exchange], bool, bool]:
+        """(finished result or None, still busy, abandoned just now) read as ONE step.
+
+        Reading the result and the busy flag in two separate steps lets a worker
+        finish in between: the result is then missed, a new exchange starts, and
+        the earlier reply (possibly holding a command) is overwritten and lost."""
+        with self._lock:
+            result, self._result = self._result, None
+            busy = self._busy
+            abandoned = False
+            if busy and result is None and now - self.started_at > abandon_after_s:
+                self._generation += 1
+                self._busy = False
+                busy = False
+                abandoned = True
+            return result, busy, abandoned
 
 
 class GateController:
@@ -159,6 +203,8 @@ class GateController:
         self.tracker = PositionTracker(config.debounce_s, config.travel_timeout_s, config.open_reed_pin is not None)
         self.job: Optional[Job] = None
         self.pending_acks: List[Dict[str, Any]] = []
+        self._open_times: "deque[float]" = deque()   # when recent non-emergency OPEN commands were started
+        self._alarm_reported = False
         # No portal exchange at all (heartbeat OR acknowledgement) until the reeds have
         # been read stable for one debounce period after the FIRST tick, so a restart
         # never reports "unknown" for a gate that is shut. Counted from the first tick,
@@ -171,8 +217,24 @@ class GateController:
         self.safety_ok = False
         self.faults: List[str] = []
         self._recover_interrupted()
+        self._restore_emergency_hold()
 
     # ------------------------------------------------------------- start-up
+    def _restore_emergency_hold(self) -> None:
+        """A fire / evacuation hold that was on when the controller stopped (crash, update, power cut) is switched on
+        again, unless it is older than EMERGENCY_RESTORE_MAX_S. Only an explicit close, or the process being stopped
+        on purpose by an installer, ends it; a restart must not quietly end an evacuation."""
+        since = self.journal.emergency_since
+        if since is None:
+            return
+        age = time.time() - since
+        if self.cfg.dry_run or self.cfg.monitor_only or self.cfg.emergency_restore_max_s <= 0 or not 0 <= age <= self.cfg.emergency_restore_max_s:
+            self.journal.audit("emergency_hold_not_restored", {"age_s": round(age)})
+            self.journal.set_emergency_hold(False)
+            return
+        self.relay.hold("emergency")
+        self.journal.audit("emergency_hold_restored", {"age_s": round(age)})
+
     def _recover_interrupted(self) -> None:
         flight = self.journal.interrupted()
         if not flight:
@@ -195,6 +257,15 @@ class GateController:
             faults.append(f"Relay hold released: {self.relay.state.released_reason}")
         if self.unlock_fault:
             faults.append(self.unlock_fault)
+        state = self.relay.state
+        if state.mode == "holding" and state.hold_kind == "emergency" and now - state.hold_since > self.cfg.emergency_alarm_s:
+            hours = (now - state.hold_since) / 3600.0
+            faults.append(f"Fire / evacuation hold has been on for {hours:.1f} h. Send the all-clear close when it is over")
+            if not self._alarm_reported:
+                self._alarm_reported = True
+                self.journal.audit("emergency_hold_long", {"hours": round(hours, 1)})
+        elif state.mode != "holding" or state.hold_kind != "emergency":
+            self._alarm_reported = False
         self._watch_board(now)
         self.position = reading.position
         self.safety_ok = safety is True and not reading.faults
@@ -238,6 +309,9 @@ class GateController:
 
     def _begin_unlock(self, command_id: int, source: str, now: float) -> None:
         assert self.unlock is not None
+        if source == "emergency":
+            # A press left over from the command this one superseded must not make a fire command fail.
+            self.unlock.off("superseded by fire / evacuation command")
         if not self.unlock.pulse(self.cfg.unlock_pulse_s):
             self._fail_pending(PendingOpen(command_id, source, "confirm", now), "Unlock relay busy. Gate relay not operated.")
             return
@@ -286,6 +360,8 @@ class GateController:
         return self.cfg.travel_timeout_s if target == "open" else self.cfg.auto_close_timeout_s
 
     def _complete(self, job: Job, state: str, detail: str) -> None:
+        if state == "failed" and job.target == "open":
+            self._drop_unconfirmed_hold(job.source)
         self.journal.finish(job.command_id, state, detail)
         self.journal.audit("command_result", {"id": job.command_id, "state": state, "position": self.position})
         self._queue_ack(job.command_id, state, detail)
@@ -295,10 +371,13 @@ class GateController:
     # ------------------------------------------------------------------ portal
     def _network(self, now: float) -> None:
         """Start, or collect, one portal exchange. Never waits on the network."""
-        finished = self.link.take()
+        finished, busy, abandoned = self.link.check(now, EXCHANGE_ABANDON_S)
         if finished is not None:
             self._absorb(finished, now)
-        if self.link.busy():
+        if abandoned:
+            LOG.warning("portal exchange abandoned after %.0f s; starting a new one", now - self.link.started_at)
+            self.journal.audit("portal_exchange_abandoned", {"seconds": round(now - self.link.started_at)})
+        if busy:
             if not self.link.stall_reported and now - self.link.started_at > EXCHANGE_STALL_WARN_S:
                 self.link.stall_reported = True
                 LOG.warning("portal exchange still waiting after %.0f s; relay supervision continues", now - self.link.started_at)
@@ -330,10 +409,13 @@ class GateController:
                 self.portal.ack(ack["id"], ack["state"], ack["position"], ack["safety_ok"], ack["detail"])
                 result.delivered.append(ack)
             except PortalError as error:
-                if error.status == 404:
-                    result.delivered.append(ack)  # the portal no longer knows this command: nothing to report
+                unknown_command = error.status == 404 and "command not found" in str(error).lower()
+                if error.status in ACK_REJECTED_STATUSES or unknown_command:
+                    result.delivered.append(ack)  # the portal will never take this one (unknown / already closed): stop retrying
+                    result.rejected += 1
                 else:
                     result.ack_failed = True
+                    break  # the ack route is failing: don't spend a timeout on every queued ack before the poll
         if status is not None:
             result.polled = True
             try:
@@ -347,6 +429,8 @@ class GateController:
         if exchange.delivered:
             sent = {id(ack) for ack in exchange.delivered}
             self.pending_acks = [ack for ack in self.pending_acks if id(ack) not in sent]
+        if exchange.rejected:
+            self.journal.audit("ack_rejected_by_portal", {"count": exchange.rejected})
         self._absorb_poll(exchange, now)
         if exchange.ack_failed:
             # Retry undelivered acknowledgements no sooner than the poll back-off.
@@ -371,40 +455,97 @@ class GateController:
         self.poll_failures = 0
         try:
             wait_ms = float(response.get("pollAfterMs", 1500))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
+            wait_ms = 1500.0
+        if not math.isfinite(wait_ms):
+            # NaN would make next_poll NaN: "now >= NaN" is never true, so polling would stop for ever.
             wait_ms = 1500.0
         self.next_poll = now + min(max(wait_ms / 1000.0, 0.5), 5.0)
         command = response.get("command")
         if isinstance(command, dict):
-            self._handle(command, now)
+            try:
+                self._handle(command, now)
+            except Exception:  # noqa: BLE001 - a bad command must never end the process (that would drop a fire hold)
+                LOG.exception("command handling failed")
+                self.journal.audit("command_handler_error", {})
+                self._recover_failed_handler(command)
+
+    def _recover_failed_handler(self, command: Dict[str, Any]) -> None:
+        """If handling raised after the command was journalled but before it became a job, finish it as failed."""
+        try:
+            command_id = command["id"]
+            if isinstance(command_id, bool) or not isinstance(command_id, int):
+                return
+            if (self.job and self.job.command_id == command_id) or (self.pending and self.pending.command_id == command_id):
+                return
+            flight = self.journal.in_flight
+            if flight and flight.get("id") == command_id:
+                detail = "Controller error while starting this command. The relay was not left on."
+                if self.relay.state.hold_kind != "emergency":
+                    self.relay.release("command handling error")
+                self.journal.finish(command_id, "failed", detail)
+                self._queue_ack(command_id, "failed", detail)
+        except Exception:  # noqa: BLE001
+            LOG.exception("could not clean up after a failed command")
 
     def _queue_ack(self, command_id: int, state: str, detail: str, live: bool = False) -> None:
         # Position and safety are captured when the result is known, so an
         # acknowledgement sent later (after a network delay) still reports the
         # reading that the result was based on. live=True (a command interrupted
         # by a restart, queued before any reading) takes the reading at send time.
+        if any(ack["id"] == command_id for ack in self.pending_acks):
+            return  # one answer per command is enough: a portal that keeps re-sending it must not grow the queue
         self.pending_acks.append({"id": command_id, "state": state, "detail": detail,
                                   "position": self.position, "safety_ok": self.safety_ok, "live": live})
+        if len(self.pending_acks) > MAX_PENDING_ACKS:
+            dropped = self.pending_acks.pop(0)
+            self.journal.audit("ack_dropped_queue_full", {"id": dropped["id"]})
 
     # ------------------------------------------------------------- commands
+    def _refuse(self, command_id: int, state: str, detail: str) -> None:
+        """Record and report a command that was deliberately not carried out (relay untouched)."""
+        self.journal.finish(command_id, state, detail)
+        self.journal.audit("command_refused", {"id": command_id, "state": state, "detail": detail})
+        self._queue_ack(command_id, state, detail)
+
     def _handle(self, command: Dict[str, Any], now: float) -> None:
-        try:
-            command_id = int(command["id"])
-            target = str(command["command"])
-            source = str(command.get("source", "manual"))
-        except (KeyError, TypeError, ValueError):
+        raw_id, raw_target, raw_source = command.get("id"), command.get("command"), command.get("source", "manual")
+        # The id must be a real positive integer. int() would accept 12.0 and "12", and raises OverflowError on the
+        # JSON value Infinity, which used to end the process.
+        if (isinstance(raw_id, bool) or not isinstance(raw_id, int) or not 0 < raw_id < 2 ** 53
+                or not isinstance(raw_target, str) or not isinstance(raw_source, str)):
             self.journal.audit("command_malformed", {})
             return
+        command_id, target, source = raw_id, raw_target, raw_source
         if target not in {"open", "closed"}:
-            self._queue_ack(command_id, "failed", f"Unsupported command {target!r}.")
+            self.journal.audit("command_unsupported", {"id": command_id, "command": target})
+            self._queue_ack(command_id, "failed", f"Unsupported command {target[:40]!r}.")
+            return
+        if source not in VALID_SOURCES:
+            self.journal.audit("command_unsupported", {"id": command_id, "source": source})
+            self._queue_ack(command_id, "failed", f"Unsupported command source {source[:40]!r}.")
             return
 
         if self.journal.seen(command_id):
             if (self.job and self.job.command_id == command_id) or (self.pending and self.pending.command_id == command_id):
                 return  # still working on it; the portal re-sent it after its lease
             outcome = self.journal.done.get(str(command_id), {})
-            state = "acknowledged" if self.position == target else "failed"
-            self._queue_ack(command_id, state, f"Already handled ({outcome.get('outcome', 'unknown')}); not repeated.")
+            recorded = outcome.get("outcome", "unknown")
+            # Report what really happened the first time. A command that was refused or failed is never turned into a
+            # success because the gate happens to be in the right place now (someone opened it by hand, say).
+            if recorded == "acknowledged":
+                state = "acknowledged" if self.position == target else "failed"
+            elif recorded == "blocked":
+                state = "blocked"
+            else:
+                state = "failed"
+            self._queue_ack(command_id, state, f"Already handled ({recorded}); not repeated.")
+            return
+
+        if source == "schedule" and target == "open" and not self.cfg.schedule_control:
+            # SCHEDULE_CONTROL=false is the commissioning stage where the portal's schedules must not move the gate.
+            # The flag is also sent in every heartbeat, but a command already queued would otherwise still run.
+            self._refuse(command_id, "blocked", "Schedule control is off on this controller. Relay not operated.")
             return
 
         if self.job or self.pending:
@@ -415,17 +556,32 @@ class GateController:
             if self.pending:
                 self._fail_pending(self.pending, "Superseded by fire / evacuation command.")
 
-        if not self.safety_ok:
+        # Releasing a hold is the safe direction, so a CLOSE is not stopped by an unhealthy safety input (otherwise
+        # a fire hold could never be ended while a safety device is tripped). Everything else needs a healthy gate.
+        if self.cfg.monitor_only or (target == "open" and not self.safety_ok):
             detail = ("Monitor-only controller: no safety input fitted. Relay not operated."
                       if self.cfg.monitor_only else "Local safety circuit not healthy. Relay not operated.")
-            self.journal.finish(command_id, "blocked", detail)
-            self._queue_ack(command_id, "blocked", detail)
+            self._refuse(command_id, "blocked", detail)
             return
         if self.cfg.dry_run:
-            detail = "Dry run: relay not operated."
-            self.journal.finish(command_id, "failed", detail)
-            self._queue_ack(command_id, "failed", detail)
+            self._refuse(command_id, "failed", "Dry run: relay not operated.")
             return
+        if (target == "closed" and self.relay.state.mode == "holding" and self.relay.state.hold_kind == "emergency"
+                and source not in EMERGENCY_RELEASE_SOURCES):
+            # A schedule window ending must not end an evacuation hold. Only the emergency all-clear or a staff
+            # member's manual close may.
+            self._refuse(command_id, "blocked", f"Fire / evacuation hold kept: a {source} close cannot end it.")
+            return
+
+        if target == "open" and source != "emergency":
+            window = self.cfg.open_rate_window_s
+            while self._open_times and now - self._open_times[0] > window:
+                self._open_times.popleft()
+            if len(self._open_times) >= self.cfg.open_rate_max:
+                self._refuse(command_id, "blocked", f"More than {self.cfg.open_rate_max} open commands in {window / 60:g} minutes. "
+                                                    "Relay not operated.")
+                return
+            self._open_times.append(now)
 
         try:
             self.journal.begin({"id": command_id, "command": target, "source": source})
@@ -441,17 +597,21 @@ class GateController:
                 return
             self._start_open(command_id, source, now)
             return
-        else:
-            released = self.relay.release(f"portal close command ({source})")
-            action = "Hold released; operator auto-closes" if released else "No hold active; waiting for auto-close"
-            self.tracker.movement_started(now)
-            self.job = Job(command_id, "closed", source, now + self.cfg.auto_close_timeout_s, action)
+        was_emergency = self.relay.state.mode == "holding" and self.relay.state.hold_kind == "emergency"
+        released = self.relay.release(f"portal close command ({source})")
+        if was_emergency or self.journal.emergency_since is not None:
+            self.journal.set_emergency_hold(False)
+        action = "Hold released; operator auto-closes" if released else "No hold active; waiting for auto-close"
+        self.tracker.movement_started(now)
+        self.job = Job(command_id, "closed", source, now + self.cfg.auto_close_timeout_s, action)
         self._follow_job(now)
 
     def _start_open(self, command_id: int, source: str, now: float, prefix: str = "") -> None:
         """Drive the gate relay for an open (unchanged behaviour, now also reached after an unlock)."""
         if source in HOLD_SOURCES:
             self.relay.hold(source)
+            if source == "emergency":
+                self.journal.set_emergency_hold(True)
             action = f"{prefix}Relay held for {source} open"
         elif self.relay.state.mode == "holding":
             action = f"{prefix}Gate already held open; no pulse sent"
@@ -461,12 +621,20 @@ class GateController:
             action = f"{prefix}Pulse refused by relay interlock"
         self.tracker.movement_started(now)
         if self.cfg.open_reed_pin is None and self.position != "open":
+            self._drop_unconfirmed_hold(source)
             detail = f"{action}. No open-position reed is fitted, so the open cannot be confirmed."
             self.journal.finish(command_id, "failed", detail)
             self._queue_ack(command_id, "failed", detail)
             return
         self.job = Job(command_id, "open", source, now + self.cfg.travel_timeout_s, action)
         self._follow_job(now)
+
+    def _drop_unconfirmed_hold(self, source: str) -> None:
+        """An open that could not be confirmed is reported failed, so the relay must not stay on for hours behind that
+        report. A schedule hold is released (the portal retries with a new command). A fire hold is kept: for
+        life safety the gate stays open until someone ends it."""
+        if source != "emergency" and self.relay.state.mode == "holding" and self.relay.state.hold_kind != "emergency":
+            self.relay.release("open not confirmed")
 
     # ---------------------------------------------------------------- stop
     def shutdown(self) -> None:

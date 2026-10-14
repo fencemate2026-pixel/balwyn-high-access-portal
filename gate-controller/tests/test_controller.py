@@ -903,6 +903,32 @@ class DeploymentFileReviewTests(unittest.TestCase):
         self.assertEqual(gates, ["TF-ENTRY", "SIDE-ENTRY"])
         self.assertEqual({p for p, g in used.items() if p in (4, 22, 6, 26)}, {4, 22, 6, 26})
 
+    def test_venus_examples_pass_check_config_and_never_overlap(self) -> None:
+        """Locinox Venus plan (INSTALL.md 1d): one relay per gate, no unlock relay, pins never shared."""
+        used: dict[int, str] = {}
+        gates = []
+        for name in ("venus-TF-ENTRY.env.example", "venus-SIDE-ENTRY.env.example"):
+            values = systemd_env_file(DEPLOY / name)
+            config = Config.from_env({**values, "CONTROLLER_TOKEN": TOKEN, "STATE_DIRECTORY": "/tmp/x"})
+            self.assertTrue(config.dry_run, "the example must start in DRY_RUN")
+            self.assertFalse(config.schedule_control, "first commissioning starts with schedule control off")
+            self.assertEqual(config.relay_board, "generic")
+            self.assertIsNone(config.unlock_relay_pin, "a Venus releases its own lock: no unlock relay")
+            self.assertIsNone(config.unlock_sense_pin)
+            self.assertFalse(config.monitor_only, "the example must be able to command the gate")
+            # The Venus closes the gate again if the contact is released while it is still opening, so
+            # the pulse has to be a real, bounded length and shorter than the travel timeout.
+            self.assertGreater(config.cycle_pulse_s, 1.0)
+            self.assertLess(config.cycle_pulse_s, config.travel_timeout_s)
+            gates.append(config.gate_id)
+            for pin in (config.relay_pin, config.closed_reed_pin, config.open_reed_pin, config.safety_pin):
+                self.assertIsNotNone(pin)
+                self.assertNotIn(pin, used, f"GPIO {pin} used by both {used.get(pin)} and {config.gate_id}")
+                used[pin] = config.gate_id
+        self.assertEqual(gates, ["TF-ENTRY", "SIDE-ENTRY"])
+        # Gate relays are on the two pins the INSTALL.md boot line (gpio=22,23=op,dl) holds low.
+        self.assertEqual({p for p, g in used.items() if p in (22, 23)}, {22, 23})
+
 
 class StubLgpio:
     """Stands in for the lgpio module so LgpioBackend's own code is tested (no GPIO)."""

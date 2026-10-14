@@ -18,7 +18,9 @@ export function validateControllerAcknowledgement(input: {
   detail: string | null;
 }): { state: ControllerCompletionState; detail: string | null } {
   if (input.state !== "acknowledged") return { state: input.state, detail: input.detail };
-  if (input.safetyOk && input.position === input.expected) return { state: "acknowledged", detail: input.detail };
+  // A CLOSE only releases a hold, so it does not need a healthy safety circuit to be believed; an OPEN does.
+  const safetyNeeded = input.expected === "open";
+  if ((input.safetyOk || !safetyNeeded) && input.position === input.expected) return { state: "acknowledged", detail: input.detail };
   return {
     state: "failed",
     detail: `Controller acknowledgement rejected: expected ${input.expected} with a healthy safety input; received ${input.position} with safety ${input.safetyOk ? "healthy" : "not healthy"}.`,
