@@ -10,8 +10,10 @@ app/api/controller/commands/[id]/ack/route.ts in this repository.
 
 from __future__ import annotations
 
+import http.client
 import json
 import ssl
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Dict, List, Optional
@@ -34,12 +36,17 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+MAX_BODY_BYTES = 65536
+
+
 class PortalClient:
-    def __init__(self, base_url: str, gate_id: str, token: str, ca_file: Optional[str] = None, timeout_s: float = 8.0) -> None:
+    def __init__(self, base_url: str, gate_id: str, token: str, ca_file: Optional[str] = None, timeout_s: float = 8.0,
+                 total_s: float = 20.0) -> None:
         self.base = base_url
         self.gate_id = gate_id
         self._token = token
-        self._timeout = timeout_s
+        self._timeout = timeout_s      # per socket operation
+        self._total = total_s          # whole reply: a server that dribbles one byte at a time cannot hold the link for days
         self._ssl = ssl.create_default_context(cafile=ca_file) if base_url.startswith("https://") else None
         self._opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=self._ssl), _NoRedirect())
 
@@ -51,21 +58,36 @@ class PortalClient:
             "User-Agent": f"balwyn-gate-controller/{__version__}",
         })
         try:
+            deadline = time.monotonic() + self._total
             with self._opener.open(request, timeout=self._timeout) as response:
-                body = json.loads(response.read(65536).decode("utf-8") or "{}")
+                raw = b""
+                while True:
+                    chunk = response.read(4096)
+                    if not chunk:
+                        break
+                    raw += chunk
+                    if len(raw) > MAX_BODY_BYTES:
+                        raise PortalError("portal answered with an oversized body")
+                    if time.monotonic() > deadline:
+                        raise PortalError("portal answered too slowly")
+                body = json.loads(raw.decode("utf-8") or "{}")
             if not isinstance(body, dict):
                 # A proxy or captive-portal page can answer 200 with other JSON;
                 # treat it as unreachable instead of crashing the control loop.
                 raise PortalError("portal answered with an unexpected body")
             return body
+        except PortalError:
+            raise
         except urllib.error.HTTPError as error:
-            # Never log the token; the portal's error text is short and safe.
+            # Never log the token. The portal's error text is untrusted: one short line only.
             try:
-                message = json.loads(error.read(4096).decode("utf-8")).get("error", "")
-            except (ValueError, OSError):
+                parsed = json.loads(error.read(4096).decode("utf-8"))
+                message = parsed.get("error", "") if isinstance(parsed, dict) else ""
+            except (ValueError, OSError, http.client.HTTPException):
                 message = ""
+            message = " ".join(str(message).split())[:200]
             raise PortalError(message or f"HTTP {error.code}", error.code) from None
-        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError, RecursionError, http.client.HTTPException) as error:
             raise PortalError(f"portal unreachable: {type(error).__name__}") from None
 
     def poll(self, position: str, safety_ok: bool, faults: List[str], schedule_control: bool) -> Dict[str, Any]:

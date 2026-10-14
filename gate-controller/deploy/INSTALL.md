@@ -275,9 +275,11 @@ Check the network the Pi will actually use (the school's):
   traffic: ask school IT to exempt the Pi, or obtain their root certificate
   and set `CA_FILE` to it.
 
-Recommended (required for the KS0212 shield, section 1c): make the firmware hold
-every relay pin OFF from early boot, before Linux and the controller start. Add
-ONE line to `/boot/firmware/config.txt` listing every relay pin of BOTH gates:
+**Required for every board** (15 Oct 2026; it was "recommended"): make the firmware hold
+every relay pin OFF from early boot, before Linux and the controller start. The Pi's pins 9 to 27
+are pulled LOW at power-up and the controller only claims its relay pin once the service starts,
+so an active-LOW relay board (ON when the pin is LOW) would be switched ON for the whole boot without this line.
+Add ONE line to `/boot/firmware/config.txt` listing every relay pin of BOTH gates:
 `gpio=4,6,22,26=op,dl` for the KS0212 (ON when HIGH). For an active-low board
 (`RELAY_ACTIVE_LOW=true`) use `op,dh` instead, e.g. `gpio=17=op,dh`. The
 Raspberry Pi documentation notes a delay of a few seconds between power being
@@ -303,12 +305,13 @@ passes.
    ```
    sudo install -m 600 -o root -g root /dev/null /etc/balwyn-gate/TF-ENTRY.token
    sudo nano /etc/balwyn-gate/TF-ENTRY.token        # paste the credential, save
-   sudo cp deploy/ks0212-TF-ENTRY.env.example /etc/balwyn-gate/TF-ENTRY.env
+   sudo cp deploy/venus-TF-ENTRY.env.example /etc/balwyn-gate/TF-ENTRY.env
    sudo chgrp balwyn-gate /etc/balwyn-gate/TF-ENTRY.env && sudo chmod 640 /etc/balwyn-gate/TF-ENTRY.env
    sudo nano /etc/balwyn-gate/TF-ENTRY.env
    ```
-   (This line copies the KS0212 file. **For the Venus plan use `deploy/venus-TF-ENTRY.env.example` and, for
-   the second gate, `SIDE-ENTRY` with `venus-SIDE-ENTRY.env.example`.** Any other board: `deploy/gate.env.example`.)
+   (This line copies the Venus file. For the second gate use `SIDE-ENTRY` with `venus-SIDE-ENTRY.env.example`.
+   The Keyestudio KS0212 shield: `ks0212-*.env.example`. Any other operator or board: `deploy/gate.env.example`,
+   whose 1 s pulse is wrong for a Venus: a Venus needs a pulse longer than its open travel, see section 1d.)
    Set the pins and timings; keep `DRY_RUN=true` and `SCHEDULE_CONTROL=false`.
    Comments must stay on their own lines: `RELAY_PIN=17  # note` is refused.
 3. Check the settings. With `DRY_RUN=true` still set, start the service once and read its first lines:
@@ -316,16 +319,18 @@ passes.
    sudo systemctl start balwyn-gate@TF-ENTRY
    journalctl -u balwyn-gate@TF-ENTRY -n 20 --no-pager
    ```
-   The first line is either `OK: gate TF-ENTRY, relay GPIO17, ...` or `Configuration error: <SETTING> ...`,
+   The first line is either `OK: gate TF-ENTRY, relay board generic, relay ON when HIGH, relay GPIO22, ...` or
+   `Configuration error: <SETTING> ...`,
    and a configuration error stops the service before any GPIO is touched.
 
 ## 4. Prove the inputs (relay stays OFF)
 
 ```
 sudo systemctl stop balwyn-gate@TF-ENTRY
-cd /opt/balwyn-gate-controller && sudo -u balwyn-gate env $(grep -v '^#' /etc/balwyn-gate/TF-ENTRY.env | xargs) CONTROLLER_TOKEN=$(sudo cat /etc/balwyn-gate/TF-ENTRY.token) python3 -m balwyn_gate_controller read-inputs
+cd /opt/balwyn-gate-controller && sudo -u balwyn-gate env $(grep -v '^#' /etc/balwyn-gate/TF-ENTRY.env | grep -v TOKEN | xargs) python3 -m balwyn_gate_controller read-inputs
 ```
-(The second command is one long line.)
+(The second command is one long line.) `read-inputs` does not contact the portal, so it needs no credential and none
+is put on the command line (a token typed there is visible to every user in `ps` and is written to the sudo log).
 Prints the reeds and safety input once a second for 30 s. Check by hand:
 gate closed → `closed_reed=True`; open the gate with its own remote → `open_reed=True`;
 block the safety device → `safety=False`. The relay is claimed OFF and never energised by this command.

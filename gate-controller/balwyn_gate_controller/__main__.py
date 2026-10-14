@@ -18,6 +18,7 @@ import os
 import signal
 import sys
 import time
+from typing import Callable
 
 from . import __version__
 from .config import Config, ConfigError, relay_outputs_from_env
@@ -29,6 +30,10 @@ from .sdnotify import notify
 
 LOG = logging.getLogger("balwyn-gate")
 TICK_S = 0.05
+# One bad tick (a transient GPIO read error, an odd portal reply) must not end the process: ending it releases
+# every relay, including a fire / evacuation hold. A fault that persists for this many ticks in a row (~5 s) is
+# real: stop, release, and let systemd restart cleanly.
+MAX_CONSECUTIVE_TICK_FAILURES = 100
 
 
 def _io(config: Config) -> GateIO:
@@ -99,6 +104,26 @@ def read_inputs(config: Config) -> int:
     return 0
 
 
+def tick_loop(controller: GateController, journal: Journal, should_stop: Callable[[], bool],
+              sleep: Callable[[float], None] = time.sleep, heartbeat: Callable[[str], None] = notify) -> None:
+    """Run controller.tick() until should_stop(). One bad tick is survived; a persistent fault is raised."""
+    failures = 0
+    while not should_stop():
+        try:
+            controller.tick()
+        except Exception:  # noqa: BLE001 - see MAX_CONSECUTIVE_TICK_FAILURES
+            failures += 1
+            if failures == 1:
+                LOG.exception("controller tick failed (relay supervision continues)")
+                journal.audit("tick_failed", {})
+            if failures >= MAX_CONSECUTIVE_TICK_FAILURES:
+                raise
+        else:
+            failures = 0
+            heartbeat("WATCHDOG=1")  # only a healthy tick feeds systemd: a loop that always fails is restarted
+        sleep(TICK_S)
+
+
 def run(config: Config) -> int:
     journal = Journal(config.state_dir)
     try:
@@ -135,10 +160,7 @@ def run(config: Config) -> int:
              " (MONITOR ONLY)" if config.monitor_only else "", " (DRY RUN)" if config.dry_run else "")
     notify("READY=1")
     try:
-        while not stopping:
-            controller.tick()
-            notify("WATCHDOG=1")
-            time.sleep(TICK_S)
+        tick_loop(controller, journal, lambda: stopping)
     except Exception:
         LOG.exception("fatal controller error: relay released")
         return 1
@@ -155,7 +177,7 @@ def main(argv: list[str]) -> int:
     if command == "relays-off":
         return relays_off()  # must work even if the full configuration does not load
     try:
-        config = Config.from_env()
+        config = Config.from_env(need_token=command != "read-inputs")
     except ConfigError as error:
         print(f"Configuration error: {error}", file=sys.stderr)
         return 2

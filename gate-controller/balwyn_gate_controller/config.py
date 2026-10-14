@@ -127,7 +127,7 @@ def _pin(env: Mapping[str, str], name: str, required: bool) -> Optional[int]:
         if required:
             raise ConfigError(f"{name} is required (a BCM GPIO number)")
         return None
-    if not raw.isdigit() or int(raw) not in VALID_PINS:
+    if not (raw.isascii() and raw.isdigit()) or int(raw) not in VALID_PINS:
         raise ConfigError(f"{name} must be a BCM GPIO number between 2 and 27")
     return int(raw)
 
@@ -212,7 +212,9 @@ class Config:
         return self.safety_pin is None
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str] | None = None) -> "Config":
+    def from_env(cls, env: Mapping[str, str] | None = None, need_token: bool = True) -> "Config":
+        """need_token=False is for read-inputs only: it never contacts the portal, so it must not require (and an
+        installer must not have to type onto a command line) the credential."""
         env = os.environ if env is None else env
         # systemd's EnvironmentFile= only treats "#" as a comment at the START of
         # a line: "RELAY_PIN=17  # note" hands the controller the whole text.
@@ -222,7 +224,9 @@ class Config:
                                   "everything after the '=' as the value")
         portal_url = _req(env, "PORTAL_URL").rstrip("/")
         parsed = urllib.parse.urlparse(portal_url)
-        allow_http = env.get("ALLOW_INSECURE_HTTP_FOR_TESTS", "") == "1"
+        # Plain HTTP exists for the test suite only, and only to this machine: a stray line in an env file must never
+        # send the bearer token across the network unencrypted.
+        allow_http = env.get("ALLOW_INSECURE_HTTP_FOR_TESTS", "") == "1" and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
         if parsed.scheme != "https" and not (allow_http and parsed.scheme == "http"):
             raise ConfigError("PORTAL_URL must start with https://")
         if not parsed.netloc or parsed.username or parsed.password or parsed.path not in {"", "/"}:
@@ -232,15 +236,26 @@ class Config:
         if not GATE_ID_PATTERN.match(gate_id):
             raise ConfigError("GATE_ID must look like TF-ENTRY")
 
-        token = env.get("CONTROLLER_TOKEN", "").strip()
-        token_file = env.get("CONTROLLER_TOKEN_FILE", "").strip()
-        if token_file:
+        token = ""
+        if need_token:
+            token = env.get("CONTROLLER_TOKEN", "").strip()
+            token_file = env.get("CONTROLLER_TOKEN_FILE", "").strip()
+            if token_file:
+                try:
+                    token = Path(token_file).read_text(encoding="utf-8").strip()
+                except (OSError, UnicodeDecodeError) as error:
+                    raise ConfigError(f"CONTROLLER_TOKEN_FILE cannot be read: {getattr(error, 'strerror', None) or type(error).__name__}") from error
+            if len(token) < 32 or not token.isprintable() or " " in token:
+                raise ConfigError("CONTROLLER_TOKEN (or CONTROLLER_TOKEN_FILE) must hold the credential issued by the portal")
+
+        ca_file = env.get("CA_FILE", "").strip() or None
+        if ca_file:
             try:
-                token = Path(token_file).read_text(encoding="utf-8").strip()
+                with open(ca_file, "rb") as handle:
+                    handle.read(1)
             except OSError as error:
-                raise ConfigError(f"CONTROLLER_TOKEN_FILE cannot be read: {error.strerror}") from error
-        if len(token) < 32 or not token.isprintable() or " " in token:
-            raise ConfigError("CONTROLLER_TOKEN (or CONTROLLER_TOKEN_FILE) must hold the credential issued by the portal")
+                # Otherwise check-config passes and the service then crash-loops in the TLS set-up.
+                raise ConfigError(f"CA_FILE cannot be read: {error.strerror}") from error
 
         pull = env.get("INPUT_PULL", "up").strip().lower()
         if pull not in {"up", "down", "off"}:
@@ -278,7 +293,7 @@ class Config:
             # paths such as C:\...\Temp (it produced a relative folder named "C").
             state_dir=Path(env.get("STATE_DIRECTORY", "/var/lib/balwyn-gate").split(os.pathsep)[0]),
             dry_run=_bool(env, "DRY_RUN", default=False),
-            ca_file=env.get("CA_FILE", "").strip() or None,
+            ca_file=ca_file,
             unlock_relay_pin=_pin(env, "UNLOCK_RELAY_PIN", required=False),
             unlock_sense_pin=_pin(env, "UNLOCK_SENSE_PIN", required=False),
             unlock_pulse_s=_num(env, "UNLOCK_PULSE_S", 0.5, 0.3, MAX_UNLOCK_PULSE_S),

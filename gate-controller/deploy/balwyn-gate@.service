@@ -7,8 +7,9 @@ Description=Balwyn gate controller for %i (Magic Keys portal)
 # devices for systemd, so that unit never becomes active and Requires= on it
 # failed the service after the device timeout. The GPIO chip exists from early
 # boot; if it is missing the controller stops with an error and is restarted.
-After=network-online.target
-Wants=network-online.target
+# Deliberately NOT After=network-online.target (15 Oct 2026): the controller polls
+# with back-off and works without the network, and waiting for the network delayed
+# the moment the relay pin is claimed OFF by up to two minutes after boot.
 # Never give up restarting: a unit left "failed" sends no heartbeat, so the portal
 # would only show it offline. ExecStopPost forces the relays OFF after each attempt.
 StartLimitIntervalSec=0
@@ -39,7 +40,9 @@ WatchdogSec=15
 Restart=always
 RestartSec=3
 KillSignal=SIGTERM
-TimeoutStopSec=5
+# ExecStopPost (relays-off) shares this limit and must be allowed to finish: python start-up plus
+# its 0.2 s settle can exceed 5 s on a busy Pi, and a killed relays-off leaves the pin undriven.
+TimeoutStopSec=20
 
 # Hardening: no privileges, read-only system, only the GPIO chip as a device.
 NoNewPrivileges=true
@@ -55,6 +58,14 @@ DevicePolicy=closed
 DeviceAllow=/dev/gpiochip0 rw
 LockPersonality=true
 MemoryDenyWriteExecute=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+SystemCallArchitectures=native
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

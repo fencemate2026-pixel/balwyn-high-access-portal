@@ -44,6 +44,8 @@ import threading
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Protocol, Tuple
 
+from .config import FORBIDDEN_RELAY_PINS
+
 
 def lgpio_work_dir(preferred: Optional[Path]) -> str:
     """A private, writable directory for lgpio's notification FIFO.
@@ -225,7 +227,10 @@ def record_relay_outputs(state_dir: Path, pins: List[int], relay_active_low: boo
     import json
     try:
         tmp = state_dir / (RELAY_RECORD + ".tmp")
-        tmp.write_text(json.dumps({"pins": pins, "active_low": relay_active_low}), encoding="utf-8")
+        with open(tmp, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps({"pins": pins, "active_low": relay_active_low}))
+            handle.flush()
+            os.fsync(handle.fileno())
         tmp.replace(state_dir / RELAY_RECORD)
     except OSError:
         pass
@@ -236,7 +241,8 @@ def recorded_relay_outputs(state_dir: Path) -> Optional[Tuple[List[int], bool]]:
     import json
     try:
         data = json.loads((state_dir / RELAY_RECORD).read_text(encoding="utf-8"))
-        pins = [int(p) for p in data["pins"] if 2 <= int(p) <= 27]
+        # Never a pin the controller itself would refuse to use as a relay (GPIO 2, 3, 14, 15 idle HIGH by themselves).
+        pins = [int(p) for p in data["pins"] if 2 <= int(p) <= 27 and int(p) not in FORBIDDEN_RELAY_PINS]
         return pins, bool(data["active_low"])
     except (OSError, ValueError, KeyError, TypeError):
         return None
