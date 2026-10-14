@@ -172,10 +172,28 @@ Source: Locinox Venus advanced settings manual (2024-09-23 rev1; page numbers be
 Locinox Venus architects and engineering specification sheet (2024). There are two separate pedestrian gates,
 each 1300 mm wide x 1800 mm high, square tubular style, each with one magnetic lock. People enter with an RFID
 reader and leave with a push button, and either gate can also be opened from Magic Keys (stated by Jarrod, 15 Oct
-2026). **Still to confirm before buying or fitting: the motor label on each gate says Venus; each gate weighs no
-more than 100 kg; the Venus has no stated limit for an 1800 mm high gate or for wind load in the pages read, so
-check that with Locinox; and the lock's make, model and VOLTAGE. The Venus outputs are 24 V DC only (p. 6): a
-12 V magnetic lock cannot be powered from them.**
+2026). Also stated by Jarrod on 15 Oct 2026 (not measured or checked by Claude): the motors on both gates are
+Venus; each gate weighs about 40 kg (the Venus limit is 100 kg); the gates are tubular, so Jarrod judges wind load
+to be small; the magnetic locks accept 12 V or 24 V.
+
+**Still to confirm before buying or fitting:**
+* The lock's make and model. Not confirmed that it is a Locinox MAGMAG-3000. If it is, the Locinox MAG-3000 /
+  MAGMAG-3000 fitting sheet (MANU-000414, 2023-08-18 rev 3) gives: 300 kg (3000 N), 12 V DC 0.66 A or 24 V DC
+  0.33 A, 7.9 W either way. A retailer page lists different currents (about 500 mA at 12 V, 250 mA at 24 V), so the
+  fitting sheet is the authority and the retailer figures are not used. The Venus outputs are 24 V DC only (p. 6), so
+  the lock must be wired for 24 V.
+  **24 V wiring, from the fitting sheet drawing (step 5):** RED to +24 V, **WHITE and BLACK joined to each other**,
+  YELLOW to 0 V (through the switching contact). **12 V wiring, same drawing:** RED and WHITE both to +,
+  BLACK and YELLOW both to 0 V. So at 24 V the wires that are joined are WHITE and BLACK (the two middle wires),
+  and BLACK does **not** go to 0 V. Jarrod's statement "24 V is just joining the negative wires together" does not
+  match the drawing: joining BLACK to YELLOW on a 24 V supply is the 12 V wiring, which puts 24 V across coils
+  rated for 12 V (about double the current, 7.9 W becomes roughly 31 W, if the coils are as in the 12 V drawing;
+  that last figure is Claude's arithmetic, not a Locinox number). Wire it to the drawing, not from memory.
+  The retailer listing for 40-80 mm square profiles is not in the fitting sheet; the tube size at the lock is still
+  to be measured. Whether the lock is fail-safe (opens when power is lost) is from the retailer page only.
+  Check the current at bench test V6 before powering the lock from the Venus.
+* The Venus pages read give no limit for an 1800 mm high gate or for wind load. Jarrod's judgment is that wind is a
+  small effect on a tubular gate; Locinox has not been asked.
 
 Venus limits (spec sheet): gate up to 100 kg and 1400 mm wide, opening angle up to 175 degrees, hinge-side
 profile at least 80 mm wide with steel at least 2 mm thick, a strike is needed so the Venus can find its zero
@@ -246,6 +264,11 @@ with a switch, never with the Pi relay:
 * **V4** IN1 pulsed while IN2 is held: record what the Venus does (the manual does not say).
 * **V5** Meter across the open IN2 terminals: record the voltage and the closing current, then pick the relay.
 * **V6** Lock on OUT1 plus the OUT2 relay coil: total current under 2 A, and the lock releases before the gate moves.
+  Before connecting the lock to the Venus, wire it as the fitting sheet's 24 V drawing shows (RED +, WHITE joined to
+  BLACK, YELLOW 0 V), power it alone from a 24 V supply through a meter and read the current. For a MAGMAG-3000 the
+  fitting sheet figure is 0.33 A at 24 V; a reading near 0.66 A suggests the lock is wired for 12 V, so switch off and
+  re-check the WHITE/BLACK link. The lock model on site may differ, so use the figure on its own label. Also do a hand
+  pull test on the closed gate to confirm it holds.
 * **V8** IN1 closed for 5 seconds (the ACB door relay's unlock time) and then released: record whether the gate runs
   one full open, pause and close cycle, and whether the contact ending mid-opening changes anything. Then press
   the exit button on the ACB and confirm the same cycle (the manual does not describe a short contact in
