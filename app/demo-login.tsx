@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { ArrowRight, Check, Eye, EyeOff, HelpCircle, LoaderCircle, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 
 import SessionExitGuard from "./session-exit-guard";
+import PresenceTracker from "./presence-tracker";
 import BrandLogo from "./brand-logo";
 import BrandArtwork from "./brand-artwork";
 import type { PortalSnapshot } from "@/lib/portal-model";
@@ -277,6 +278,7 @@ export default function DemoLogin() {
   if (snapshot) return (
     <>
       <SessionExitGuard />
+      <PresenceTracker />
       <OperatorHelpDock />
       <DashboardClient initialData={snapshot} user={snapshot.user} onSignOut={handleSignOut} />
     </>
