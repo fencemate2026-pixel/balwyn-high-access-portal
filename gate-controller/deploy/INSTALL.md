@@ -46,7 +46,11 @@ The relay contact is volt-free; the Pi never powers the operator. The
 operator's own photo-eyes and force limits remain the safety authority. The
 certified fire panel remains the life-safety authority for fire.
 
-## 1a. Roger SLED operator with F70/IPU36 control unit (Balwyn)
+## 1a. Roger F70/IPU36 operator (only if a gate really has one; Balwyn uses Venus, see 1d)
+
+**Superseded for Balwyn, 15 Oct 2026:** the Balwyn gates are two small pedestrian gates and the operator
+chosen is the Locinox Venus (section 1d). Use this section only for a gate that is confirmed to have a
+Roger F70/IPU36 control unit.
 
 Source: Roger F70/IPU36 manual IS247 Rev04 (printed page numbers): section 6 terminals, p.72-73; section 12 parameters, p.103-105.
 
@@ -70,7 +74,11 @@ What the safety input does and does not tell the portal: it reports that the F70
 not in alarm and has adequate power. It does **not** report whether a photocell beam is
 clear; the F70's own photocells and obstacle detection keep protecting people on every movement.
 
-## 1b. Access board (ACB-004) and magnetic lock (optional, added 11 Oct 2026)
+## 1b. Access board (ACB-004) and magnetic lock (older plan, added 11 Oct 2026)
+
+**Only if the lock stays powered through the school's ACB board and the operator cannot release it
+itself.** With a Venus whose OUT1 powers the lock (section 1d) none of this is needed: no unlock relay,
+no K1 sense contact.
 
 Use this when the gate's magnetic lock is powered through the school's S4A
 ACB-004 access board, so the lock must be released before the gate can move.
@@ -102,6 +110,9 @@ Bench checks before site (all UNVERIFIED until done):
   will raise them.
 
 ## 1c. Keyestudio KS0212 relay shield, both gates on one Pi (added 15 Oct 2026)
+
+**Only if you want a 4-relay shield (two gate relays and two unlock relays).** The Venus plan in
+section 1d needs two relays in total, so any 2-channel board works.
 
 Source: Keyestudio KS0212 documentation (docs.keyestudio.com/projects/KS0212):
 the sample code drives the four relays from BCM GPIO **4, 22, 6, 26** and
@@ -155,6 +166,76 @@ Read-only checks on the Pi before the first start:
 Power: four relay coils come off the Pi's 5 V. Use the official Raspberry Pi 4
 power supply (5.1 V 3 A).
 
+## 1d. Locinox Venus operator, two pedestrian gates on one Pi (decided 15 Oct 2026)
+
+Source: Locinox Venus advanced settings manual (2024-09-23 rev1; page numbers below) and the Edgesmith /
+Locinox Venus architects and engineering specification sheet (2024). Both gates are 1300 mm wide pedestrian
+gates. **Still to confirm before buying or fitting: the motor label on each gate says Venus, each gate weighs
+no more than 100 kg, and the make and model of the lock.**
+
+Venus limits (spec sheet): gate up to 100 kg and 1400 mm wide, opening angle up to 175 degrees, hinge-side
+profile at least 80 mm wide with steel at least 2 mm thick, a strike is needed so the Venus can find its zero
+position, it must be combined with an electric or mechanical lock, and it is set up only through a phone app.
+
+Per gate:
+
+| Venus terminal | Goes to | Venus app setting |
+|---|---|---|
+| **OUT1** | The gate's magnetic lock, 24 V DC | Lock. Fail open for a magnetic lock. The Venus detects the lock type itself at first calibration (p. 8). |
+| **OUT2** | Coil of a small 24 V DC relay. That relay's contact goes to the Pi safety input and GND. | 24V AUX (p. 7) |
+| OUT3 | Spare | Unused |
+| **IN1** | ACB door relay contact (card scans), if the ACB is used for this gate | Control device, Normally Open, "Open and close" (p. 12) |
+| **IN2** | **Pi gate relay COM/NO** | Control device, Normally Open, **"Hold to keep open"** (p. 13) |
+| IN3 | Spare (a fire-panel link only if the fire designer asks for one) | Unused |
+
+The Pi also reads a closed reed and an open reed per gate (section 1). The Pi needs **one relay per gate, two in
+total**, and no unlock relay or K1 sense contact: the Venus releases its own lock first and has a 0-5 s
+"delay after unlocking" for magnetic locks (p. 18). Pin plan: `venus-TF-ENTRY.env.example` and
+`venus-SIDE-ENTRY.env.example`.
+
+| Function | TF-ENTRY | SIDE-ENTRY |
+|---|---|---|
+| Gate relay | GPIO 22 | GPIO 23 |
+| Closed reed | GPIO 17 | GPIO 24 |
+| Open reed | GPIO 27 | GPIO 25 |
+| Safety (OUT2 relay contact) | GPIO 5 | GPIO 6 |
+
+Rules from the Venus manual:
+* The three outputs together are limited to 2 A / 48 W. An overload shuts ALL outputs off and the built-in
+  light blinks at 5 Hz (p. 7). Count the lock and the OUT2 relay coil.
+* The inputs are dry contacts only. A signal that carries a voltage must go through a relay (pp. 4, 10).
+* **"Hold to keep open" (p. 13):** the gate opens and stays open while the contact is closed. When the contact is
+  released the Venus waits the pause time (default 5 s, 0-300 s) and closes. **If the contact is released while
+  the gate is still opening, the Venus closes it again.** So the controller's pulse (`CYCLE_PULSE_S`) must
+  last longer than the measured full open travel (maximum 10 s). If the gate is closed by hand while the contact
+  is held, it opens again after the pause time.
+
+What the safety input means with a Venus: the Venus has no "operator healthy" contact (its outputs are 24 V
+power only). A relay on OUT2 only proves the Venus has power and has not shut its outputs off. It does not
+report a Venus fault, a blocked gate or an obstacle (the Venus's own obstacle detection keeps working). Without any safety input the controller is monitor-only and never moves the gate.
+
+Lock and fire: moving the lock supply from the school's ACB board to the Venus changes the lock's
+fire-release path. That is the fire designer's decision, not settled here. The certified fire panel remains
+the life-safety authority for fire.
+
+Controller settings for a Venus: `RELAY_BOARD=generic`, `UNLOCK_RELAY_PIN=none`, `UNLOCK_SENSE_PIN=none`,
+`CYCLE_PULSE_S` longer than the measured open travel, `AUTO_CLOSE_TIMEOUT_S` longer than the Venus pause time
+plus close travel plus 50 %. The two example files carry placeholders (8, 20, 60), not measurements: set them at
+test C1.
+
+Make the firmware hold both relay pins low from early boot (for a board that is ON when its pin is HIGH): add
+`gpio=22,23=op,dl` to `/boot/firmware/config.txt`. For an active-low board use `op,dh` instead and set
+`RELAY_ACTIVE_LOW=true`. The polarity of the board actually used is UNVERIFIED: test B0 decides.
+
+Bench checks before site, with the relay board NOT connected (all UNVERIFIED until done). Close the Venus input
+with a switch, never with the Pi relay:
+* **V1** IN2 closed by hand for 10 minutes: the gate opens and stays open; released: it closes after the pause time.
+* **V2** IN2 closed for 1 second only: record whether the gate stops opening and closes (the manual says it does).
+* **V3** IN2 closed for 2 hours: the gate stays open (the manual states no time limit).
+* **V4** IN1 pulsed while IN2 is held: record what the Venus does (the manual does not say).
+* **V5** Meter across the open IN2 terminals: record the voltage and the closing current, then pick the relay.
+* **V6** Lock on OUT1 plus the OUT2 relay coil: total current under 2 A, and the lock releases before the gate moves.
+
 ## 2. Install (fresh Pi OS Lite 64-bit)
 
 Copy the `gate-controller` folder from this repository to the Pi first. From a
@@ -200,7 +281,8 @@ ONE line to `/boot/firmware/config.txt` listing every relay pin of BOTH gates:
 `gpio=4,6,22,26=op,dl` for the KS0212 (ON when HIGH). For an active-low board
 (`RELAY_ACTIVE_LOW=true`) use `op,dh` instead, e.g. `gpio=17=op,dh`. The
 Raspberry Pi documentation notes a delay of a few seconds between power being
-applied and this taking effect, so test B0 is still required.
+applied and this taking effect, so test B0 is still required. For the Venus plan
+(section 1d, relays on GPIO 22 and 23, ON when HIGH) the line is `gpio=22,23=op,dl`.
 
 ## 2a. Bench test B0 (relay board NOT connected to the gate operator)
 
@@ -225,8 +307,8 @@ passes.
    sudo chgrp balwyn-gate /etc/balwyn-gate/TF-ENTRY.env && sudo chmod 640 /etc/balwyn-gate/TF-ENTRY.env
    sudo nano /etc/balwyn-gate/TF-ENTRY.env
    ```
-   (KS0212 shield. Any other board: `deploy/gate.env.example`. For the second
-   gate repeat this step with `SIDE-ENTRY` and `ks0212-SIDE-ENTRY.env.example`.)
+   (This line copies the KS0212 file. **For the Venus plan use `deploy/venus-TF-ENTRY.env.example` and, for
+   the second gate, `SIDE-ENTRY` with `venus-SIDE-ENTRY.env.example`.** Any other board: `deploy/gate.env.example`.)
    Set the pins and timings; keep `DRY_RUN=true` and `SCHEDULE_CONTROL=false`.
    Comments must stay on their own lines: `RELAY_PIN=17  # note` is refused.
 3. Check the settings. With `DRY_RUN=true` still set, start the service once and read its first lines:
@@ -270,7 +352,7 @@ gate follows every schedule, booking and rule that includes it.
 
 | Test | Do | Pass when |
 |---|---|---|
-| C1 open cycle | Dashboard OPEN | Gate opens, portal shows **open confirmed**, gate auto-closes, portal shows closed. Record open travel and auto-close time; set `TRAVEL_TIMEOUT_S` and `AUTO_CLOSE_TIMEOUT_S` to measured + 50 %. |
+| C1 open cycle | Dashboard OPEN | Gate opens, portal shows **open confirmed**, gate auto-closes, portal shows closed. Record open travel and auto-close time; set `TRAVEL_TIMEOUT_S` and `AUTO_CLOSE_TIMEOUT_S` to measured + 50 %. **Venus:** also set `CYCLE_PULSE_S` longer than the open travel (max 10 s); a pulse that ends before the gate is fully open makes the Venus close it again. |
 | C2 hold window | Automation: one-off rule, 10-minute window starting in 2 minutes | Opens at the start, stays open past the auto-close time, releases and closes at the end. |
 | C3 booking | Facility hire booking for the stadium, 10 minutes, lead/run-out 1 minute | Same as C2, and both show on the School scheduler. |
 | C4 safety | Break the safety input while a hold is active; then press OPEN | Hold released and gate closes; OPEN refused as **blocked**; portal shows safety not healthy. |
