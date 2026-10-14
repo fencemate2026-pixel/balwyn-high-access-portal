@@ -169,9 +169,13 @@ power supply (5.1 V 3 A).
 ## 1d. Locinox Venus operator, two pedestrian gates on one Pi (decided 15 Oct 2026)
 
 Source: Locinox Venus advanced settings manual (2024-09-23 rev1; page numbers below) and the Edgesmith /
-Locinox Venus architects and engineering specification sheet (2024). Both gates are 1300 mm wide pedestrian
-gates. **Still to confirm before buying or fitting: the motor label on each gate says Venus, each gate weighs
-no more than 100 kg, and the make and model of the lock.**
+Locinox Venus architects and engineering specification sheet (2024). There are two separate pedestrian gates,
+each 1300 mm wide x 1800 mm high, square tubular style, each with one magnetic lock. People enter with an RFID
+reader and leave with a push button, and either gate can also be opened from Magic Keys (stated by Jarrod, 15 Oct
+2026). **Still to confirm before buying or fitting: the motor label on each gate says Venus; each gate weighs no
+more than 100 kg; the Venus has no stated limit for an 1800 mm high gate or for wind load in the pages read, so
+check that with Locinox; and the lock's make, model and VOLTAGE. The Venus outputs are 24 V DC only (p. 6): a
+12 V magnetic lock cannot be powered from them.**
 
 Venus limits (spec sheet): gate up to 100 kg and 1400 mm wide, opening angle up to 175 degrees, hinge-side
 profile at least 80 mm wide with steel at least 2 mm thick, a strike is needed so the Venus can find its zero
@@ -184,7 +188,7 @@ Per gate:
 | **OUT1** | The gate's magnetic lock, 24 V DC | Lock. Fail open for a magnetic lock. The Venus detects the lock type itself at first calibration (p. 8). |
 | **OUT2** | Coil of a small 24 V DC relay. That relay's contact goes to the Pi safety input and GND. | 24V AUX (p. 7) |
 | OUT3 | Spare | Unused |
-| **IN1** | ACB door relay contact (card scans), if the ACB is used for this gate | Control device, Normally Open, "Open and close" (p. 12) |
+| **IN1** | ACB door relay contact. It carries the RFID entry, and also the exit push button if that button is wired to the ACB's exit input (P1-P4), so every entry and exit is logged by the ACB. | Control device, Normally Open, "Open and close" (p. 12). Set the pause time long enough for a person to walk through (0-300 s, p. 18). |
 | **IN2** | **Pi gate relay COM/NO** | Control device, Normally Open, **"Hold to keep open"** (p. 13) |
 | IN3 | Spare (a fire-panel link only if the fire designer asks for one) | Unused |
 
@@ -207,8 +211,12 @@ Rules from the Venus manual:
 * **"Hold to keep open" (p. 13):** the gate opens and stays open while the contact is closed. When the contact is
   released the Venus waits the pause time (default 5 s, 0-300 s) and closes. **If the contact is released while
   the gate is still opening, the Venus closes it again.** So the controller's pulse (`CYCLE_PULSE_S`) must
-  last longer than the measured full open travel (maximum 10 s). If the gate is closed by hand while the contact
-  is held, it opens again after the pause time.
+  last longer than the measured time from the contact closing to the gate fully open (maximum 10 s). That time
+  is not only the open travel: the Venus starts moving only after the **pre-flash time** (0-10 s, p. 25: the lock
+  is not released and the gate does not move during it) and the **delay after unlocking** (0, 0.5, 1, 2, 3 or
+  5 s, p. 18, set automatically at calibration for a magnetic lock). Measure the whole time on the bench (V2).
+  If pre-flash + unlock delay + open travel is more than about 9 s, a pulse cannot work: use a hold instead, or
+  shorten the pre-flash. If the gate is closed by hand while the contact is held, it opens again after the pause time.
 
 What the safety input means with a Venus: the Venus has no "operator healthy" contact (its outputs are 24 V
 power only). A relay on OUT2 only proves the Venus has power and has not shut its outputs off. It does not
@@ -219,7 +227,8 @@ fire-release path. That is the fire designer's decision, not settled here. The c
 the life-safety authority for fire.
 
 Controller settings for a Venus: `RELAY_BOARD=generic`, `UNLOCK_RELAY_PIN=none`, `UNLOCK_SENSE_PIN=none`,
-`CYCLE_PULSE_S` longer than the measured open travel, `AUTO_CLOSE_TIMEOUT_S` longer than the Venus pause time
+`CYCLE_PULSE_S` longer than the measured time from contact closing to fully open (pre-flash + unlock delay + open
+travel), `AUTO_CLOSE_TIMEOUT_S` longer than the Venus pause time
 plus close travel plus 50 %. The two example files carry placeholders (8, 20, 60), not measurements: set them at
 test C1.
 
@@ -231,10 +240,26 @@ Bench checks before site, with the relay board NOT connected (all UNVERIFIED unt
 with a switch, never with the Pi relay:
 * **V1** IN2 closed by hand for 10 minutes: the gate opens and stays open; released: it closes after the pause time.
 * **V2** IN2 closed for 1 second only: record whether the gate stops opening and closes (the manual says it does).
+  Then close IN2 and hold it, and stopwatch the whole time from closing the contact to the gate fully open
+  (this includes pre-flash and the unlock delay). This number sets `CYCLE_PULSE_S`.
 * **V3** IN2 closed for 2 hours: the gate stays open (the manual states no time limit).
 * **V4** IN1 pulsed while IN2 is held: record what the Venus does (the manual does not say).
 * **V5** Meter across the open IN2 terminals: record the voltage and the closing current, then pick the relay.
 * **V6** Lock on OUT1 plus the OUT2 relay coil: total current under 2 A, and the lock releases before the gate moves.
+* **V8** IN1 closed for 5 seconds (the ACB door relay's unlock time) and then released: record whether the gate runs
+  one full open, pause and close cycle, and whether the contact ending mid-opening changes anything. Then press
+  the exit button on the ACB and confirm the same cycle (the manual does not describe a short contact in
+  "Open and close" mode, UNVERIFIED).
+* **V7** Watch the OUT2 relay for 30 minutes with the gate closed and idle, then through one full open and close:
+  record whether OUT2 stays powered throughout. The controller treats a dropped OUT2 as "safety not healthy" and
+  refuses commands, so an OUT2 that switches off at idle would make the gate uncommandable. The manual says 24V AUX
+  "provides constant power 24V DC" (p. 7) and that all outputs shut off on overload, but it does not say what
+  happens in sleep or standby, so prove it on the bench (UNVERIFIED).
+
+The controller tests (`VenusOperatorTests`) run the real controller against a simulated Venus built only from the
+manual's "Hold to keep open" description (p. 13). They prove the controller's logic matches that description: a
+pulse shorter than the open travel is reported as failed and never as open, a hold keeps the gate open past the
+pause time, and a lost safety input releases the contact. They do not prove how a real Venus behaves: V1-V8 do.
 
 ## 2. Install (fresh Pi OS Lite 64-bit)
 
@@ -352,7 +377,7 @@ gate follows every schedule, booking and rule that includes it.
 
 | Test | Do | Pass when |
 |---|---|---|
-| C1 open cycle | Dashboard OPEN | Gate opens, portal shows **open confirmed**, gate auto-closes, portal shows closed. Record open travel and auto-close time; set `TRAVEL_TIMEOUT_S` and `AUTO_CLOSE_TIMEOUT_S` to measured + 50 %. **Venus:** also set `CYCLE_PULSE_S` longer than the open travel (max 10 s); a pulse that ends before the gate is fully open makes the Venus close it again. |
+| C1 open cycle | Dashboard OPEN | Gate opens, portal shows **open confirmed**, gate auto-closes, portal shows closed. Record open travel and auto-close time; set `TRAVEL_TIMEOUT_S` and `AUTO_CLOSE_TIMEOUT_S` to measured + 50 %. **Venus:** also set `CYCLE_PULSE_S` longer than the time from contact closing to fully open, including pre-flash and unlock delay (max 10 s); a pulse that ends before the gate is fully open makes the Venus close it again. |
 | C2 hold window | Automation: one-off rule, 10-minute window starting in 2 minutes | Opens at the start, stays open past the auto-close time, releases and closes at the end. |
 | C3 booking | Facility hire booking for the stadium, 10 minutes, lead/run-out 1 minute | Same as C2, and both show on the School scheduler. |
 | C4 safety | Break the safety input while a hold is active; then press OPEN | Hold released and gate closes; OPEN refused as **blocked**; portal shows safety not healthy. |
