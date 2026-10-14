@@ -18,6 +18,8 @@ export async function databaseFixture(t) {
   await pg.exec(readFileSync(new URL("../supabase/migrations/20260924210000_help_events.sql", import.meta.url), "utf8"));
   // Gate service counters, RJL alert outbox, append-only activity log (10 Oct 2026).
   await pg.exec(readFileSync(new URL("../supabase/migrations/20261010090000_gate_service_and_rjl_alerts.sql", import.meta.url), "utf8"));
+  // Staff time-on-portal and button-press record (15 Oct 2026).
+  await pg.exec(readFileSync(new URL("../supabase/migrations/20261015100000_staff_presence.sql", import.meta.url), "utf8"));
   await pg.exec("SET ROLE balwyn_app; SET search_path = balwyn_portal, pg_catalog;");
   const statement = (sql, values = []) => ({
     sql: postgresPlaceholders(sql), values,

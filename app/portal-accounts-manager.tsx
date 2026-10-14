@@ -16,6 +16,20 @@ type Role = "viewer" | "operator" | "administrator";
 type Account = {
   id: string; email: string; display_name: string; role: Role; active: boolean;
   password_set: boolean; last_sign_in_at: string | null; setup_expires_at: string | null;
+  // Time on portal, measured by the server. null = nothing recorded yet; undefined = usage unavailable.
+  usage?: { sessions: number; total_seconds: number; week_seconds: number; last_seen_at: string | null } | null;
+};
+type Detail = {
+  account: { id: string; display_name: string; email: string };
+  sessions: { started_at: string; last_seen_at: string; active_seconds: number }[];
+  presses: { at: string; label: string }[];
+  actions: { id: number; at: string; action: string; detail: string; category: string }[];
+};
+/** 3725 s -> "1 h 2 m"; under a minute -> "< 1 m". */
+export const duration = (seconds: number) => {
+  const minutes = Math.floor(Math.max(0, seconds) / 60);
+  if (minutes < 1) return seconds > 0 ? "< 1 m" : "0 m";
+  return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} m` : `${minutes} m`;
 };
 type IssuedLink = { email: string; link: string; expiresAt: string };
 
@@ -52,6 +66,7 @@ export default function PortalAccountsManager({ adminUnlocked = false, onRequire
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("viewer");
+  const [detail, setDetail] = useState<Detail | null>(null);
 
   const load = useCallback(async () => {
     setLoadError("");
@@ -70,6 +85,19 @@ export default function PortalAccountsManager({ adminUnlocked = false, onRequire
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  // Read-only: one person's visits, button presses and logged actions.
+  async function openActivity(id: string) {
+    setBusy(`activity-${id}`);
+    try {
+      const response = await fetch(`/api/accounts/activity?id=${encodeURIComponent(id)}`, { cache: "no-store", credentials: "same-origin", signal: AbortSignal.timeout(20000) });
+      const result = await response.json().catch(() => ({})) as Record<string, unknown>;
+      if (!response.ok) throw new Error(typeof result.error === "string" ? result.error : "Activity could not be loaded.");
+      setDetail(result as unknown as Detail);
+    } catch (reason) {
+      toast.error(reason instanceof Error ? reason.message : "Activity could not be loaded.");
+    } finally { setBusy(""); }
+  }
 
   async function run(key: string, body: Record<string, unknown>, success: string) {
     if (!adminUnlocked) {
@@ -132,18 +160,33 @@ export default function PortalAccountsManager({ adminUnlocked = false, onRequire
           : accounts === null ? <p className="accounts-empty" role="status"><LoaderCircle className="animate-spin motion-reduce:animate-none" /> Loading accounts…</p>
           : accounts.length === 0 ? <p className="accounts-empty">No staff accounts yet. Create the first one above.</p>
           : <div className="accounts-table-wrap"><table className="accounts-table">
-            <thead><tr><th scope="col">Person</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Last sign-in</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
+            <thead><tr><th scope="col">Person</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Last sign-in</th><th scope="col">Time on portal</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
             <tbody>{accounts.map((account) => <tr key={account.id} className={account.active ? "" : "is-disabled"}>
               <td><strong>{account.display_name}</strong><small>{account.email}</small></td>
               <td><NativeSelect aria-label={`Role for ${account.display_name}`} value={account.role} disabled={Boolean(busy)} onChange={(e) => void run(`role-${account.id}`, { action: "update", id: account.id, role: e.target.value }, "Role changed. That person must sign in again.")}>{(Object.keys(ROLE_TEXT) as Role[]).map((value) => <NativeSelectOption key={value} value={value}>{ROLE_TEXT[value]}</NativeSelectOption>)}</NativeSelect></td>
               <td>{!account.active ? "Disabled" : account.password_set ? "Active" : account.setup_expires_at && Date.parse(account.setup_expires_at) > loadedAt ? "Waiting for password" : "Setup link expired"}</td>
               <td>{when(account.last_sign_in_at)}</td>
+              <td>{account.usage === undefined ? "Unavailable" : account.usage === null ? "Not recorded yet"
+                : <><strong>{duration(account.usage.total_seconds)}</strong> total<small>{duration(account.usage.week_seconds)} in the last 7 days · {account.usage.sessions} {account.usage.sessions === 1 ? "visit" : "visits"}</small></>}</td>
               <td className="accounts-actions">
+                <Button variant="outline" disabled={Boolean(busy)} onClick={() => void openActivity(account.id)}>Activity</Button>
                 <Button variant="outline" disabled={Boolean(busy)} onClick={() => void run(`reset-${account.id}`, { action: "reset", id: account.id }, "New setup link issued. The old password no longer works.")}><KeyRound /> New setup link</Button>
                 <Button variant="outline" disabled={Boolean(busy)} onClick={() => void run(`active-${account.id}`, { action: "update", id: account.id, active: !account.active }, account.active ? "Account disabled and signed out" : "Account enabled")}>{account.active ? "Disable" : "Enable"}</Button>
               </td>
             </tr>)}</tbody>
           </table></div>}
+
+        {detail && <div className="accounts-activity" role="region" aria-label={`Activity for ${detail.account.display_name}`}>
+          <h4>{detail.account.display_name} — activity</h4>
+          <p className="accounts-empty">Times are Melbourne time. Time on portal counts only while the page is open, in view and touched in the last 2 minutes; it is approximate to within about 30 seconds per visit. Only the names of buttons pressed are recorded, never anything typed.</p>
+          <h5>Visits</h5>
+          {detail.sessions.length === 0 ? <p className="accounts-empty">No visits recorded yet.</p> : <ul>{detail.sessions.map((v) => <li key={v.started_at + v.last_seen_at}>{when(v.started_at)} to {when(v.last_seen_at)} — <strong>{duration(v.active_seconds)}</strong> active</li>)}</ul>}
+          <h5>Buttons pressed (latest 200)</h5>
+          {detail.presses.length === 0 ? <p className="accounts-empty">None recorded yet.</p> : <ul>{detail.presses.map((p, i) => <li key={`${p.at}-${i}`}>{when(p.at)} — {p.label}</li>)}</ul>}
+          <h5>Actions in the activity log (latest 100)</h5>
+          {detail.actions.length === 0 ? <p className="accounts-empty">None.</p> : <ul>{detail.actions.map((a) => <li key={a.id}>{when(a.at)} — <strong>{a.action}</strong>: {a.detail}</li>)}</ul>}
+          <Button variant="ghost" onClick={() => setDetail(null)}>Close activity</Button>
+        </div>}
       </>
     </section>
   );

@@ -9,6 +9,7 @@ import { AccountError, assertSameOrigin, createPortalAccount, getAdminSettingsAc
 import { recordActivity } from "@/lib/portal-store";
 import { requestOrigin } from "@/lib/request-origin";
 import { readBoundedText } from "@/lib/request-body";
+import { accountKeyFor, staffUsageSummary } from "@/lib/staff-presence";
 
 const headers = { "Cache-Control": "no-store" };
 const ROLES = new Set(["viewer", "operator", "administrator"]);
@@ -29,7 +30,14 @@ export async function GET(request: Request) {
   const auth = await authorise(request);
   if (!auth.user) return auth.response;
   try {
-    return Response.json({ accounts: await listPortalAccounts() }, { headers });
+    const accounts = await listPortalAccounts();
+    // Time on portal is additive: if the usage tables are unavailable the list still loads.
+    let usage: Awaited<ReturnType<typeof staffUsageSummary>> | null = null;
+    try { usage = await staffUsageSummary(); } catch { console.warn("staff_usage_unavailable"); }
+    const byKey = new Map((usage ?? []).map((u) => [u.account_key, u]));
+    return Response.json({
+      accounts: accounts.map((a) => ({ ...a, usage: usage ? byKey.get(accountKeyFor({ accountId: String(a.id), email: String(a.email) })) ?? null : undefined })),
+    }, { headers });
   } catch {
     console.warn("accounts_list_unavailable");
     return Response.json({ error: "Accounts are not available right now. Please try again shortly." }, { status: 503, headers });
