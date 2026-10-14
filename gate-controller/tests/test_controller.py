@@ -131,6 +131,50 @@ class SimBoardGate(SimGate):
         self.b.set_input(BOARD_SENSE, 0 if self.board_unlocked() else 1)
 
 
+class SimVenusGate(SimGate):
+    """Locinox Venus on its input set to Control device / Normally Open / "Hold to keep open".
+
+    Modelled ONLY from what the Venus advanced manual (2024-09-23 rev1, p. 13) states:
+      * contact closed -> the gate opens and stays open while the contact stays closed;
+      * contact released while the gate is still OPENING -> the gate closes again;
+      * contact released once fully open -> the gate waits the pause time, then closes.
+    Anything the manual does not state is NOT guessed: if the contact closes while the
+    gate is closing, `unknown_case_hit` is set, and the tests assert it never is.
+    This is a model of the manual, not a measurement of a real Venus.
+    """
+
+    def __init__(self, backend: FakeBackend, travel: float = 6.0, pause: float = 5.0, **kwargs: object) -> None:
+        self.pause = pause
+        self.unknown_case_hit = False
+        super().__init__(backend, travel=travel, **kwargs)  # type: ignore[arg-type]
+
+    def step(self, dt: float) -> None:
+        contact = self.relay_on()
+        if self.direction == 1:
+            if not contact and self.angle < 1.0:
+                self.direction = -1                      # released while opening: closes again
+            else:
+                self.angle = min(1.0, self.angle + dt / self.travel)
+                if self.angle >= 1.0:
+                    self.direction, self.open_timer = 0, 0.0
+        elif self.direction == -1:
+            if contact:
+                self.unknown_case_hit = True             # not documented: do not guess
+            self.angle = max(0.0, self.angle - dt / self.travel)
+            if self.angle <= 0.0:
+                self.direction = 0
+        elif self.angle >= 1.0:                          # fully open and stationary
+            if contact:
+                self.open_timer = 0.0
+            else:
+                self.open_timer += dt
+                if self.open_timer >= self.pause:
+                    self.direction = -1
+        elif contact:                                    # closed and stationary, contact made
+            self.direction = 1
+        self.publish()
+
+
 class FakePortal:
     """Minimal stand-in for /api/controller/commands and /ack."""
 
@@ -610,6 +654,89 @@ def systemd_env_file(path: Path) -> dict:
 
 
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy"
+
+
+class VenusOperatorTests(unittest.TestCase):
+    """The real controller against the Venus "Hold to keep open" behaviour (see SimVenusGate).
+
+    Proves the controller's logic against the manual's stated behaviour. It does NOT prove
+    how a real Venus behaves: bench checks V1-V8 in deploy/INSTALL.md section 1d do that.
+    """
+
+    @staticmethod
+    def venus_rig(test: unittest.TestCase, **extra: str) -> Rig:
+        settings = {"CYCLE_PULSE_S": "8", "TRAVEL_TIMEOUT_S": "20", "AUTO_CLOSE_TIMEOUT_S": "60"}
+        settings.update(extra)
+        return Rig(test, gate_factory=lambda backend, open_reed: SimVenusGate(backend, open_reed=open_reed), **settings)
+
+    def test_pulse_longer_than_the_open_travel_opens_confirms_then_the_venus_closes_it(self) -> None:
+        rig = self.venus_rig(self)
+        rig.run(1)
+        rig.portal.queue.append({"id": 1, "command": "open", "source": "manual"})
+        rig.run(15)
+        ack = rig.acks_for(1)[0]
+        self.assertEqual((ack["state"], ack["position"]), ("acknowledged", "open"))
+        self.assertEqual(rig.relay_writes_on(), 1)
+        rig.run(30)  # contact released at the end of the pulse: pause time, then the Venus closes
+        self.assertEqual(rig.gate.angle, 0.0)
+        self.assertEqual(rig.portal.polls[-1]["position"], "closed")
+        self.assertFalse(rig.gate.unknown_case_hit)
+
+    def test_pulse_shorter_than_the_open_travel_is_reported_failed_never_open(self) -> None:
+        # The Venus trap: released while still opening, the Venus closes the gate again.
+        rig = self.venus_rig(self, CYCLE_PULSE_S="4", TRAVEL_TIMEOUT_S="12")
+        rig.run(1)
+        rig.portal.queue.append({"id": 2, "command": "open", "source": "manual"})
+        rig.run(25)
+        states = [ack["state"] for ack in rig.acks_for(2)]
+        self.assertEqual(states[0], "failed")
+        self.assertNotIn("acknowledged", states)
+        self.assertIn("NOT confirmed", rig.acks_for(2)[0]["detail"])
+        self.assertEqual(rig.gate.angle, 0.0)
+        self.assertNotEqual(rig.acks_for(2)[0]["position"], "open")
+        self.assertFalse(rig.gate.unknown_case_hit)
+
+    def test_a_hold_keeps_the_venus_open_far_past_its_pause_time_then_release_closes_it(self) -> None:
+        rig = self.venus_rig(self)
+        rig.run(1)
+        rig.portal.queue.append({"id": 3, "command": "open", "source": "schedule"})
+        rig.run(40)
+        self.assertEqual(rig.acks_for(3)[0]["state"], "acknowledged")
+        rig.run(120)  # far longer than the Venus pause time (5 s in this model)
+        self.assertEqual(rig.gate.angle, 1.0)
+        self.assertTrue(rig.gate.relay_on())
+        rig.portal.queue.append({"id": 4, "command": "closed", "source": "schedule"})
+        rig.run(40)
+        ack = rig.acks_for(4)[0]
+        self.assertEqual((ack["state"], ack["position"]), ("acknowledged", "closed"))
+        self.assertFalse(rig.gate.relay_on())
+        self.assertFalse(rig.gate.unknown_case_hit)
+
+    def test_losing_the_safety_input_during_a_hold_releases_the_contact_and_the_venus_closes(self) -> None:
+        rig = self.venus_rig(self)
+        rig.run(1)
+        rig.portal.queue.append({"id": 5, "command": "open", "source": "schedule"})
+        rig.run(40)
+        self.assertTrue(rig.gate.relay_on())
+        rig.gate.safety = False  # e.g. the Venus outputs shut down on overload
+        rig.run(3)
+        self.assertFalse(rig.gate.relay_on(), "contact must be released the moment the safety input fails")
+        rig.run(20)
+        self.assertEqual(rig.gate.angle, 0.0)
+        self.assertFalse(rig.portal.polls[-1]["safetyOk"])
+        self.assertFalse(rig.gate.unknown_case_hit)
+
+    def test_an_open_command_while_a_hold_is_active_sends_no_pulse(self) -> None:
+        rig = self.venus_rig(self)
+        rig.run(1)
+        rig.portal.queue.append({"id": 6, "command": "open", "source": "schedule"})
+        rig.run(40)
+        writes = rig.relay_writes_on()
+        rig.portal.queue.append({"id": 7, "command": "open", "source": "manual"})
+        rig.run(5)
+        self.assertEqual(rig.relay_writes_on(), writes)  # a released pulse would have dropped the hold
+        self.assertEqual(rig.gate.angle, 1.0)
+        self.assertTrue(rig.gate.relay_on())
 
 
 class DeploymentFileTests(unittest.TestCase):
