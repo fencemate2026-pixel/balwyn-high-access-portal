@@ -17,7 +17,7 @@ export default function PrivacyPage() {
   return <LegalPage
     eyebrow="Privacy and data handling"
     title="Privacy Policy"
-    updated="10 October 2026"
+    updated="16 October 2026"
     summary="This policy explains how the Magic Keys Balwyn High School operations portal collects, uses, stores and discloses personal information needed to sign staff in, operate the school's access-control equipment, manage stadium hire bookings, provide in-portal help and keep an accountable activity record."
     sections={[
       {
@@ -70,7 +70,7 @@ export default function PrivacyPage() {
       },
       {
         title: "Where information is stored",
-        content: <><p>The portal database and profile photos are stored with Supabase in its Sydney, Australia region. The portal application runs on Render in the United States (Oregon region) and processes information there while handling requests. Render's network provider, Cloudflare, carries and protects traffic to the portal and may process it in its global network.</p><p>Other service providers used for specific functions: the AI provider configured for the help chat (Anthropic, OpenAI or Microsoft; these providers may process data in the United States or other countries) and Resend (United States), which delivers RJL’s internal alert emails. Google and Microsoft process sign-in information under their own terms.</p><p>Where information is processed outside Australia, we take reasonable steps, including relying on these providers’ contractual and security commitments, to protect it consistently with the Australian Privacy Principles.</p></>,
+        content: <><p>The portal database and profile photos are stored with Supabase in its Sydney, Australia region. The portal application runs on Microsoft Azure in Australia (Sydney region) and processes information there while handling requests.</p><p>Other service providers used for specific functions: the AI provider configured for the help chat (Anthropic, OpenAI or Microsoft; these providers may process data in the United States or other countries) and Resend (United States), which delivers RJL’s internal alert emails. Google and Microsoft process sign-in information under their own terms.</p><p>Where information is processed outside Australia, we take reasonable steps, including relying on these providers’ contractual and security commitments, to protect it consistently with the Australian Privacy Principles.</p></>,
       },
       {
         title: "Cookies and security",
