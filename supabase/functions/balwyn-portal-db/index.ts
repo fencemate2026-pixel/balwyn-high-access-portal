@@ -28,6 +28,11 @@ const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, {
 const WRITE_LOCK_KEY = 672419830;
 const WRITE_PATTERN = /^\s*(INSERT|UPDATE|DELETE)\b/i;
 const ALLOWED_PATTERN = /^\s*(SELECT|INSERT|UPDATE|DELETE)\b/i;
+// 16 Oct 2026: a SELECT could still call set_config('role', ...) to leave the
+// balwyn_app role and bypass the append-only activity log, or take the global
+// advisory lock to stall every writer. The portal never sends any of these, so
+// a statement naming one is refused outright.
+const FORBIDDEN_PATTERN = /\b(set_config|pg_advisory\w*|pg_sleep\w*|dblink\w*|pg_read_\w+|pg_ls_\w+|lo_import|lo_export)\b/i;
 
 function safeFailureCode(error: unknown): string {
   const raw = typeof error === "object" && error && "code" in error ? String(error.code) : "unavailable";
@@ -59,7 +64,7 @@ Deno.serve(async request => {
     if (text.length > 131072) return new Response(null, { status: 413 });
     const { statements } = JSON.parse(text);
     if (!Array.isArray(statements) || !statements.length || statements.length > 100 || statements.some(s =>
-      typeof s.sql !== "string" || s.sql.length > 32768 || !ALLOWED_PATTERN.test(s.sql)
+      typeof s.sql !== "string" || s.sql.length > 32768 || !ALLOWED_PATTERN.test(s.sql) || FORBIDDEN_PATTERN.test(s.sql)
       || !Array.isArray(s.params) || s.params.length > 1000
       || s.params.some((p: unknown) => p !== null && !["string", "number", "boolean"].includes(typeof p)))) {
       return Response.json({ error: "Invalid database request" }, { status: 400, headers });
