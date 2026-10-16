@@ -10,7 +10,7 @@ export default function TermsPage() {
   return <LegalPage
     eyebrow="Authorised operator use"
     title="Terms of Use"
-    updated="10 October 2026"
+    updated="16 October 2026"
     summary="These terms govern access to the Magic Keys Balwyn High School operations portal. By signing in or using the portal, you agree to use it only for authorised school access-control operations."
     sections={[
       {
@@ -51,7 +51,7 @@ export default function TermsPage() {
       },
       {
         title: "Monitoring and records",
-        content: <p>Sign-ins, commands, acknowledgements, settings changes and other activity may be recorded for security, safety, troubleshooting, audit and accountability. Use of personal information is described in the <a href="/privacy">Privacy Policy</a>.</p>,
+        content: <p>Sign-ins, commands, acknowledgements, settings changes and other activity may be recorded for security, safety, troubleshooting, audit and accountability. For signed-in staff accounts this includes how long the portal is open and in use during each visit, and the names of the buttons, links and tabs used. Typed text, passwords and field contents are not recorded. These records can be viewed by portal administrators and RJL, and are deleted after 12 months. Use of personal information is described in the <a href="/privacy">Privacy Policy</a>.</p>,
       },
       {
         title: "Availability and changes",
