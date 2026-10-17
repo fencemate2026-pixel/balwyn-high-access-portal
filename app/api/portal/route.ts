@@ -125,7 +125,12 @@ export async function POST(request: Request) {
       ? 403
       : message.includes("already awaiting")
         ? 409
-        : /invalid|unknown|required|blocked|before|not found|not commissioned|not active|offline|safety circuit/i.test(message)
+        // AUDIT_LIVE_ACTIVE P4 (18 Oct 2026): the thrown message is "has not
+        // been commissioned", which never matched the old "not commissioned"
+        // substring (the "been" in between breaks it), so an uncommissioned
+        // gate fell through to 503 instead of 400 and could pollute uptime
+        // monitoring with a false "service unavailable" signal.
+        : /invalid|unknown|required|blocked|before|not found|not .*commissioned|not active|offline|safety circuit/i.test(message)
           ? 400
           : 503;
     return Response.json({ error: message }, { status });
