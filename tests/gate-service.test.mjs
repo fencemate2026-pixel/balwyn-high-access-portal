@@ -24,7 +24,11 @@ const password = "A-test-password-934!";
 const hash = await passwordHash(password, "test-password-salt");
 beforeEach(() => {
   for (const key of Object.keys(env)) delete env[key];
-  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: user.email,
+  // AUDIT_SECURITY P2 fix (18 Oct 2026): an unannotated entry/env var now
+  // resolves to 'viewer', not 'administrator' - both the Google allow-list
+  // entry AND PORTAL_ROLE (which governs the primary password account used
+  // by the settings-password unlock below) need the explicit annotation.
+  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: `${user.email}|administrator`, PORTAL_ROLE: "administrator",
     PORTAL_USERNAME: user.displayName, PORTAL_OPERATOR_EMAIL: user.email, PORTAL_PASSWORD_SALT: "test-password-salt", PORTAL_PASSWORD_HASH: hash });
 });
 async function fixture(t) {
