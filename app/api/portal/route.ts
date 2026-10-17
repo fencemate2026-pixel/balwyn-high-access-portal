@@ -6,6 +6,7 @@ import {
   clearAuthenticationLockouts,
   clearEmergencyPriority,
   getPortalSnapshot,
+  getPortalVersion,
   issueControllerToken,
   queueGateCommands,
   removeAutomationRule,
@@ -24,7 +25,21 @@ export async function GET(request: Request) {
   const auth = await requireOperator(request, "viewer");
   if (!auth.user) return auth.response;
   try {
-    return Response.json({ snapshot: await getPortalSnapshot(auth.user) }, { headers: { "Cache-Control": "no-store" } });
+    // AUDIT_PERF P2 (18 Oct 2026): a polling client that already holds the
+    // version it was last served (?v=<stamp>) can confirm nothing changed with
+    // one cheap MAX()/id round trip, instead of re-fetching and re-transmitting
+    // the full 200-row activity log plus every schedule/automation row on every
+    // poll. Omitting ?v= (older clients, first load) always gets the full snapshot.
+    const knownVersion = new URL(request.url).searchParams.get("v");
+    if (knownVersion) {
+      const version = await getPortalVersion();
+      if (version === knownVersion) {
+        return Response.json({ unchanged: true, version }, { headers: { "Cache-Control": "no-store" } });
+      }
+    }
+    const snapshot = await getPortalSnapshot(auth.user);
+    const version = await getPortalVersion();
+    return Response.json({ snapshot, version }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("portal snapshot failed", error);
     return Response.json({ error: "The live operations record is temporarily unavailable." }, { status: 503 });
