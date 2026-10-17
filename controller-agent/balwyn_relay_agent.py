@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import signal
+import socket
 import ssl
 import sys
 import urllib.error
@@ -26,6 +27,26 @@ import lgpio
 
 VERSION = "1.0.0"
 LOG = logging.getLogger("balwyn-relay-agent")
+
+
+def sd_notify(message: str) -> None:
+    """Minimal systemd notify (READY=1 / WATCHDOG=1). No dependency; never raises.
+
+    Same no-op-when-absent pattern as gate-controller/balwyn_gate_controller/sdnotify.py:
+    silently does nothing outside systemd (tests, local runs) and never lets a
+    notify failure take down the relay loop.
+    """
+    address = os.environ.get("NOTIFY_SOCKET")
+    if not address or not hasattr(socket, "AF_UNIX"):
+        return
+    if address.startswith("@"):
+        address = "\0" + address[1:]
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
+            sock.connect(address)
+            sock.sendall(message.encode("utf-8"))
+    except OSError:
+        pass
 
 
 def required(name: str) -> str:
@@ -270,6 +291,9 @@ class Agent:
             if sensors["position"] == command:
                 await self.save_and_deliver_ack(command_id, "acknowledged", sensors, "Physical limit input confirmed the requested position.")
                 return
+            # A gate movement can run longer than WatchdogSec; ping here too so
+            # systemd never kills a controller that is actively polling sensors.
+            sd_notify("WATCHDOG=1")
             await asyncio.sleep(0.25)
         await self.save_and_deliver_ack(command_id, "failed", self.io.sensors(), "Timed out waiting for physical position confirmation.")
 
@@ -290,6 +314,7 @@ class Agent:
                 command = response.get("command")
                 if command:
                     await self.execute(int(command["id"]), str(command["command"]))
+                sd_notify("WATCHDOG=1")
                 await asyncio.sleep(max(0.5, min(float(response.get("pollAfterMs", 1500)) / 1000, 10)))
             except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
                 LOG.warning("Portal unavailable; relays remain de-energised: %s", error)
@@ -305,6 +330,23 @@ class Agent:
         self.io.all_off()
 
 
+def relays_off() -> None:
+    """systemd ExecStopPost: drive this gate's relays OFF whatever else is going on.
+
+    Run after EVERY stop (clean exit, crash, `systemctl kill`, OOM kill) so a
+    killed agent can never leave a relay energised. RelayIO claims both pins
+    and calls all_off() in its own constructor, so building and closing it is
+    the whole operation; it is intentionally synchronous (no asyncio loop) so
+    it can run to completion even if the main process's event loop is the
+    thing that is stuck.
+    """
+    logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
+    config = Config.load()
+    io = RelayIO(config)
+    io.close()
+    LOG.info("relays-off: both relay outputs de-energised")
+
+
 async def main() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
     config = Config.load()
@@ -312,6 +354,7 @@ async def main() -> None:
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, agent.stop)
+    sd_notify("READY=1")
     try:
         await agent.run()
     finally:
@@ -320,7 +363,10 @@ async def main() -> None:
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        if len(sys.argv) > 1 and sys.argv[1] == "relays-off":
+            relays_off()
+        else:
+            asyncio.run(main())
     except Exception as error:  # noqa: BLE001
         LOG.critical("Agent could not start safely: %s", error)
         sys.exit(1)
