@@ -54,6 +54,27 @@ function nowIso() {
 let lastExpirySweep = 0;
 const EXPIRY_SWEEP_INTERVAL_MS = 10_000;
 
+// Cheap change-detection stamp for /api/portal polling (AUDIT_PERF P2, 18 Oct
+// 2026): one small round trip over MAX(updated_at)/MAX(id) across the tables
+// getPortalSnapshot() reads, instead of always re-fetching and re-serialising
+// the full 200-row activity log plus every schedule/automation row. A caller
+// that already holds this version string can skip the expensive snapshot
+// fetch entirely when the stamp has not moved.
+export async function getPortalVersion(): Promise<string> {
+  const d1 = getSql();
+  const row = (await d1.prepare(
+    `SELECT
+       (SELECT updated_at FROM system_state WHERE id = 1) AS sys,
+       (SELECT updated_at FROM portal_settings WHERE id = 1) AS settings,
+       (SELECT COALESCE(MAX(updated_at), '') FROM gate_states) AS gates,
+       (SELECT COALESCE(MAX(updated_at), '') FROM gate_schedules) AS schedules,
+       (SELECT COALESCE(MAX(updated_at), '') FROM automation_rules) AS automations,
+       (SELECT COALESCE(MAX(id), 0) FROM activity_log) AS activityMaxId`,
+  ).first()) as Record<string, string | number | null> | null;
+  if (!row) return "unseeded";
+  return [row.sys, row.settings, row.gates, row.schedules, row.automations, row.activityMaxId].map((value) => String(value ?? "")).join("|");
+}
+
 export async function ensurePortalSeeded() {
   const d1 = getSql();
   const seeded = await d1.prepare("SELECT id FROM system_state WHERE id = 1").first();
@@ -373,6 +394,14 @@ export async function issueControllerToken(gateId: string, user: PortalUser) {
   }).where(eq(gateStates.gateId, gateId));
   await recordActivity(user, "Controller credential issued", `${gate.name} received a new one-time setup credential. Any previous credential was revoked.`, "security");
   return token;
+}
+
+// AUDIT_PERF P1 (18 Oct 2026): lets the controller-poll route tighten its
+// pollAfterMs while an emergency/fire mode is active, without duplicating the
+// mode lookup already embedded in getNextControllerCommand's SQL.
+export async function getSystemMode(): Promise<SystemMode> {
+  const rows = await getDb().select({ mode: systemState.mode }).from(systemState).where(eq(systemState.id, 1)).limit(1);
+  return (rows[0]?.mode ?? "normal") as SystemMode;
 }
 
 export async function controllerTokenValid(gateId: string, token: string) {

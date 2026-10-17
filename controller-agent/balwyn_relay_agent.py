@@ -290,7 +290,15 @@ class Agent:
                 command = response.get("command")
                 if command:
                     await self.execute(int(command["id"]), str(command["command"]))
-                await asyncio.sleep(max(0.5, min(float(response.get("pollAfterMs", 1500)) / 1000, 10)))
+                # AUDIT_PERF P1 (18 Oct 2026): the portal now returns a shorter
+                # pollAfterMs (~250ms) while an emergency/fire hold is active or a
+                # command is already waiting for this gate (see
+                # app/api/controller/commands/route.ts). The previous 0.5s floor
+                # here silently discarded that and kept the agent on its normal
+                # steady-state cadence during exactly the window it mattered most.
+                # 0.15s remains a safe floor: well above GPIO/debounce timing and
+                # far short of a busy loop.
+                await asyncio.sleep(max(0.15, min(float(response.get("pollAfterMs", 1500)) / 1000, 10)))
             except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
                 LOG.warning("Portal unavailable; relays remain de-energised: %s", error)
                 self.io.all_off()

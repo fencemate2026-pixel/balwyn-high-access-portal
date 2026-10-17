@@ -4,7 +4,7 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
-      allow: ["/", "/brand", "/privacy", "/terms"],
+      allow: ["/", "/privacy", "/terms"],
       disallow: ["/login", "/api/"],
     },
     sitemap: "https://magickeys-balwyn-portal.com/sitemap.xml",

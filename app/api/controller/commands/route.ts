@@ -1,4 +1,4 @@
-import { controllerTokenValid, getNextControllerCommand, getOrCreateScheduledControllerCommand, recordHeartbeat } from "@/lib/portal-store";
+import { controllerTokenValid, getNextControllerCommand, getOrCreateScheduledControllerCommand, getSystemMode, recordHeartbeat } from "@/lib/portal-store";
 import { GATES, type ReportedPosition } from "@/lib/portal-model";
 import { readControllerRequest } from "@/lib/controller-request";
 
@@ -29,7 +29,14 @@ export async function POST(request: Request) {
     if (!command && body.safetyOk && commissioned && body.scheduleControl === true) {
       command = await getOrCreateScheduledControllerCommand(gateId);
     }
-    return Response.json({ command, commissioned, pollAfterMs: 750, serverTime: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
+    // AUDIT_PERF P1 (18 Oct 2026): a fixed 750ms poll interval put a ~5s worst-case
+    // ceiling on a fire/evacuation command's pickup latency if the Pi was mid
+    // error-backoff when the command was queued. Tighten the cadence itself
+    // whenever the portal is not in normal mode, or this gate already has a
+    // command waiting to be collected, so the next poll lands sooner.
+    const systemMode = await getSystemMode();
+    const pollAfterMs = systemMode !== "normal" || command ? 250 : 750;
+    return Response.json({ command, commissioned, pollAfterMs, serverTime: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("controller poll failed", error);
     return Response.json({ error: "Controller command polling is temporarily unavailable." }, { status: 503 });
