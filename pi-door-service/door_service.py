@@ -8,7 +8,9 @@ import logging
 import os
 import re
 import signal
+import socket
 import sqlite3
+import sys
 import threading
 import uuid
 from contextlib import contextmanager
@@ -17,6 +19,26 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 LOG = logging.getLogger("compass-door-open")
+
+
+def sd_notify(message: str) -> None:
+    """Minimal systemd notify (READY=1 / WATCHDOG=1). No dependency; never raises.
+
+    Same pattern as gate-controller/balwyn_gate_controller/sdnotify.py and
+    controller-agent/balwyn_relay_agent.py: a no-op outside systemd (tests,
+    local runs), and a failed notify never takes the HTTP server down.
+    """
+    address = os.environ.get("NOTIFY_SOCKET")
+    if not address or not hasattr(socket, "AF_UNIX"):
+        return
+    if address.startswith("@"):
+        address = "\0" + address[1:]
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
+            sock.connect(address)
+            sock.sendall(message.encode("utf-8"))
+    except OSError:
+        pass
 
 
 @dataclass(frozen=True)
@@ -225,6 +247,23 @@ def make_handler(controller: DoorController):
     return Handler
 
 
+def doors_off():
+    """systemd ExecStopPost: force every door output OFF whatever else is going on.
+
+    Each relay pulse already returns its pin to false in a `finally` block, so
+    in the normal case there is nothing to release. This exists for the
+    abnormal case ExecStopPost is for: a hard kill (SIGKILL, OOM, `systemctl
+    kill`) landing mid-pulse, where the process's own `finally` never runs.
+    Intentionally synchronous and independent of the HTTP server/controller
+    lock, so it can run even if the main process is the thing that is stuck.
+    """
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    config = Config.from_env()
+    outputs = GpioOutputs(config) if config.mode == "hardware" else MockOutputs(config)
+    outputs.close()
+    LOG.info("doors-off: all door outputs de-energised")
+
+
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     controller = DoorController(Config.from_env())
@@ -241,7 +280,21 @@ def main():
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
+
+    # serve_forever() blocks this thread, so the watchdog ping runs on its own
+    # daemon thread. It stops itself once stopping is set (clean shutdown) or
+    # the server's socket closes; the main thread's own exit (SIGKILL) is what
+    # ExecStopPost=doors-off is for, since no Python code runs after that.
+    watchdog_interval = 10
+
+    def heartbeat():
+        while not controller.stopping.wait(watchdog_interval):
+            sd_notify("WATCHDOG=1")
+
+    threading.Thread(target=heartbeat, daemon=True).start()
+
     LOG.info("event=service_started mode=%s", controller.config.mode)
+    sd_notify("READY=1")
     try:
         server.serve_forever(poll_interval=0.2)
     finally:
@@ -250,4 +303,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "doors-off":
+        doors_off()
+    else:
+        main()

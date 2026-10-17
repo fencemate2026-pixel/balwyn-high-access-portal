@@ -1,21 +1,37 @@
 [Unit]
 Description=Balwyn High School fail-safe gate relay bridge
-After=network-online.target dev-gpiochip0.device
-Wants=network-online.target
-Requires=dev-gpiochip0.device
-StartLimitIntervalSec=60
-StartLimitBurst=5
+# No dependency on dev-gpiochip0.device or network-online.target: Raspberry Pi
+# OS does not tag the GPIO chip device for systemd, so Requires= on it can
+# time the unit out (the exact failure gate-controller/deploy/balwyn-gate@.service
+# was hardened against, 15 Oct 2026). The GPIO chip exists from early boot; if
+# it is missing the agent stops with an error and is restarted.
+# Never give up restarting: a unit left "failed" sends no heartbeat, so the
+# portal would only show this gate offline. ExecStopPost forces the relays OFF
+# after each stop.
+StartLimitIntervalSec=0
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=main
 User=balwyn-gate
 Group=gpio
 EnvironmentFile=/etc/balwyn-relay-agent.env
 Environment=PYTHONUNBUFFERED=1
 Environment=STATE_DIRECTORY=/var/lib/balwyn-relay-agent
 ExecStart=/opt/balwyn-relay-agent/venv/bin/python /opt/balwyn-relay-agent/balwyn_relay_agent.py
-Restart=on-failure
+# After EVERY stop - clean exit, crash, watchdog kill, out-of-memory kill -
+# drive this gate's relay pins OFF again. "-" = a failure here never blocks
+# the restart.
+ExecStopPost=-/opt/balwyn-relay-agent/venv/bin/python /opt/balwyn-relay-agent/balwyn_relay_agent.py relays-off
+# systemd restarts the agent if its main loop stops reporting for 30 s. The
+# agent pings the watchdog both between portal polls and while a gate
+# movement is in progress, so this is generous relative to its own timeouts
+# (15 s portal request timeout; 5-120 s configurable movement timeout).
+WatchdogSec=30
+Restart=always
 RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=20
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

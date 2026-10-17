@@ -50,6 +50,14 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Record the currently-live image (for rollback)
+        id: previous
+        run: |
+          CURRENT=$(az webapp config container show \
+            --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" \
+            --query "[?name=='DOCKER_CUSTOM_IMAGE_NAME'].value | [0]" -o tsv || true)
+          echo "image=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "Previously-live image: ${CURRENT:-<none found; first deploy or unexpected config>}"
       - name: Build image in Azure Container Registry
         run: |
           az acr build --registry "${{ vars.AZURE_ACR }}" \
@@ -63,11 +71,34 @@ jobs:
             --container-registry-url "https://${{ vars.AZURE_ACR }}.azurecr.io"
           az webapp restart --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}"
       - name: Wait for the health check
+        id: wait
         run: |
           HOST=$(az webapp show --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" --query defaultHostName -o tsv)
           echo "App host: $HOST (direct access is Cloudflare-only; the platform health check is authoritative)"
+          # This only confirms the App Service platform's own "state" field reaches
+          # Running. The platform's healthCheckPath (set to /api/health in
+          # provision.sh) now also checks Supabase reachability (AUDIT_INFRA.md
+          # finding #6) and will mark/restart unhealthy instances on its own, but
+          # this workflow cannot poll /api/health itself: the web app only accepts
+          # traffic from Cloudflare's published IP ranges (provision.sh), and
+          # whether GitHub-hosted runners (or the SCM/Kudu endpoint, which may or
+          # may not share that restriction) can reach it is infrastructure this
+          # repo cannot verify from source. TRUTH_GAP: wiring a direct /api/health
+          # poll from CI needs either a verified Cloudflare-IP allowance for
+          # GitHub Actions' runner ranges, or running the probe from inside Azure
+          # (e.g. a Kudu/SSH exec step) — confirm live before adding one.
           for i in $(seq 1 30); do
             STATE=$(az webapp show --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" --query state -o tsv)
             echo "state=$STATE"; [ "$STATE" = "Running" ] && exit 0; sleep 10
           done
           echo "Web app did not reach Running"; exit 1
+      - name: Roll back to the previous image
+        if: failure() && steps.wait.outcome == 'failure' && steps.previous.outputs.image != ''
+        run: |
+          echo "Deploy of magickeys-portal:${{ github.sha }} did not reach Running; rolling back to ${{ steps.previous.outputs.image }}"
+          az webapp config container set \
+            --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" \
+            --container-image-name "${{ steps.previous.outputs.image }}" \
+            --container-registry-url "https://${{ vars.AZURE_ACR }}.azurecr.io"
+          az webapp restart --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}"
+          echo "::error::Deploy failed health check and was rolled back to ${{ steps.previous.outputs.image }}. Investigate before retrying."
