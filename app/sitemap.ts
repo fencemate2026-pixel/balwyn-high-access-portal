@@ -5,12 +5,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return [
     {
-      url: "https://magickeys-balwyn-portal.com/brand",
-      lastModified,
-      changeFrequency: "monthly",
-      priority: 1,
-    },
-    {
       url: "https://magickeys-balwyn-portal.com",
       lastModified,
       changeFrequency: "monthly",
