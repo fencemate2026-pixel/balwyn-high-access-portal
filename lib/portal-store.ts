@@ -3,7 +3,6 @@ import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 import { getSql, getDb } from "@/db";
 import {
   activityLog,
-  authAttempts,
   automationRules,
   commandQueue,
   gateStates,
@@ -17,7 +16,6 @@ import {
   isGateActive,
   INITIAL_AUTOMATIONS,
   makeWeekPlan,
-  type AutomationRule,
   type ControllerState,
   type DayKey,
   type GatePosition,
@@ -663,48 +661,13 @@ export async function acknowledgeControllerCommand(input: {
   }
 }
 
-export async function recentFailedLogins(fingerprint: string) {
-  const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-  const rows = await getDb().select({ id: authAttempts.id }).from(authAttempts).where(and(
-    eq(authAttempts.fingerprint, fingerprint),
-    eq(authAttempts.success, false),
-    gt(authAttempts.createdAt, since),
-  ));
-  return rows.length;
-}
-
-export type AuthenticationAttemptState = {
-  failures: number;
-  lastFailureAt: string | null;
-  locked: boolean;
-  retryAfterSeconds: number;
-};
-
-export async function authenticationAttemptState(fingerprint: string): Promise<AuthenticationAttemptState> {
-  const row = await getSql().prepare(`
-    SELECT COUNT(*) AS failures, MAX(created_at) AS last_failure_at
-    FROM auth_attempts
-    WHERE fingerprint = ?
-      AND success = 0
-      AND created_at > COALESCE(
-        (SELECT MAX(created_at) FROM auth_attempts WHERE fingerprint = ? AND success = 1),
-        '1970-01-01T00:00:00.000Z'
-      )
-  `).bind(fingerprint, fingerprint).first<{ failures: number; last_failure_at: string | null }>();
-  const failures = Number(row?.failures ?? 0);
-  const lastFailureAt = row?.last_failure_at ?? null;
-  const cooldownEndsAt = lastFailureAt ? new Date(lastFailureAt).getTime() + 10 * 60 * 1000 : 0;
-  return {
-    failures,
-    lastFailureAt,
-    locked: failures >= 3,
-    retryAfterSeconds: failures === 2 ? Math.max(0, Math.ceil((cooldownEndsAt - Date.now()) / 1000)) : 0,
-  };
-}
-
-export async function recordLoginAttempt(fingerprint: string, success: boolean) {
-  await getDb().insert(authAttempts).values({ fingerprint, success, createdAt: nowIso() });
-}
+// AUDIT_CODE P3-3 (18 Oct 2026): recentFailedLogins / authenticationAttemptState
+// / recordLoginAttempt were a second, dead implementation of login-lockout
+// tracking against this same auth_attempts table - unused anywhere in the
+// codebase. The live rate limiter is lib/signin-rate-limit.ts's
+// reserveSignInAttempt()/reserveSignInAttempts(), which IS wired up on every
+// sign-in path. Removed rather than left beside the real implementation,
+// where a future fix could land on the wrong copy.
 
 export async function clearAuthenticationLockouts(user: PortalUser) {
   await getSql().batch([
