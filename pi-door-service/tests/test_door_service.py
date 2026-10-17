@@ -89,13 +89,27 @@ class DoorServiceTests(unittest.TestCase):
         self.assertEqual(self.request(request_id="")[0], 400)
         self.assertEqual(self.outputs.writes, [])
 
-    def test_concurrent_command_is_rejected_without_queueing(self):
+    def test_concurrent_command_on_the_same_door_is_rejected_without_queueing(self):
         first = threading.Thread(target=self.request)
         first.start()
         self.assertTrue(self.outputs.activated.wait(1))
-        self.assertEqual(self.request("/doors/2/open")[0], 409)
+        self.assertEqual(self.request("/doors/1/open")[0], 409)
         first.join()
         self.assertEqual([(p, on) for p, on, _ in self.outputs.writes], [(17, True), (17, False)])
+
+    def test_concurrent_commands_on_different_doors_both_pulse(self):
+        """DOOR-1 (audit, 18 Oct 2026): the four relays are independent GPIO
+        pins. A pulse in progress on one door must not reject a legitimate,
+        simultaneous open request for a DIFFERENT door."""
+        first = threading.Thread(target=self.request)  # door 1
+        first.start()
+        self.assertTrue(self.outputs.activated.wait(1))
+        status, body = self.request("/doors/2/open")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["door"], 2)
+        first.join()
+        self.assertEqual({(p, on) for p, on, _ in self.outputs.writes},
+                          {(17, True), (17, False), (27, True), (27, False)})
 
     def test_gpio_exception_deenergises_channel_and_latches_fault(self):
         self.outputs.fail = True
@@ -117,9 +131,37 @@ class DoorServiceTests(unittest.TestCase):
         self.assertEqual(len(self.outputs.writes), 2)
 
     def test_interrupted_journal_entry_never_replays(self):
+        # No created_at (as a pre-DOOR-2-fix journal row would have): age is
+        # unknowable, so this is still read as "currently in flight" (409),
+        # never silently resolved.
         key = str(uuid.uuid4())
         with sqlite3.connect(self.config.journal) as db:
-            db.execute("INSERT INTO requests VALUES (?, 1, NULL)", (key,))
+            db.execute("INSERT INTO requests (id, door, result, created_at) VALUES (?, 1, NULL, NULL)", (key,))
+        self.assertEqual(self.request(request_id=key)[0], 409)
+        self.assertEqual(self.outputs.writes, [])
+
+    def test_interrupted_journal_entry_past_the_grace_period_resolves_instead_of_poisoning_the_key(self):
+        """DOOR-2 (audit, 18 Oct 2026): a crash between reserving the key and
+        recording its result must not poison that key forever."""
+        key = str(uuid.uuid4())
+        stale = time.time() - service.INTERRUPTED_REQUEST_GRACE_S - 1
+        with sqlite3.connect(self.config.journal) as db:
+            db.execute("INSERT INTO requests (id, door, result, created_at) VALUES (?, 1, NULL, ?)", (key, stale))
+        status, body = self.request(request_id=key)
+        self.assertEqual(status, 503)
+        self.assertNotIn("already reserved", body["error"])
+        self.assertEqual(self.outputs.writes, [], "a resolved-but-unresolved key must not pulse the relay")
+        # The resolution itself must now be stable (idempotent), not re-resolved
+        # or turned into a fresh pulse on a second retry.
+        status2, body2 = self.request(request_id=key)
+        self.assertEqual(status2, status)
+        self.assertEqual(body2, {**body, "replayed": True})
+        self.assertEqual(self.outputs.writes, [])
+
+    def test_interrupted_journal_entry_inside_the_grace_period_still_rejects(self):
+        key = str(uuid.uuid4())
+        with sqlite3.connect(self.config.journal) as db:
+            db.execute("INSERT INTO requests (id, door, result, created_at) VALUES (?, 1, NULL, ?)", (key, time.time()))
         self.assertEqual(self.request(request_id=key)[0], 409)
         self.assertEqual(self.outputs.writes, [])
 
