@@ -12,6 +12,7 @@ import socket
 import sqlite3
 import sys
 import threading
+import time
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -19,6 +20,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 LOG = logging.getLogger("compass-door-open")
+# DOOR-2 (audit, 18 Oct 2026): a crash between reserving an Idempotency-Key and
+# recording its result otherwise poisons that key forever (permanent 409).
+# Well past any real pulse (<=800 ms) plus sqlite overhead, so this never fires
+# for a request that is genuinely still being handled.
+INTERRUPTED_REQUEST_GRACE_S = 30.0
 
 
 def sd_notify(message: str) -> None:
@@ -125,13 +131,25 @@ class DoorController:
     def __init__(self, config: Config, outputs=None):
         self.config = config
         self.outputs = outputs or (GpioOutputs(config) if config.mode == "hardware" else MockOutputs(config))
-        self.lock = threading.Lock()
+        # DOOR-1 (audit, 18 Oct 2026): one lock PER DOOR, not one shared lock for
+        # all four. The four relays are independent GPIO pins; two legitimate
+        # opens for two DIFFERENT doors arriving close together must both pulse,
+        # not have the second one rejected with 409 just because some other
+        # door's pulse happened to be in progress.
+        self.locks = {door: threading.Lock() for door in range(1, 5)}
         self.stopping = threading.Event()
         self.faulted = False
         try:
             Path(config.journal).parent.mkdir(parents=True, exist_ok=True)
             with self.database() as db:
-                db.execute("CREATE TABLE IF NOT EXISTS requests (id TEXT PRIMARY KEY, door INTEGER NOT NULL, result TEXT)")
+                db.execute("CREATE TABLE IF NOT EXISTS requests (id TEXT PRIMARY KEY, door INTEGER NOT NULL, result TEXT, created_at REAL)")
+                # Upgrade an existing journal from before created_at existed. Rows
+                # written before the upgrade keep a NULL created_at, so DOOR-2's
+                # grace-period recovery below simply never applies to them (their
+                # age cannot be known) rather than guessing one.
+                columns = {row[1] for row in db.execute("PRAGMA table_info(requests)")}
+                if "created_at" not in columns:
+                    db.execute("ALTER TABLE requests ADD COLUMN created_at REAL")
             os.chmod(config.journal, 0o600)
         except BaseException:
             self.outputs.close()
@@ -154,20 +172,38 @@ class DoorController:
                 raise ValueError()
         except (ValueError, AttributeError):
             return 400, {"error": "A canonical UUID Idempotency-Key is required"}
-        if not self.lock.acquire(blocking=False):
+        lock = self.locks[door]
+        if not lock.acquire(blocking=False):
             return 409, {"error": "A relay pulse is already in progress; no command was queued"}
         try:
             if self.stopping.is_set() or self.faulted:
                 return 503, {"error": "Relay service stopped or faulted; inspect locally"}
             with self.database() as db:
-                row = db.execute("SELECT door, result FROM requests WHERE id = ?", (request_id,)).fetchone()
+                row = db.execute("SELECT door, result, created_at FROM requests WHERE id = ?", (request_id,)).fetchone()
                 if row:
-                    if row[0] != door or row[1] is None:
+                    if row[0] != door:
+                        return 409, {"error": "Request already reserved; no repeat pulse. Inspect the original result locally"}
+                    if row[1] is None:
+                        # DOOR-2: a NULL result means a pulse for this key was
+                        # started but never recorded (process killed or power
+                        # lost mid-pulse). "Currently in flight" (409, keep
+                        # waiting) is only a safe reading of that for a short
+                        # grace period; past it, the original attempt is gone and
+                        # this key must be resolvable, not poisoned forever.
+                        created_at = row[2]
+                        if created_at is not None and time.time() - created_at > INTERRUPTED_REQUEST_GRACE_S:
+                            detail = {"error": "A previous attempt for this key did not finish and was not repeated; "
+                                                "its physical outcome is unknown. Inspect locally before retrying with a new key.",
+                                      "request_id": request_id}
+                            code = 503
+                            db.execute("UPDATE requests SET result = ? WHERE id = ?", (json.dumps([code, detail]), request_id))
+                            LOG.error("event=interrupted_request_resolved request_id=%s door=%d age_s=%.1f", request_id, door, time.time() - created_at)
+                            return code, detail
                         return 409, {"error": "Request already reserved; no repeat pulse. Inspect the original result locally"}
                     code, result = json.loads(row[1])
                     return code, {**result, "replayed": True}
                 # Commit before touching hardware, including across a Pi restart.
-                db.execute("INSERT INTO requests (id, door) VALUES (?, ?)", (request_id, door))
+                db.execute("INSERT INTO requests (id, door, created_at) VALUES (?, ?, ?)", (request_id, door, time.time()))
             pin = self.config.pins[door - 1]
             LOG.info("event=open_started request_id=%s door=%d mode=%s pulse_ms=%d", request_id, door, self.config.mode, self.config.pulse_ms)
             try:
@@ -195,12 +231,19 @@ class DoorController:
             LOG.error("event=journal_failed request_id=%s door=%d", request_id, door)
             return 503, {"error": "Execution journal unavailable; no automatic retry. Inspect locally"}
         finally:
-            self.lock.release()
+            lock.release()
 
     def close(self):
         self.stopping.set()
-        with self.lock:
+        # Acquire every door's lock before touching outputs, so shutdown never
+        # races a pulse in progress on any door.
+        for lock in self.locks.values():
+            lock.acquire()
+        try:
             self.outputs.close()
+        finally:
+            for lock in self.locks.values():
+                lock.release()
 
 
 def make_handler(controller: DoorController):
