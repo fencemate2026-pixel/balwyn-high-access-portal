@@ -21,6 +21,15 @@ This portal is ready for **operator demonstration and commissioning**, not for u
 - CCTV, PTZ, projector broadcasts
 - Hire visit run sheet (needs `hire_*` tables applied in `balwyn_portal`)
 
+## Current gate controller
+
+`gate-controller/` (Locinox Venus + KS0212 relay boards, `balwyn-gate@.service`)
+is the current controller for Tony Frizza and Side Entry and supersedes both
+`controller-agent/` and `pi-door-service/` once each gate is commissioned onto
+it (`gate-controller/README.md`). Until that commissioning is complete,
+`pi-door-service`'s Compass ACB-004 open-only path (referenced above) is still
+the live path for the doors it covers.
+
 ## School checklist before relying on the portal
 
 1. Confirm Azure App Service `magickeys-balwyn-portal` uses `magickeysbalwyn.azurecr.io/magickeys-portal:<git-sha>` built from the reviewed commit, and that the app has restarted successfully. A GitHub merge alone is not an Azure deployment.

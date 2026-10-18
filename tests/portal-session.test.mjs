@@ -21,7 +21,9 @@ const user = { displayName: "Test Operator", email: "operator@example.test", rol
 beforeEach(() => {
   for (const key of Object.keys(env)) delete env[key];
   env.PORTAL_SESSION_SECRET = "test-only-session-secret-at-least-32-characters";
-  env.GOOGLE_ALLOWED_EMAILS = user.email;
+  // AUDIT_SECURITY P2 fix (18 Oct 2026): an unannotated entry now resolves to
+  // 'viewer', not 'administrator'; this file's `user` is administrator.
+  env.GOOGLE_ALLOWED_EMAILS = `${user.email}|administrator`;
 });
 function request(cookie, headers = {}, method = "POST", url = origin) {
   return new Request(`${url}/api/portal`, { method, headers: { Cookie: cookie, Origin: origin, "Sec-Fetch-Site": "same-origin", ...headers } });

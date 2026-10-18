@@ -3,7 +3,6 @@ import { and, asc, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 import { getSql, getDb } from "@/db";
 import {
   activityLog,
-  authAttempts,
   automationRules,
   commandQueue,
   gateStates,
@@ -17,7 +16,6 @@ import {
   isGateActive,
   INITIAL_AUTOMATIONS,
   makeWeekPlan,
-  type AutomationRule,
   type ControllerState,
   type DayKey,
   type GatePosition,
@@ -55,6 +53,27 @@ function nowIso() {
 // commands through their own paths.
 let lastExpirySweep = 0;
 const EXPIRY_SWEEP_INTERVAL_MS = 10_000;
+
+// Cheap change-detection stamp for /api/portal polling (AUDIT_PERF P2, 18 Oct
+// 2026): one small round trip over MAX(updated_at)/MAX(id) across the tables
+// getPortalSnapshot() reads, instead of always re-fetching and re-serialising
+// the full 200-row activity log plus every schedule/automation row. A caller
+// that already holds this version string can skip the expensive snapshot
+// fetch entirely when the stamp has not moved.
+export async function getPortalVersion(): Promise<string> {
+  const d1 = getSql();
+  const row = (await d1.prepare(
+    `SELECT
+       (SELECT updated_at FROM system_state WHERE id = 1) AS sys,
+       (SELECT updated_at FROM portal_settings WHERE id = 1) AS settings,
+       (SELECT COALESCE(MAX(updated_at), '') FROM gate_states) AS gates,
+       (SELECT COALESCE(MAX(updated_at), '') FROM gate_schedules) AS schedules,
+       (SELECT COALESCE(MAX(updated_at), '') FROM automation_rules) AS automations,
+       (SELECT COALESCE(MAX(id), 0) FROM activity_log) AS activityMaxId`,
+  ).first()) as Record<string, string | number | null> | null;
+  if (!row) return "unseeded";
+  return [row.sys, row.settings, row.gates, row.schedules, row.automations, row.activityMaxId].map((value) => String(value ?? "")).join("|");
+}
 
 export async function ensurePortalSeeded() {
   const d1 = getSql();
@@ -377,6 +396,14 @@ export async function issueControllerToken(gateId: string, user: PortalUser) {
   return token;
 }
 
+// AUDIT_PERF P1 (18 Oct 2026): lets the controller-poll route tighten its
+// pollAfterMs while an emergency/fire mode is active, without duplicating the
+// mode lookup already embedded in getNextControllerCommand's SQL.
+export async function getSystemMode(): Promise<SystemMode> {
+  const rows = await getDb().select({ mode: systemState.mode }).from(systemState).where(eq(systemState.id, 1)).limit(1);
+  return (rows[0]?.mode ?? "normal") as SystemMode;
+}
+
 export async function controllerTokenValid(gateId: string, token: string) {
   if (!isGateActive(gateId)) return false;
   const rows = await getDb().select({ tokenHash: gateStates.controllerTokenHash }).from(gateStates).where(eq(gateStates.gateId, gateId)).limit(1);
@@ -663,48 +690,13 @@ export async function acknowledgeControllerCommand(input: {
   }
 }
 
-export async function recentFailedLogins(fingerprint: string) {
-  const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-  const rows = await getDb().select({ id: authAttempts.id }).from(authAttempts).where(and(
-    eq(authAttempts.fingerprint, fingerprint),
-    eq(authAttempts.success, false),
-    gt(authAttempts.createdAt, since),
-  ));
-  return rows.length;
-}
-
-export type AuthenticationAttemptState = {
-  failures: number;
-  lastFailureAt: string | null;
-  locked: boolean;
-  retryAfterSeconds: number;
-};
-
-export async function authenticationAttemptState(fingerprint: string): Promise<AuthenticationAttemptState> {
-  const row = await getSql().prepare(`
-    SELECT COUNT(*) AS failures, MAX(created_at) AS last_failure_at
-    FROM auth_attempts
-    WHERE fingerprint = ?
-      AND success = 0
-      AND created_at > COALESCE(
-        (SELECT MAX(created_at) FROM auth_attempts WHERE fingerprint = ? AND success = 1),
-        '1970-01-01T00:00:00.000Z'
-      )
-  `).bind(fingerprint, fingerprint).first<{ failures: number; last_failure_at: string | null }>();
-  const failures = Number(row?.failures ?? 0);
-  const lastFailureAt = row?.last_failure_at ?? null;
-  const cooldownEndsAt = lastFailureAt ? new Date(lastFailureAt).getTime() + 10 * 60 * 1000 : 0;
-  return {
-    failures,
-    lastFailureAt,
-    locked: failures >= 3,
-    retryAfterSeconds: failures === 2 ? Math.max(0, Math.ceil((cooldownEndsAt - Date.now()) / 1000)) : 0,
-  };
-}
-
-export async function recordLoginAttempt(fingerprint: string, success: boolean) {
-  await getDb().insert(authAttempts).values({ fingerprint, success, createdAt: nowIso() });
-}
+// AUDIT_CODE P3-3 (18 Oct 2026): recentFailedLogins / authenticationAttemptState
+// / recordLoginAttempt were a second, dead implementation of login-lockout
+// tracking against this same auth_attempts table - unused anywhere in the
+// codebase. The live rate limiter is lib/signin-rate-limit.ts's
+// reserveSignInAttempt()/reserveSignInAttempts(), which IS wired up on every
+// sign-in path. Removed rather than left beside the real implementation,
+// where a future fix could land on the wrong copy.
 
 export async function clearAuthenticationLockouts(user: PortalUser) {
   await getSql().batch([

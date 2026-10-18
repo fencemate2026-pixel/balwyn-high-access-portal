@@ -19,4 +19,9 @@ jobs:
         with:
           python-version: '3.12'
       - run: npm ci --no-audit --no-fund
+      # --no-audit on the install above is for install speed/determinism only.
+      # This dedicated step is the one meant to catch new high/critical
+      # findings (AUDIT_DEPS.md P3-1: audit was previously disabled everywhere
+      # it would run, so none of these ever surfaced from CI).
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm test

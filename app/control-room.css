@@ -918,7 +918,10 @@ body:has(.control-portal) :is([data-slot="sheet-content"], [data-slot="dialog-co
 }
 .quick-state-button:hover { transform: translateY(-1px); filter: brightness(1.15); }
 .quick-state-button:focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
-.quick-state-button.quick-open { background: linear-gradient(#16d607, #0b9300); border-color: #59ff48; box-shadow: 0 0 12px #4cff4570, inset 0 2px 0 #ffffff55; }
+/* AUDIT_UI_UX P2 (WCAG 1.4.3, 18 Oct 2026): the previous gradient's light stop
+   (#16d607) put white text at ~1.97:1 against it. This flat fill computes to
+   ~5.5:1 across the whole button, comfortably clearing the 4.5:1 target. */
+.quick-state-button.quick-open { background: #0a7a02; border-color: #59ff48; box-shadow: 0 0 12px #4cff4570, inset 0 2px 0 #ffffff55; }
 .quick-state-button.quick-closed { background: linear-gradient(#ff2921, #c50905); border-color: #ff736d; box-shadow: 0 0 12px #ff302c70, inset 0 2px 0 #ffffff55; }
 .quick-state-button.is-current { filter: brightness(1.2); outline: 2px solid #fff; outline-offset: 3px; }
 .gate-current-state {

@@ -126,7 +126,10 @@ test("only administrators can read accounts usage and one person's activity", as
   assert.equal((await get(accountsRoute, { value: viewerCookie, path: "/api/accounts" })).status, 403);
   assert.equal((await get(activityRoute, { value: viewerCookie, path: `/api/accounts/activity?id=${created.id}` })).status, 403);
   const admin = { displayName: "Admin", email: "admin@example.test", role: "administrator" };
-  env.GOOGLE_ALLOWED_EMAILS = "admin@example.test";
+  // AUDIT_SECURITY P2 fix (18 Oct 2026): an unannotated allow-list entry now
+  // resolves to 'viewer', not 'administrator', so this session must be
+  // annotated explicitly to still exercise administrator access.
+  env.GOOGLE_ALLOWED_EMAILS = "admin@example.test|administrator";
   const adminCookie = (await auth.createSessionCookie(admin, { provider: "google" })).split(";")[0];
   const list = await (await get(accountsRoute, { value: adminCookie, path: "/api/accounts" })).json();
   const row = list.accounts.find((a) => a.id === created.id);

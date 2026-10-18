@@ -1,8 +1,14 @@
 import type { PortalUser } from './portal-model';
 export type PortalRole = PortalUser['role'];
 export function configuredRole(value: unknown): PortalRole {
-  // Retain existing administrator access for legacy, unannotated accounts.
-  if (value === undefined || value === null || value === '') return 'administrator';
+  // Fail closed, not open (AUDIT_SECURITY P2, 18 Oct 2026): an allow-listed
+  // identity with no explicit "|role" suffix gets the LEAST-privileged role,
+  // not administrator. Omitting the suffix used to silently grant full
+  // administrator access - a configuration mistake (forgetting "|viewer")
+  // must never widen access on its own. Every account that actually needs
+  // elevated access must be annotated explicitly (e.g. "name@school|operator"
+  // or "name@school|administrator").
+  if (value === undefined || value === null || value === '') return 'viewer';
   if (value === 'viewer' || value === 'operator' || value === 'administrator') return value;
   throw new Error('Invalid account role configuration.');
 }

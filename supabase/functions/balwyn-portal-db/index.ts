@@ -21,18 +21,39 @@ import postgres from "npm:postgres@3.4.9";
 //
 // Waiting for the lock is now bounded: a writer that cannot get the lock within
 // 5 s fails with 55P03 and releases its connection instead of holding it.
+//
+// CHANGE (18 Oct 2026, DB audit P1-2/DB-1): max was 1 — a single shared
+// connection for the whole function instance. Combined with the single
+// global advisory lock above, one slow/blocked statement could stall every
+// other concurrent request (reads and writes) for up to statement_timeout.
+// Raised to a small pool; statement_timeout/lock_timeout remain the backstop
+// against any one statement/writer holding a connection indefinitely. Re-
+// confirm the 23 Sep "too many clients" fix still holds at this pool size
+// before raising it further.
 const sql = postgres(Deno.env.get("SUPABASE_DB_URL")!, {
-  prepare: false, max: 1, idle_timeout: 10, connect_timeout: 10,
+  prepare: false, max: 5, idle_timeout: 10, connect_timeout: 10,
 });
 
 const WRITE_LOCK_KEY = 672419830;
 const WRITE_PATTERN = /^\s*(INSERT|UPDATE|DELETE)\b/i;
 const ALLOWED_PATTERN = /^\s*(SELECT|INSERT|UPDATE|DELETE)\b/i;
+// A single statement only: exactly one optional trailing semicolon, nothing
+// after it. Anchoring ALLOWED_PATTERN/WRITE_PATTERN at the start of the
+// string is not enough on its own — without this, a caller could stack a
+// second statement behind a leading SELECT/INSERT/etc (classified read-only,
+// bypassing the writer lock above) to reach set_config/pg_sleep/pg_advisory_*
+// by building the forbidden name as data (concatenation/format()/EXECUTE)
+// rather than writing it literally, which STACKED_STATEMENT_PATTERN below
+// also closes off regardless of wire-protocol stacking behaviour.
+const STACKED_STATEMENT_PATTERN = /;\s*\S/;
 // 16 Oct 2026: a SELECT could still call set_config('role', ...) to leave the
 // balwyn_app role and bypass the append-only activity log, or take the global
 // advisory lock to stall every writer. The portal never sends any of these, so
 // a statement naming one is refused outright.
-const FORBIDDEN_PATTERN = /\b(set_config|pg_advisory\w*|pg_sleep\w*|dblink\w*|pg_read_\w+|pg_ls_\w+|lo_import|lo_export)\b/i;
+// 18 Oct 2026 (DB audit P1-1/P2-6): added pg_terminate_backend/pg_cancel_backend
+// (PUBLIC-executable by default, session-killing DoS) and COPY (file/program
+// exfiltration or write).
+const FORBIDDEN_PATTERN = /\b(set_config|pg_advisory\w*|pg_sleep\w*|pg_terminate_backend|pg_cancel_backend|dblink\w*|pg_read_\w+|pg_ls_\w+|lo_import|lo_export)\b|\bcopy\s/i;
 
 function safeFailureCode(error: unknown): string {
   const raw = typeof error === "object" && error && "code" in error ? String(error.code) : "unavailable";
@@ -65,6 +86,7 @@ Deno.serve(async request => {
     const { statements } = JSON.parse(text);
     if (!Array.isArray(statements) || !statements.length || statements.length > 100 || statements.some(s =>
       typeof s.sql !== "string" || s.sql.length > 32768 || !ALLOWED_PATTERN.test(s.sql) || FORBIDDEN_PATTERN.test(s.sql)
+      || STACKED_STATEMENT_PATTERN.test(s.sql.replace(/;\s*$/, ""))
       || !Array.isArray(s.params) || s.params.length > 1000
       || s.params.some((p: unknown) => p !== null && !["string", "number", "boolean"].includes(typeof p)))) {
       return Response.json({ error: "Invalid database request" }, { status: 400, headers });

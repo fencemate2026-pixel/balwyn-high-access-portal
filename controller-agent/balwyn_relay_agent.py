@@ -4,6 +4,23 @@
 The bridge never powers a gate motor. It pulses dedicated OPEN/CLOSE dry-contact
 inputs on an existing, correctly commissioned gate operator and requires local
 safety and position feedback before reporting success.
+
+Fire / evacuation hold (AGENT-1, 18 Oct 2026, ported from
+gate-controller/balwyn_gate_controller/controller.py — see its FAULT-REGISTER
+items #2, #3, #32, #33):
+  * the portal's command "source" (manual / schedule / emergency) is read and
+    enforced, not dropped;
+  * an open commanded with source "emergency" marks a fire/evacuation hold in
+    effect (persisted to disk, restored after a restart up to
+    EMERGENCY_RESTORE_MAX_S old) even though this agent's hardware has no
+    continuous "hold" relay output of its own — the operator's own logic keeps
+    the gate open, but this agent will not help end that state early;
+  * while a hold is in effect, a "closed" command is executed ONLY if its
+    source is "emergency" or "manual"; a "schedule" close (a window simply
+    ending) is refused without touching the relay;
+  * only an OPEN requires a healthy local safety input; a CLOSE is always the
+    safe direction and is never refused for that reason, so a fire hold can
+    still be ended while a safety device is tripped.
 """
 
 from __future__ import annotations
@@ -13,8 +30,10 @@ import json
 import logging
 import os
 import signal
+import socket
 import ssl
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -26,6 +45,35 @@ import lgpio
 
 VERSION = "1.0.0"
 LOG = logging.getLogger("balwyn-relay-agent")
+
+# Exactly the sources the portal can create (lib/portal-store.ts: queueGateCommands
+# "manual" / "emergency", getOrCreateScheduledControllerCommand "schedule"). Mirrors
+# gate-controller/balwyn_gate_controller/controller.py VALID_SOURCES. An unrecognised
+# source is refused, never guessed at.
+VALID_SOURCES = {"manual", "schedule", "emergency"}
+# Who may end a fire / evacuation hold. A schedule window ending during a fire must
+# not. Mirrors controller.py EMERGENCY_RELEASE_SOURCES (FAULT-REGISTER #3).
+EMERGENCY_RELEASE_SOURCES = {"emergency", "manual"}
+
+
+def sd_notify(message: str) -> None:
+    """Minimal systemd notify (READY=1 / WATCHDOG=1). No dependency; never raises.
+
+    Same no-op-when-absent pattern as gate-controller/balwyn_gate_controller/sdnotify.py:
+    silently does nothing outside systemd (tests, local runs) and never lets a
+    notify failure take down the relay loop.
+    """
+    address = os.environ.get("NOTIFY_SOCKET")
+    if not address or not hasattr(socket, "AF_UNIX"):
+        return
+    if address.startswith("@"):
+        address = "\0" + address[1:]
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
+            sock.connect(address)
+            sock.sendall(message.encode("utf-8"))
+    except OSError:
+        pass
 
 
 def required(name: str) -> str:
@@ -40,6 +88,19 @@ def required_bool(name: str) -> bool:
     if value not in {"true", "false"}:
         raise RuntimeError(f"{name} must be exactly true or false")
     return value == "true"
+
+
+def optional_float(name: str, default: float, low: float, high: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        raise RuntimeError(f"{name} must be a number") from None
+    if not low <= value <= high:
+        raise RuntimeError(f"{name} must be between {low:g} and {high:g}")
+    return value
 
 
 @dataclass(frozen=True)
@@ -60,6 +121,14 @@ class Config:
     movement_timeout_seconds: float
     schedule_control: bool
     state_dir: Path
+    # Fire / evacuation hold parity with gate-controller/balwyn_gate_controller
+    # (FAULT-REGISTER #32/#33). emergency_restore_max_s bounds how old a
+    # persisted hold may be and still be restored after a restart; older than
+    # that, it is discarded and a physical check is logged as required instead
+    # of silently trusting stale state. emergency_alarm_s is when a long-
+    # standing hold starts being reported as a fault so staff notice it.
+    emergency_restore_max_s: float
+    emergency_alarm_s: float
 
     @classmethod
     def load(cls) -> "Config":
@@ -80,6 +149,8 @@ class Config:
             movement_timeout_seconds=float(required("MOVEMENT_TIMEOUT_SECONDS")),
             schedule_control=os.environ.get("ENABLE_SCHEDULE_CONTROL", "false").strip().lower() == "true",
             state_dir=Path(os.environ.get("STATE_DIRECTORY", "/var/lib/balwyn-relay-agent")),
+            emergency_restore_max_s=optional_float("EMERGENCY_RESTORE_MAX_S", 12 * 3600.0, 0.0, 48 * 3600.0),
+            emergency_alarm_s=optional_float("EMERGENCY_ALARM_S", 4 * 3600.0, 60.0, 48 * 3600.0),
         )
         pins = [config.open_pin, config.close_pin, config.open_limit_pin, config.closed_limit_pin, config.safety_ok_pin, config.estop_pin]
         if len(set(pins)) != len(pins):
@@ -186,6 +257,11 @@ class Agent:
         config.state_dir.mkdir(parents=True, exist_ok=True)
         self.pending_ack_path = config.state_dir / "pending-ack.json"
         self.execution_journal_path = config.state_dir / "execution-journal.json"
+        # Fire / evacuation hold state (FAULT-REGISTER #32/#33 parity). Kept on
+        # disk across restarts; see _load_emergency_hold / _set_emergency_hold.
+        self.emergency_hold_path = config.state_dir / "emergency-hold.json"
+        self.emergency_since: float | None = self._load_emergency_hold()
+        self._emergency_alarm_reported = False
 
     @staticmethod
     def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
@@ -196,8 +272,89 @@ class Agent:
             os.fsync(handle.fileno())
         temporary.replace(path)
 
+    # ------------------------------------------------- fire / evacuation hold
+    def _load_emergency_hold(self) -> float | None:
+        """Restore a fire/evacuation hold recorded before a crash, update or power
+        cut (FAULT-REGISTER #32). Only used to decide whether a later schedule
+        close must still be refused — this agent has no continuous "hold" relay
+        output; the physical gate operator's own logic governs how long it stays
+        open. A restored hold older than emergency_restore_max_s is treated as
+        stale and discarded instead of trusted indefinitely."""
+        if not self.emergency_hold_path.exists():
+            return None
+        try:
+            data = json.loads(self.emergency_hold_path.read_text(encoding="utf-8"))
+            since = data["since"]
+            if isinstance(since, bool) or not isinstance(since, (int, float)):
+                raise ValueError("invalid since")
+            since = float(since)
+        except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as error:
+            LOG.warning("Emergency hold record was unreadable and is being discarded: %s", error)
+            self.emergency_hold_path.unlink(missing_ok=True)
+            return None
+        age = time.time() - since
+        if not 0 <= age <= self.config.emergency_restore_max_s:
+            LOG.warning(
+                "Emergency hold record is %.0f s old (max %.0f s); not restoring it. "
+                "If this gate is meant to still be held open for an evacuation, check it physically.",
+                age, self.config.emergency_restore_max_s,
+            )
+            self.emergency_hold_path.unlink(missing_ok=True)
+            return None
+        LOG.warning(
+            "Restoring a fire/evacuation hold recorded %.0f s ago. A schedule close will not "
+            "end it; only an emergency or manual close will.", age,
+        )
+        return since
+
+    def _set_emergency_hold(self, active: bool) -> None:
+        """Remember (or forget) that a fire/evacuation hold is in effect. A disk
+        error here is reported, never raised: persistence must never block or
+        unwind a life-safety open, nor stop a legitimate close from proceeding."""
+        if active:
+            if self.emergency_since is None:
+                self.emergency_since = time.time()
+                self._emergency_alarm_reported = False
+            try:
+                self.write_json_atomic(self.emergency_hold_path, {"since": self.emergency_since})
+            except OSError as error:
+                LOG.error(
+                    "Could not persist emergency hold state (%s). The hold is still in effect "
+                    "for this process but will not survive a restart until this is fixed.", error,
+                )
+        else:
+            self.emergency_since = None
+            self._emergency_alarm_reported = False
+            try:
+                self.emergency_hold_path.unlink(missing_ok=True)
+            except OSError as error:
+                LOG.error(
+                    "Could not clear persisted emergency hold state (%s). Delete %s manually "
+                    "if a restart wrongly restores a hold that was actually ended.",
+                    error, self.emergency_hold_path,
+                )
+
     def state_payload(self) -> dict[str, Any]:
-        return {"gateId": self.config.gate_id, **self.io.sensors(), "softwareVersion": VERSION, "scheduleControl": self.config.schedule_control}
+        sensors = self.io.sensors()
+        faults = list(sensors["faults"])
+        if self.emergency_since is not None:
+            age_s = time.time() - self.emergency_since
+            if age_s > self.config.emergency_alarm_s:
+                faults.append(
+                    f"Fire / evacuation hold has been in effect for {age_s / 3600.0:.1f} h. "
+                    "Send the all-clear close when it is over."
+                )
+                if not self._emergency_alarm_reported:
+                    self._emergency_alarm_reported = True
+                    LOG.warning("Emergency hold on %s has been active for %.1f h", self.config.gate_id, age_s / 3600.0)
+        return {
+            "gateId": self.config.gate_id,
+            "position": sensors["position"],
+            "safetyOk": sensors["safetyOk"],
+            "faults": faults,
+            "softwareVersion": VERSION,
+            "scheduleControl": self.config.schedule_control,
+        }
 
     async def deliver_pending_ack(self) -> bool:
         if not self.pending_ack_path.exists():
@@ -223,6 +380,11 @@ class Agent:
             command_id = int(journal["commandId"])
             command = str(journal["command"])
             phase = str(journal["phase"])
+            # "source" was added after this journal shape existed in the field; an
+            # old record written before this fix simply has none, so default to
+            # "manual" (the most conservative source — never auto-assumed to be
+            # an emergency hold) rather than failing recovery outright.
+            source = str(journal.get("source", "manual"))
             if command_id <= 0 or command not in {"open", "closed"} or phase not in {"accepted", "pulsed"}:
                 raise ValueError("invalid execution journal")
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
@@ -232,44 +394,83 @@ class Agent:
         if sensors["safetyOk"] and sensors["position"] == command:
             state = "acknowledged"
             detail = "Agent restarted during command handling; relay remained off and the independent limit input confirmed the requested position."
-        elif not sensors["safetyOk"]:
+        elif not sensors["safetyOk"] and command == "open":
+            # FAULT-REGISTER #2 parity: an unhealthy safety input only matters for
+            # an open; a close is always the safe direction regardless of source.
             state = "blocked"
             detail = "Agent restarted during command handling; relay remained off and the local safety inputs require attention."
         else:
             state = "failed"
             detail = "Agent restarted during command handling; relay remained off and the command was not automatically repeated. Deliberate operator retry is required."
+        LOG.info("Recovered an interrupted %s command (source: %s) as %s", command, source, state)
         await self.save_and_deliver_ack(command_id, state, sensors, detail)
 
-    async def execute(self, command_id: int, command: str) -> None:
+    async def execute(self, command_id: int, command: str, source: str) -> None:
         if command not in {"open", "closed"}:
             await self.save_and_deliver_ack(command_id, "failed", self.io.sensors(), "Controller rejected an unsupported command without pulsing a relay.")
             return
+        if source not in VALID_SOURCES:
+            # Mirrors controller.py _handle(): an unrecognised source is refused, never guessed at.
+            await self.save_and_deliver_ack(command_id, "failed", self.io.sensors(), f"Unsupported command source {source[:40]!r}; relay not operated.")
+            return
         sensors = self.io.sensors()
-        if not sensors["safetyOk"]:
+
+        # FAULT-REGISTER #2 parity: releasing (closing) is always the safe direction,
+        # so only an OPEN requires a healthy safety input — otherwise a fire hold
+        # could never be ended while a safety device is tripped.
+        if command == "open" and not sensors["safetyOk"]:
             await self.save_and_deliver_ack(command_id, "blocked", sensors, "; ".join(sensors["faults"]))
             return
+
+        # FAULT-REGISTER #3/#32/#33 parity: a schedule window ending must never end
+        # an active fire/evacuation hold. Only an emergency all-clear or a manual
+        # close may. Checked, and cleared, before anything else about this close
+        # is decided — exactly when controller.py's _handle() does it.
+        if command == "closed" and self.emergency_since is not None:
+            if source not in EMERGENCY_RELEASE_SOURCES:
+                await self.save_and_deliver_ack(
+                    command_id, "blocked", sensors,
+                    f"Fire / evacuation hold kept: a {source} close cannot end it.",
+                )
+                return
+            self._set_emergency_hold(False)
+
+        if command == "open" and source == "emergency":
+            # Marked before the relay is pulsed (and before the "already in
+            # position" shortcut below), exactly as controller.py's _start_open
+            # does for HOLD_SOURCES — so a close that arrives before this open is
+            # confirmed still cannot end a hold that has already been accepted.
+            self._set_emergency_hold(True)
+
         if sensors["position"] == command:
             await self.save_and_deliver_ack(command_id, "acknowledged", sensors, "Position input already confirmed the requested state; relay was not pulsed.")
             return
 
-        self.write_json_atomic(self.execution_journal_path, {"commandId": command_id, "command": command, "phase": "accepted"})
-        LOG.warning("Pulsing dedicated %s dry-contact relay for command %s", command, command_id)
+        self.write_json_atomic(self.execution_journal_path, {"commandId": command_id, "command": command, "source": source, "phase": "accepted"})
+        LOG.warning("Pulsing dedicated %s dry-contact relay for command %s (source: %s)", command, command_id, source)
         try:
             await self.io.pulse(command)
         except Exception:  # noqa: BLE001 - any GPIO fault must become an explicit failed acknowledgement
             LOG.exception("Relay pulse failed for command %s", command_id)
             await self.save_and_deliver_ack(command_id, "failed", self.io.sensors(), "Relay pulse failed; outputs were de-energised and no automatic retry was attempted.")
             return
-        self.write_json_atomic(self.execution_journal_path, {"commandId": command_id, "command": command, "phase": "pulsed"})
+        self.write_json_atomic(self.execution_journal_path, {"commandId": command_id, "command": command, "source": source, "phase": "pulsed"})
         deadline = asyncio.get_running_loop().time() + self.config.movement_timeout_seconds
         while asyncio.get_running_loop().time() < deadline and not self.stopping.is_set():
             sensors = self.io.sensors()
-            if not sensors["safetyOk"]:
+            # FAULT-REGISTER #2 parity: only an open's confirmation wait is cut
+            # short by an unhealthy safety input. A close that is already moving
+            # is the safe direction and keeps waiting for its own confirmation
+            # instead of being reported "blocked".
+            if command == "open" and not sensors["safetyOk"]:
                 await self.save_and_deliver_ack(command_id, "blocked", sensors, "; ".join(sensors["faults"]))
                 return
             if sensors["position"] == command:
                 await self.save_and_deliver_ack(command_id, "acknowledged", sensors, "Physical limit input confirmed the requested position.")
                 return
+            # A gate movement can run longer than WatchdogSec; ping here too so
+            # systemd never kills a controller that is actively polling sensors.
+            sd_notify("WATCHDOG=1")
             await asyncio.sleep(0.25)
         await self.save_and_deliver_ack(command_id, "failed", self.io.sensors(), "Timed out waiting for physical position confirmation.")
 
@@ -289,8 +490,18 @@ class Agent:
                 response = await self.portal.request("/api/controller/commands", self.state_payload())
                 command = response.get("command")
                 if command:
-                    await self.execute(int(command["id"]), str(command["command"]))
-                await asyncio.sleep(max(0.5, min(float(response.get("pollAfterMs", 1500)) / 1000, 10)))
+                    # Default "manual" mirrors controller.py _handle(): command.get("source", "manual").
+                    await self.execute(int(command["id"]), str(command["command"]), str(command.get("source", "manual")))
+                # AUDIT_PERF P1 (18 Oct 2026): the portal now returns a shorter
+                # pollAfterMs (~250ms) while an emergency/fire hold is active or a
+                # command is already waiting for this gate (see
+                # app/api/controller/commands/route.ts). The previous 0.5s floor
+                # here silently discarded that and kept the agent on its normal
+                # steady-state cadence during exactly the window it mattered most.
+                # 0.15s remains a safe floor: well above GPIO/debounce timing and
+                # far short of a busy loop.
+                sd_notify("WATCHDOG=1")
+                await asyncio.sleep(max(0.15, min(float(response.get("pollAfterMs", 1500)) / 1000, 10)))
             except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
                 LOG.warning("Portal unavailable; relays remain de-energised: %s", error)
                 self.io.all_off()
@@ -305,6 +516,23 @@ class Agent:
         self.io.all_off()
 
 
+def relays_off() -> None:
+    """systemd ExecStopPost: drive this gate's relays OFF whatever else is going on.
+
+    Run after EVERY stop (clean exit, crash, `systemctl kill`, OOM kill) so a
+    killed agent can never leave a relay energised. RelayIO claims both pins
+    and calls all_off() in its own constructor, so building and closing it is
+    the whole operation; it is intentionally synchronous (no asyncio loop) so
+    it can run to completion even if the main process's event loop is the
+    thing that is stuck.
+    """
+    logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
+    config = Config.load()
+    io = RelayIO(config)
+    io.close()
+    LOG.info("relays-off: both relay outputs de-energised")
+
+
 async def main() -> None:
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
     config = Config.load()
@@ -312,6 +540,7 @@ async def main() -> None:
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, agent.stop)
+    sd_notify("READY=1")
     try:
         await agent.run()
     finally:
@@ -320,7 +549,10 @@ async def main() -> None:
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        if len(sys.argv) > 1 and sys.argv[1] == "relays-off":
+            relays_off()
+        else:
+            asyncio.run(main())
     except Exception as error:  # noqa: BLE001
         LOG.critical("Agent could not start safely: %s", error)
         sys.exit(1)
