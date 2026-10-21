@@ -52,7 +52,6 @@ import {
   Users,
   VideoOff,
   Volume2,
-  VolumeX,
   Wifi,
   Workflow,
   Zap,
@@ -254,8 +253,6 @@ function EmergencyAlertPanel({
   failed,
   canClear,
   projectorAccess,
-  warningMuted,
-  onToggleMute,
 }: {
   mode: Exclude<SystemMode, "normal">;
   onClear: () => void;
@@ -264,8 +261,6 @@ function EmergencyAlertPanel({
   failed: number;
   canClear: boolean;
   projectorAccess: boolean;
-  warningMuted: boolean;
-  onToggleMute: () => void;
 }) {
   const fire = mode === "fire";
   const Icon = fire ? Flame : ShieldAlert;
@@ -285,12 +280,6 @@ function EmergencyAlertPanel({
       <p>{fire ? "Evacuate by the nearest safe exit and follow the school emergency plan." : "Move inside, secure the area and await an authorised all-clear."}</p>
       <footer>
         {fire && <a href="tel:000"><PhoneCall /> Triple Zero (000)</a>}
-        {/* AUDIT_UI_UX P1 (WCAG 1.4.2, 18 Oct 2026): a reachable mute control for the
-            repeating spoken warning, available to every operator without admin
-            unlock or a view change — see the voiceAnnouncements effect above. */}
-        <Button variant="outline" onClick={onToggleMute} aria-pressed={warningMuted}>
-          {warningMuted ? <Volume2 /> : <VolumeX />} {warningMuted ? "Unmute spoken warning" : "Mute spoken warning"}
-        </Button>
         <Button variant="outline" disabled={!canClear} onClick={onClear}><RotateCcw /> {canClear ? "Clear emergency priority" : "Administrator required to clear"}</Button>
       </footer>
     </section>
@@ -328,11 +317,6 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const [faultAlerts, setFaultAlerts] = useState(initialData.settings.faultAlerts);
   const [voiceAnnouncements, setVoiceAnnouncements] = useState(initialData.settings.voiceAnnouncements);
   const [voiceStatus, setVoiceStatus] = useState("Checking Australian voice availability…");
-  // AUDIT_UI_UX P1 (WCAG 1.4.2, 18 Oct 2026): per-session mute for the repeating
-  // spoken lockdown/fire warning. Deliberately separate from the admin-only
-  // voiceAnnouncements setting so any operator can reach it mid-emergency
-  // without unlocking Settings. Resets each time a new emergency starts.
-  const [warningMuted, setWarningMuted] = useState(false);
   const [gateQuery, setGateQuery] = useState("");
   const [gateGroup, setGateGroup] = useState<"all" | GroupKey>("all");
   const [selectedCameraId, setSelectedCameraId] = useState<(typeof cctvCameras)[number]["id"]>(cctvCameras[0].id);
@@ -362,10 +346,6 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   // Number of operator requests still in flight. Background refreshes are not
   // applied meanwhile, so they cannot undo an instant (optimistic) change.
   const mutationsInFlightRef = useRef(0);
-  // AUDIT_PERF P2 (18 Oct 2026): the last snapshot version this tab is known to
-  // hold. Sent back as ?v= so the server can skip re-sending the full
-  // activity-log/schedule/automation payload when nothing has changed.
-  const lastKnownVersionRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isAdministrator) return;
@@ -472,15 +452,13 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     const refresh = async () => {
       const epochAtStart = mutationEpochRef.current;
       try {
-        const query = lastKnownVersionRef.current ? `?v=${encodeURIComponent(lastKnownVersionRef.current)}` : "";
-        const response = await fetch(`/api/portal${query}`, { cache: "no-store" });
+        const response = await fetch("/api/portal", { cache: "no-store" });
         if (response.status === 401) {
           await onSignOut?.();
           return;
         }
         if (response.ok) {
-          const result = await response.json() as { snapshot?: PortalSnapshot; version?: string; unchanged?: boolean };
-          if (typeof result.version === "string") lastKnownVersionRef.current = result.version;
+          const result = await response.json() as { snapshot?: PortalSnapshot };
           // Discard if the operator changed something while this was in flight.
           if (active && result.snapshot && epochAtStart === mutationEpochRef.current && mutationsInFlightRef.current === 0) applySnapshot(result.snapshot, scheduleDirty);
         }
@@ -509,14 +487,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     return () => window.speechSynthesis.removeEventListener("voiceschanged", prepareAustralianVoice);
   }, []);
 
-  // Reset the per-emergency mute whenever a new emergency starts, so a mute
-  // left on from a previous incident never silently carries over. Adjusted
-  // during render (React's documented pattern for "reset state when a prop
-  // changes") rather than in an effect, which avoids an extra render pass.
-  if (systemMode === "normal" && warningMuted) setWarningMuted(false);
-
   useEffect(() => {
-    if (!voiceAnnouncements || warningMuted || clearingEmergency || systemMode === "normal" || typeof window === "undefined") return;
+    if (!voiceAnnouncements || clearingEmergency || systemMode === "normal" || typeof window === "undefined") return;
 
     // Speak the WHOLE sentence, wait for it to finish, pause, then repeat.
     // (A fixed 6.5 s restart with cancel() used to cut the sentence off.)
@@ -550,7 +522,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
       if (nextTimer) window.clearTimeout(nextTimer);
       window.speechSynthesis?.cancel();
     };
-  }, [systemMode, voiceAnnouncements, warningMuted, clearingEmergency]);
+  }, [systemMode, voiceAnnouncements, clearingEmergency]);
 
   const voiceStatusText = typeof window !== "undefined" && !("speechSynthesis" in window)
     ? "Voice announcements are unavailable in this browser."
@@ -895,7 +867,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
                 ? "Safety blocked"
                 : "Safety pending";
           return (
-            <button className={`access-card ${gate.active ? "is-active" : "is-inactive"} ${positionMonitoring ? "" : "is-monitoring-paused"} controller-${runtimeFor(gate)?.controllerState ?? "uncommissioned"}`} key={gate.id} aria-label={`${gate.name} · ${gate.active ? "Active" : "Inactive"} · ${status.label} · ${safetyLabel}`} aria-haspopup="dialog" onClick={() => setSelectedGate(gate)}>
+            <button className={`access-card ${gate.active ? "is-active" : "is-inactive"} ${positionMonitoring ? "" : "is-monitoring-paused"} controller-${runtimeFor(gate)?.controllerState ?? "uncommissioned"}`} key={gate.id} aria-label={`${gate.name} · ${gate.active ? "Active" : "Inactive"} · ${status.label}`} aria-haspopup="dialog" onClick={() => setSelectedGate(gate)}>
               <span className="access-card-heading"><span><strong>{gate.name}</strong><small>{gate.type}</small></span><span className={`gate-activation-badge ${gate.active ? "is-active" : "is-inactive"}`}>{gate.active ? "Active" : "Inactive"}</span></span>
               {/* Area / ID pills removed at the owner's request: the card shows the gate itself. */}
               <GateIcon gate={gate} position={position} runtime={runtime} monitoring={positionMonitoring} />
@@ -919,11 +891,6 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   return (
     <SidebarProvider className={`control-portal mode-${systemMode}`} style={{ "--sidebar-width": "15.5rem" } as React.CSSProperties}>
-      {/* AUDIT_UI_UX P2 (WCAG 2.4.1, 18 Oct 2026): lets a keyboard user skip the
-          full Operations/Administration nav list and operator footer on first
-          load, instead of tabbing through all of it before reaching the
-          workspace content. */}
-      <a href="#portal-main-content" className="skip-to-main-content">Skip to main content</a>
       <Sidebar collapsible="offcanvas" className="control-sidebar">
         <SidebarHeader className="portal-sidebar-header"><div className="magic-sidebar-brand"><BrandLogo tone="dark" /></div></SidebarHeader>
         <SidebarSeparator />
@@ -936,7 +903,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         <SidebarFooter className="operator-footer"><Avatar size="lg"><AvatarImage src={profileImage} alt={`${user.displayName} profile`} /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><div className="operator-footer-copy"><strong>{displayName}</strong><span>{user.email}</span><small>{roleLabel}</small></div>{onSignOut ? <button type="button" className="operator-sign-out" onClick={onSignOut} aria-label="Sign out of Magic Keys"><LogOut /></button> : <a href={signOutHref} target="_top" aria-label="Sign out of Magic Keys"><LogOut /></a>}</SidebarFooter>
       </Sidebar>
 
-      <SidebarInset id="portal-main-content" className="portal-workspace">
+      <SidebarInset className="portal-workspace">
         <header className="workspace-header">
           <div className="workspace-location"><SidebarTrigger className="sidebar-toggle" /><span className="workspace-school-brand"><img src="/balwyn-high-school-logo-clear.png" alt="Balwyn High School" /></span><div className="header-safety" role="region" aria-label="Emergency gate commands"><div className={`safety-bar-status${systemMode === "normal" ? "" : " is-alert"}`}><i className="status-dot" /><span><small>System state</small><strong>{systemMode === "normal" ? "No emergency active" : systemMode === "lockdown" ? "Lockdown active" : "Fire / evacuation active"}</strong><em className="header-safety-note"><Radio aria-hidden="true" /> Local safety circuits remain authoritative</em></span></div><SafetyCommand mode="fire" active={systemMode === "fire"} authorised={isAdministrator} onConfirm={() => setPendingEmergency("fire")} /></div></div>
           <div className="workspace-header-right"><div className={`system-status-cluster ${operationalReady ? "is-ready" : "is-attention"}`}><i className="signal-dot" /><span><small>Controller status</small><strong>{operationalReady ? "All systems ready" : "Commissioning"}</strong></span><b>{onlineCount}/{activeGates.length}</b></div><span className="connection-pill"><i /> Encrypted connection</span><button className="notification-button" aria-label="View system alerts" onClick={() => onlineCount === activeGates.length ? toast.success("All controllers online", { description: "Physical gate feedback is available for every access point." }) : toast.warning(`${activeGates.length - onlineCount} active gate controllers are not online`, { description: `${commissionedCount} have completed a verified heartbeat; ${credentialCount} credentials have been issued.` })}><Bell /></button><div className="header-operator"><Avatar><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><span><strong>{displayName}</strong><small>{roleLabel}</small></span></div></div>
@@ -946,7 +913,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
         {/* The fire / evacuation control lives in the header (always visible on every page). */}
 
-        {systemMode !== "normal" && <EmergencyAlertPanel mode={systemMode} onClear={() => setPendingEmergency("clear")} confirmed={emergencyConfirmed} pending={emergencyPending} failed={emergencyFailed} canClear={isAdministrator} projectorAccess={advancedFeaturesEnabled} warningMuted={warningMuted} onToggleMute={() => setWarningMuted((value) => !value)} />}
+        {systemMode !== "normal" && <EmergencyAlertPanel mode={systemMode} onClear={() => setPendingEmergency("clear")} confirmed={emergencyConfirmed} pending={emergencyPending} failed={emergencyFailed} canClear={isAdministrator} projectorAccess={advancedFeaturesEnabled} />}
 
 
         <div className="workspace-content" data-view={activeView}>

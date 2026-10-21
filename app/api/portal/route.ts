@@ -6,7 +6,6 @@ import {
   clearAuthenticationLockouts,
   clearEmergencyPriority,
   getPortalSnapshot,
-  getPortalVersion,
   issueControllerToken,
   queueGateCommands,
   removeAutomationRule,
@@ -25,21 +24,7 @@ export async function GET(request: Request) {
   const auth = await requireOperator(request, "viewer");
   if (!auth.user) return auth.response;
   try {
-    // AUDIT_PERF P2 (18 Oct 2026): a polling client that already holds the
-    // version it was last served (?v=<stamp>) can confirm nothing changed with
-    // one cheap MAX()/id round trip, instead of re-fetching and re-transmitting
-    // the full 200-row activity log plus every schedule/automation row on every
-    // poll. Omitting ?v= (older clients, first load) always gets the full snapshot.
-    const knownVersion = new URL(request.url).searchParams.get("v");
-    if (knownVersion) {
-      const version = await getPortalVersion();
-      if (version === knownVersion) {
-        return Response.json({ unchanged: true, version }, { headers: { "Cache-Control": "no-store" } });
-      }
-    }
-    const snapshot = await getPortalSnapshot(auth.user);
-    const version = await getPortalVersion();
-    return Response.json({ snapshot, version }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ snapshot: await getPortalSnapshot(auth.user) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("portal snapshot failed", error);
     return Response.json({ error: "The live operations record is temporarily unavailable." }, { status: 503 });
@@ -140,12 +125,7 @@ export async function POST(request: Request) {
       ? 403
       : message.includes("already awaiting")
         ? 409
-        // AUDIT_LIVE_ACTIVE P4 (18 Oct 2026): the thrown message is "has not
-        // been commissioned", which never matched the old "not commissioned"
-        // substring (the "been" in between breaks it), so an uncommissioned
-        // gate fell through to 503 instead of 400 and could pollute uptime
-        // monitoring with a false "service unavailable" signal.
-        : /invalid|unknown|required|blocked|before|not found|not .*commissioned|not active|offline|safety circuit/i.test(message)
+        : /invalid|unknown|required|blocked|before|not found|not commissioned|not active|offline|safety circuit/i.test(message)
           ? 400
           : 503;
     return Response.json({ error: message }, { status });

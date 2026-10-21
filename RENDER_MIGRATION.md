@@ -1,19 +1,4 @@
-# Balwyn portal Render migration (historical — superseded by Azure)
-
-**Production is Azure App Service, not Render.** This document is kept only as
-the historical record of the Netlify → Render migration. The portal was later
-cut over from Render to Azure App Service (commit `f5bb357`, "privacy: hosting
-is Azure Sydney (was Render, Oregon)"); see
-[deploy/azure/app-settings.md](deploy/azure/app-settings.md) and
-[deploy/azure/MIGRATION.md](deploy/azure/MIGRATION.md) for the current
-deployment, configuration and verification steps. Do not enter secrets in
-Render, and do not treat `render.yaml` as live — see the deprecation note at
-the top of that file.
-
-The rest of this document describes the state of the Render migration at the
-time, unedited:
-
----
+# Balwyn portal Render migration
 
 The production destination is `fencemate2026-pixel/balwyn-high-access-portal`, branch `main`, intended to run as a Render Node web service. The Render workspace/service still needs to be confirmed. The source configuration is prepared; a live Render deployment has not yet been verified.
 

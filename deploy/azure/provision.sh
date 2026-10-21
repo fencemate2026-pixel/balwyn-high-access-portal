@@ -64,15 +64,9 @@ az webapp config appsettings set --name "$APP" --resource-group "$RG" --output n
 
 echo "== Only accept traffic from Cloudflare"
 # Cloudflare publishes its edge ranges; the app refuses everything else.
-# Covers both IPv4 and IPv6 (AUDIT_INFRA.md finding #10: ips-v6 was missing,
-# leaving an IPv6-only visitor or future IPv6 Cloudflare edge unaccounted for).
-# This script is idempotent and safe to re-run, but it is still only ever run
-# by hand: Cloudflare can add or retire ranges at any time, so re-run this
-# section periodically (there is no scheduled job wired up for it) rather than
-# treating a single run as a permanent allow-list.
 PRIORITY=100
-for CIDR in $(curl -fsS https://www.cloudflare.com/ips-v4) $(curl -fsS https://www.cloudflare.com/ips-v6); do
-  NAME="cf-$(echo "$CIDR" | tr './:' '---')"
+for CIDR in $(curl -fsS https://www.cloudflare.com/ips-v4); do
+  NAME="cf-$(echo "$CIDR" | tr './' '--')"
   az webapp config access-restriction show --name "$APP" --resource-group "$RG" --query "ipSecurityRestrictions[?name=='$NAME']" -o tsv | grep -q . \
     || az webapp config access-restriction add --name "$APP" --resource-group "$RG" \
          --rule-name "$NAME" --action Allow --ip-address "$CIDR" --priority "$PRIORITY" --output none

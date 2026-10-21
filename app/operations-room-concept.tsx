@@ -19,7 +19,7 @@ function ConceptStage({variant}:{variant:keyof typeof CONCEPT_SCENES}) {
   <img className="operations-concept-photo" src={scene.image} width={scene.width} height={scene.height} alt={scene.alt} loading="lazy" />
   <div className="operations-concept-overlays" aria-hidden="true" inert style={{width:scene.width,height:scene.height,transform:`scale(${width/scene.width})`,visibility:width?'visible':'hidden'}}>
    {scene.dashboard&&<iframe className="concept-screen-frame" style={screenStyle(scene.dashboard,1440,1200)} src="/dashboard-illustration.html" title="Illustrative Magic Keys dashboard" width="1440" height="1200" tabIndex={-1} sandbox="allow-same-origin" loading="lazy" />}
-   {scene.campus&&<div className="concept-screen-frame concept-campus-screen" style={screenStyle(scene.campus,1100,900)}><div className="concept-campus-heading"><strong>Balwyn High School</strong><span>School site plan</span></div><div className="concept-campus-image"><img src="/balwyn-school-aerial.webp" width={2319} height={1287} alt="" loading="lazy" /></div><div className="concept-campus-footer">Supplied traffic plan · concept demonstration</div></div>}
+   {scene.campus&&<div className="concept-screen-frame concept-campus-screen" style={screenStyle(scene.campus,1100,900)}><div className="concept-campus-heading"><strong>Balwyn High School</strong><span>School site plan</span></div><div className="concept-campus-image"><img src="/balwyn-school-aerial.png" alt="" /></div><div className="concept-campus-footer">Supplied traffic plan · concept demonstration</div></div>}
    {scene.projection&&<div className="concept-screen-frame" style={screenStyle(scene.projection,1440,900)}><GuidanceProjection route={EXAMPLE_ROUTE} /></div>}
   </div>
  </div>;

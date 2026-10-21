@@ -47,70 +47,18 @@ function offsetMinutes(at: Date): number {
 }
 
 /**
- * Find the exact UTC instant where Melbourne's offset changes from the one
- * observed at `before` to the one observed at `after` (`before` and `after`
- * must bracket exactly one transition). Millisecond-resolution binary
- * search: the two DST changeovers are the only discontinuities
- * offsetMinutes() has, and both land exactly on the minute in practice, so
- * this always converges to the same instant regardless of which gap time
- * asked for it.
- */
-function transitionInstant(before: Date, after: Date): Date {
-  const targetOffset = offsetMinutes(after);
-  let lo = before.getTime();
-  let hi = after.getTime();
-  while (hi - lo > 1) {
-    const mid = Math.floor((lo + hi) / 2);
-    if (offsetMinutes(new Date(mid)) === targetOffset) hi = mid; else lo = mid;
-  }
-  return new Date(hi);
-}
-
-/**
  * Convert a Melbourne wall-clock date + time to a UTC instant.
- *
- * Melbourne's two DST changeovers each year make this ambiguous on one
- * calendar day, and the naive two-pass offset correction this function used
- * to use can resolve a LATER wall-clock time to an EARLIER UTC instant than
- * an earlier one on that day - inverting a window's start/end (TZ-1/TZ-2,
- * AUDIT_BUGS P3, 18 Oct 2026). Both edge cases are now handled explicitly and
- * deterministically, by sampling the real offset a day either side of the
- * target date (always clear of the transition itself) rather than iterating
- * from a value already perturbed by it:
- *
- *  - SKIPPED hour (DST start, e.g. the 2:00-2:59 that never happens in
- *    October): every nonexistent wall-clock time in the gap collapses to the
- *    single UTC instant of the transition itself (effectively "3:00"), so a
- *    window's start and end that both fall in the gap are always equal, never
- *    inverted, and a window spanning the gap is never shorter than it should
- *    be relative to a real time on the same day.
- *  - REPEATED hour (DST end, e.g. the 2:00-2:59 that happens twice in April):
- *    always resolves to the FIRST (daylight-saving) occurrence, consistently
- *    for every caller - documented here instead of silently picked.
+ * Two passes settle daylight-saving changes. A time that does not exist
+ * (the skipped hour in October) resolves forward, which is the safe side
+ * for an opening window.
  */
 export function melbourneToUtc(dateISO: string, hhmm: string): Date {
   const [y, m, d] = dateISO.split("-").map(Number);
   const [hh, mm] = hhmm.split(":").map(Number);
   const wall = Date.UTC(y, m - 1, d, hh, mm);
-  const DAY_MS = 24 * 60 * 60 * 1000;
-  const before = new Date(wall - DAY_MS);
-  const after = new Date(wall + DAY_MS);
-  const offsetBefore = offsetMinutes(before);
-  const offsetAfter = offsetMinutes(after);
-  if (offsetBefore === offsetAfter) return new Date(wall - offsetBefore * 60000);
-  // A transition falls within this day. Test both candidate offsets: a
-  // candidate is valid only if decoding its resulting instant reproduces the
-  // SAME offset used to build it (self-consistent).
-  const valid = [offsetBefore, offsetAfter].filter((offset) => offsetMinutes(new Date(wall - offset * 60000)) === offset);
-  if (valid.length === 1) return new Date(wall - valid[0] * 60000);
-  if (valid.length > 1) {
-    // Repeated hour: both occurrences are self-consistent. Pick the first
-    // (larger/daylight-saving) offset, always.
-    return new Date(wall - Math.max(...valid) * 60000);
-  }
-  // Skipped hour: neither offset is self-consistent, because the wall-clock
-  // time never occurred. Collapse to the transition instant itself.
-  return transitionInstant(before, after);
+  let guess = new Date(wall - offsetMinutes(new Date(wall)) * 60000);
+  guess = new Date(wall - offsetMinutes(guess) * 60000);
+  return guess;
 }
 
 /** English weekday name for a Melbourne local date. */

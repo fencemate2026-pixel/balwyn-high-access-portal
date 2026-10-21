@@ -1,14 +1,10 @@
 # Balwyn High School Gate Operations
 
-The portal is a Next.js app with a separate Supabase database schema and private image storage. **Production runs on Azure App Service** (`magickeys-balwyn-portal`, Sydney/Australia East, container image `magickeysbalwyn.azurecr.io/magickeys-portal:<git-sha>`) — see [deploy/azure/app-settings.md](deploy/azure/app-settings.md) and [deploy/azure/MIGRATION.md](deploy/azure/MIGRATION.md) for configuration, cutover history and verification. [RENDER_MIGRATION.md](RENDER_MIGRATION.md) is kept only as the historical record of the earlier Render deployment this app was cut over from (commit `f5bb357`); do not configure secrets or deployments against Render.
+This branch migrates the working Balwyn portal to Next.js on Render with a separate Supabase database schema and private image storage. See [the migration and cutover instructions](RENDER_MIGRATION.md) for deployment status, configuration and verification.
 
-Build: `npm ci && npm run build`. Test: `npm test`.
+Build: `npm ci && npm run build:render`. Test: `npm test`.
 
-The previous GitHub-only implementation is preserved under `archive/github-legacy/` and in Git history.
-
-## Current gate controller
-
-There are three gate-control implementations in this repo. **`gate-controller/`** (Locinox Venus + KS0212 relay boards) is the current, live path for TF-ENTRY and SIDE-ENTRY. Per `gate-controller/README.md`, it supersedes both `controller-agent/` (the older two-relay/limit-switch agent) and `pi-door-service/` (the Compass ACB-004 open-only trigger, described below) — both are to be removed once each gate is commissioned onto `gate-controller/`. Until that commissioning is complete, `pi-door-service/`'s ACB-004 integration below is still the live path for the doors it covers.
+The deployment remains staged until the original masked login secrets and profile image are transferred. The previous GitHub-only implementation is preserved under `archive/github-legacy/` and in Git history.
 
 ---
 

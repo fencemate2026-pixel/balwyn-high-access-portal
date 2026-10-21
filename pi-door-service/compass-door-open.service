@@ -1,28 +1,15 @@
 [Unit]
 Description=Compass ACB-004 open-only relay trigger
 After=network.target
-# Never give up restarting: a unit left "failed" sends no heartbeat, so the
-# portal would only show this gate's relay bridge offline (same reasoning as
-# gate-controller/deploy/balwyn-gate@.service, 15 Oct 2026).
-StartLimitIntervalSec=0
 
 [Service]
-Type=notify
-NotifyAccess=main
+Type=simple
 User=compass-door
 SupplementaryGroups=gpio
 WorkingDirectory=/opt/compass-door-open
 EnvironmentFile=/etc/compass-door-open.env
 ExecStart=/usr/bin/python3 /opt/compass-door-open/door_service.py
-# After EVERY stop - clean exit, crash, watchdog kill, out-of-memory kill -
-# force every door output OFF again. Each pulse already resets its own pin in
-# a `finally` block, so this only matters for a hard kill mid-pulse. "-" = a
-# failure here never blocks the restart.
-ExecStopPost=-/usr/bin/python3 /opt/compass-door-open/door_service.py doors-off
-# systemd restarts the service if it stops reporting for 30 s. The heartbeat
-# thread pings every 10 s, well inside that margin.
-WatchdogSec=30
-Restart=always
+Restart=on-failure
 RestartSec=3
 TimeoutStopSec=5
 StateDirectory=compass-door-open

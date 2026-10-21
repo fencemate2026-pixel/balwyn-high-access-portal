@@ -58,7 +58,6 @@ Where the IDs come from:
   hash) as a backup way in, in case Microsoft sign-in is misconfigured.
 
 ## 5. Where these go
-Same place as every other portal setting: Azure > App Service > Configuration
-> Application settings (`deploy/azure/app-settings.md`). The portal ran on
-Render before the Azure cutover; that is no longer where these are set.
+Same place as every other portal setting: Render > Environment today; Azure >
+App Service > Environment variables after the move (`deploy/azure/app-settings.md`).
 Changing them needs a restart of the service.

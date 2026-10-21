@@ -82,7 +82,7 @@ Open **User access → Your profile** to edit the display name, portal username,
 
 Administrators choose **Manage users**, verify their password, and select another profile. Profiles appear after their first sign-in. Profile fields never change authorisation roles or link unrelated OAuth identities. Session account keys remain separate from mutable display details.
 
-Profiles are stored in the Supabase Postgres `balwyn_portal` schema (`lib/profile-store.ts`, `db/schema.ts`). Images are stored in the private `balwyn-profile-photos` Supabase Storage bucket (`lib/supabase-storage.ts`) and served through an authenticated, non-cacheable image route. Secrets and raw provider tokens are never included in profile records.
+Profiles are stored in D1. Images are stored in the `BUCKET` R2 binding and served through an authenticated, non-cacheable image route. Secrets and raw provider tokens are never included in profile records.
 
 ## Deployment and validation
 
@@ -101,6 +101,6 @@ still controlled by `PORTAL_PLAN` on the server, and commissioning remains separ
 
 ### Hosting
 
-Production runs on Azure App Service with Supabase as the database and storage backend (see README.md and deploy/azure/app-settings.md) — not the Cloudflare Sites Worker/D1/R2 stack this section originally described. User profiles and Microsoft challenges live in the Supabase `balwyn_portal` schema (`supabase/migrations/20260920062504_balwyn_portal_netlify.sql`); the private `balwyn-profile-photos` bucket holds profile photos. Migrations are append-only; existing tables/data are preserved.
+The existing Sites Worker, D1 `DB` binding and project identity are retained. R2 `BUCKET` is added for profile photos. Append-only migrations `0005` and `0006` create Microsoft challenges and user profiles; existing tables/data are preserved.
 
 Automated checks cover Google/Microsoft token validation, callback replay, password and authenticator verification, configuration lock bypass, session expiry/revocation, profile ownership, duplicate usernames, uploaded file types and authenticated image delivery. Live provider sign-in and photo storage should also be checked with the configured production account.

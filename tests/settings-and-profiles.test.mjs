@@ -26,12 +26,7 @@ const password = "A-test-password-934!";
 const hash = await passwordHash(password, "test-password-salt");
 beforeEach(() => {
   for (const key of Object.keys(env)) delete env[key];
-  // AUDIT_SECURITY P2 fix (18 Oct 2026): an unannotated entry/env var now
-  // resolves to 'viewer', not 'administrator' - both the Google allow-list
-  // entry AND PORTAL_ROLE (which governs the primary password account used
-  // by the settings-password unlock() helper below) need the explicit
-  // annotation.
-  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: `${user.email}|administrator`, PORTAL_ROLE: "administrator",
+  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: user.email,
     PORTAL_USERNAME: user.displayName, PORTAL_OPERATOR_EMAIL: user.email, PORTAL_PASSWORD_SALT: "test-password-salt", PORTAL_PASSWORD_HASH: hash });
 });
 function request(path, body, cookie = "", overrides = {}) {
@@ -185,9 +180,7 @@ test("profile photos persist in object storage, require authentication and rejec
 test("Microsoft sessions recheck immutable account approval instead of a matching email", async (t) => {
   await fixture(t);
   const subject = "9188040d-6c67-4c5b-b112-36a304b66dad:00000000-1111-2222-3333-444444444444";
-  // AUDIT_SECURITY P2 fix (18 Oct 2026): an unannotated entry now resolves to
-  // 'viewer', not 'administrator'; this file's `user` is administrator.
-  env.MICROSOFT_ALLOWED_ACCOUNTS = `${subject}|administrator`;
+  env.MICROSOFT_ALLOWED_ACCOUNTS = subject;
   const cookie = (await auth.createSessionCookie(user, { provider: "microsoft", subject })).split(";")[0];
   assert.ok(await auth.getSessionUser(request("/api/portal", undefined, cookie)));
   env.MICROSOFT_ALLOWED_ACCOUNTS = "";

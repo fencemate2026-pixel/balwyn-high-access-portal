@@ -2690,14 +2690,3 @@ p, li, td, .software-helper-body { line-height: 1.55; }
 button, [data-slot="badge"], .gate-activation-badge, .position-label { letter-spacing: .015em; }
 button { white-space: normal; }
 input, select, textarea { line-height: 1.5; }
-
-/* AUDIT_UI_UX P2 (WCAG 2.4.1, 18 Oct 2026): skip link for the dashboard sidebar
-   nav. Hidden off-screen until keyboard-focused, then shown above everything. */
-.skip-to-main-content {
-  position: absolute; left: -9999px; top: 0; z-index: 1000;
-  padding: 10px 16px; border-radius: 0 0 8px 0; background: #0b131e; color: #fff;
-  font-weight: 700; text-decoration: none;
-}
-.skip-to-main-content:focus-visible {
-  left: 0; outline: 3px solid #fff; outline-offset: -3px;
-}

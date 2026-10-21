@@ -3,10 +3,7 @@
 > Moved out of SOFTWARE_HELP.md on 10 Oct 2026. These notes contain infrastructure,
 > configuration and commissioning detail for RJL only. They are NOT indexed by the
 > in-portal help assistant (scripts/build-help-index.mjs indexes SOFTWARE_HELP.md only).
-> Hosting: the portal runs on Azure App Service with Supabase (see "Source and
-> hosting" below). It ran on Render, behind Cloudflare, before the Azure cutover
-> (commit f5bb357) — that note was never updated after the later Azure move and
-> is corrected here (18 Oct 2026).
+> Some hosting details below are historical: the portal now runs on Render with Supabase.
 
 
 ## Source and hosting
