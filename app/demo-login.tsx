@@ -157,18 +157,6 @@ export default function DemoLogin() {
 
   useEffect(() => {
     let active = true;
-    if (new URLSearchParams(window.location.search).get("signin") === "client-mfa") {
-      restoreSessionRef.current = false;
-      window.history.replaceState(null, "", "/login");
-      void fetch("/api/auth/client-entry/state", {
-        method: "POST", credentials: "same-origin", cache: "no-store",
-        headers: { "Content-Type": "application/json" }, body: "{}", signal: AbortSignal.timeout(12000),
-      }).then(async response => {
-        const state = await response.json() as { requiresAuthenticator?: boolean; enrollment?: Enrollment | null; error?: string };
-        if (!response.ok || !state.requiresAuthenticator) throw new Error(state.error || "Sign-in could not be resumed.");
-        if (active) { setAuthenticator(true); setEnrollment(state.enrollment ?? null); setPassword(""); }
-      }).catch(reason => { if (active) setError(signInFailureMessage(reason, "Enter your username and password again.")); });
-    }
     if (new URLSearchParams(window.location.search).get("signin") === "microsoft_failed") {
       window.queueMicrotask(() => {
         if (active) setError("Microsoft sign-in was cancelled or this account is not approved. Please try again or choose another sign-in method.");
