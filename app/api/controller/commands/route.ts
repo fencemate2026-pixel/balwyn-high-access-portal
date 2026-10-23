@@ -13,6 +13,7 @@ export async function POST(request: Request) {
       faults?: string[];
       softwareVersion?: string;
       scheduleControl?: boolean;
+      cpuTempC?: number;
     };
     const gateId = String(body.gateId ?? "");
     const token = read.token;
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
     if (!new Set(["open", "closed", "moving", "unknown"]).has(position) || typeof body.safetyOk !== "boolean") {
       return Response.json({ error: "Invalid controller state." }, { status: 400 });
     }
-    const commissioned = await recordHeartbeat({ gateId, position, safetyOk: body.safetyOk, faults: Array.isArray(body.faults) ? body.faults.map(String) : [], softwareVersion: typeof body.softwareVersion === "string" ? body.softwareVersion : undefined });
+    const commissioned = await recordHeartbeat({ gateId, position, safetyOk: body.safetyOk, faults: Array.isArray(body.faults) ? body.faults.map(String) : [], softwareVersion: typeof body.softwareVersion === "string" ? body.softwareVersion : undefined, cpuTempC: typeof body.cpuTempC === "number" ? body.cpuTempC : null });
     // An unhealthy safety input never receives an OPEN, but it may receive a CLOSE (releases a hold).
     let command = commissioned ? await getNextControllerCommand(gateId, { closeOnly: !body.safetyOk }) : null;
     if (!command && body.safetyOk && commissioned && body.scheduleControl === true) {

@@ -69,7 +69,7 @@ export default function GateConditionPanel({ gates, runtime, getPosition, system
             <div className="orbit-help"><span><MousePointer2 /> Drag to rotate</span><span>Wheel to zoom</span><span>Right-drag to pan</span><span><RotateCcw /> Double-click reset</span></div>
           </div>
           <div className="grid grid-cols-3 divide-x divide-border border-y border-border bg-background/40 py-4">
-            <div className="metric-block px-4"><span><Thermometer /> Temperature</span><strong>{hasTemperature ? temp.toFixed(1) : "—"}{hasTemperature && <small>°C</small>}</strong><p>{hasTemperature ? "Controller sensor" : "No sensor fitted"}</p></div>
+            <div className="metric-block px-4"><span><Thermometer /> Pi temperature</span><strong>{hasTemperature ? temp.toFixed(1) : "—"}{hasTemperature && <small>°C</small>}</strong><p>{hasTemperature ? "Pi processor (not air temperature)" : "No reading from the controller"}</p></div>
             <div className="metric-block px-4"><span><Activity /> Heartbeat</span><strong>{age === null ? "—" : age > 3600 ? ">1h" : age}<small>{age !== null && age <= 3600 ? "s" : ""}</small></strong><p><i className={`signal-dot tone-${age !== null && age <= 90 ? "green" : "amber"}`} />{age === null ? "Awaiting heartbeat" : age <= 90 ? "Since last report" : "Stale feedback"}</p></div>
             <div className="metric-block px-4"><span><ShieldCheck /> Safety input</span><strong className="!text-base !leading-8">{run?.safetyOk === false ? "Blocked" : safetyCurrent ? "Healthy" : "Pending"}</strong><p>{safetyCurrent ? "Verified circuit" : "No current confirmation"}</p></div>
           </div>

@@ -157,6 +157,8 @@ export async function getPortalSnapshot(user: PortalUser, seededCheckDone = fals
       lastError: row?.lastError ?? null,
       credentialIssued: Boolean(row?.controllerTokenHash),
       commissioned: Boolean(row?.commissioned),
+      // Only shown while the controller is reporting; an old reading is not passed on.
+      cpuTempC: controllerState === "online" || controllerState === "fault" ? (row?.cpuTempC ?? null) : null,
     };
   });
 
@@ -493,12 +495,19 @@ export async function countReedCycle(gateId: string, position: ReportedPosition,
   }
 }
 
+/** A Pi CPU temperature the portal will store: finite, -40..125 °C, one decimal. Anything else is null. */
+export function plausibleCpuTemp(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < -40 || value > 125) return null;
+  return Math.round(value * 10) / 10;
+}
+
 export async function recordHeartbeat(input: {
   gateId: string;
   position: ReportedPosition;
   safetyOk: boolean;
   faults: string[];
   softwareVersion?: string;
+  cpuTempC?: number | null;
 }): Promise<boolean> {
   const faultText = input.faults.map((fault) => fault.trim()).filter(Boolean).slice(0, 8).join("; ").slice(0, 500);
   const current = await getDb().select({ commissioned: gateStates.commissioned, controllerState: gateStates.controllerState }).from(gateStates).where(eq(gateStates.gateId, input.gateId)).limit(1);
@@ -513,6 +522,7 @@ export async function recordHeartbeat(input: {
     lastSeen: nowIso(),
     lastError: faultText || (!input.safetyOk ? "Local safety circuit is not healthy." : null),
     softwareVersion: input.softwareVersion?.slice(0, 80),
+    cpuTempC: plausibleCpuTemp(input.cpuTempC),
     updatedAt: nowIso(),
   }).where(eq(gateStates.gateId, input.gateId));
   // Fault alert to RJL on the change from healthy to fault (commissioned gates only).

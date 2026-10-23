@@ -56,6 +56,8 @@ export type GateRuntime = {
   lastError: string | null;
   credentialIssued: boolean;
   commissioned: boolean;
+  /** Pi CPU temperature (°C) from the last heartbeat, or null. Not the enclosure air temperature. */
+  cpuTempC?: number | null;
 };
 
 export type PortalSettings = {

@@ -33,6 +33,7 @@ export async function databaseFixture(t) {
   // Staff time-on-portal and button-press record (15 Oct 2026).
   await pg.exec(readFileSync(new URL("../supabase/migrations/20261015100000_staff_presence.sql", import.meta.url), "utf8"));
   await pg.exec(readFileSync(new URL("../supabase/migrations/20261024090000_schedule_labels.sql", import.meta.url), "utf8"));
+  await pg.exec(readFileSync(new URL("../supabase/migrations/20261024100000_controller_cpu_temperature.sql", import.meta.url), "utf8"));
   await pg.exec("SET ROLE balwyn_app; SET search_path = balwyn_portal, pg_catalog;");
   const statement = (sql, values = []) => ({
     sql: postgresPlaceholders(sql), values,
