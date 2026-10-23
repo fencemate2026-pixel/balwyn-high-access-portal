@@ -9,6 +9,13 @@ import type { GateScene } from "./gate-scene";
 // thread work. Build one scene at a time, when the browser is idle, so the
 // dashboard (and the fire button) appears and responds first; the flat gate
 // illustration shows until the model is ready (sign-in speed, 28 Sep 2026).
+//
+// 24 Oct 2026 (Jarrod): the flat gate illustration that shows first looks
+// better than the 3D model that replaced it, so the illustration now stays.
+// The 3D model is kept in the code, switched off here; set this to true to
+// bring it back. Gate state is still shown by the LED strip and state colours.
+export const GATE_3D_MODEL_ENABLED = false;
+
 let sceneQueue: Promise<void> = Promise.resolve();
 function whenIdle(task: () => void) {
   sceneQueue = sceneQueue.then(() => new Promise<void>((resolve) => {
@@ -40,7 +47,7 @@ export default function GateTile({ gate, position, motion, interactive = false, 
   useEffect(() => { latest.current = { position, target }; scene.current?.update(position, target); }, [position, target]);
   useEffect(() => {
     const element = host.current;
-    if (!element) return;
+    if (!element || !GATE_3D_MODEL_ENABLED) return;
     let disposed = false;
     let started = false;
     const observer = new IntersectionObserver((entries) => {

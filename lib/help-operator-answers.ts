@@ -105,7 +105,7 @@ const COMMON: Array<{ id: string; title: string; patterns: RegExp[]; answer: str
       /\b(unlock settings|settings password|system settings|lock settings|administrator password)\b/i,
       /\bchange settings\b/i,
     ],
-    answer: `Some administrator changes need the separate administrator settings password: gate schedules, automation rules, staff sign-in accounts, system settings, gate controller set-up, recording a gate service and editing other people's profiles.\n\n1. Sign in with an administrator account.\n2. Open System settings or Automation (or try the change) and enter the administrator settings password.\n3. Press Unlock settings. The unlock lasts 10 minutes and is recorded in the activity log.\n4. Press Lock settings to end it early.\n\nIf you do not know the password, ask your school's portal administrator or RJL.`,
+    answer: `Some administrator changes need the separate administrator settings password: automation rules, staff sign-in accounts, system settings, gate controller set-up, recording a gate service and editing other people's profiles.\n\n1. Sign in with an administrator account.\n2. Open System settings or Automation (or try the change) and enter the administrator settings password.\n3. Press Unlock settings. The unlock lasts 10 minutes and is recorded in the activity log.\n4. Press Lock settings to end it early.\n\nIf you do not know the password, ask your school's portal administrator or RJL.`,
   },
   {
     id: "roles",
@@ -132,7 +132,7 @@ const COMMON: Array<{ id: string; title: string; patterns: RegExp[]; answer: str
     patterns: [
       /\b(schedule|schedules|timetable|open time|close time|opening hours|after hours)\b/i,
     ],
-    answer: `To change when a gate opens and closes (administrators only):\n\n1. Open Gate schedules from the left menu.\n2. Choose the gate in Select gate.\n3. For each day, switch Automatic schedule on or off and set the Open time and Close time. Copy Monday to weekdays copies Monday to Tuesday–Friday.\n4. Press Save schedule and enter the administrator settings password if asked.\n\nOperators and viewers can see schedules but not change them. For one-off holds (for example an event), an administrator can add a rule in Automation after unlocking settings. A fire / evacuation overrides schedules. The activity log shows what the gate actually did.`,
+    answer: `To change when a gate opens and closes (administrators only):\n\n1. Open Gate schedules from the left menu.\n2. Choose the gate in Select gate.\n3. For each day, switch Automatic schedule on or off and set the Open time and Close time. Copy Monday to weekdays copies Monday to Tuesday–Friday.\n4. Press Save schedule. No settings password is needed for schedules.\n\nOperators and viewers can see schedules but not change them. For one-off holds (for example an event), an administrator can add a rule in Automation after unlocking settings. A fire / evacuation overrides schedules. The activity log shows what the gate actually did.`,
   },
   {
     id: "fault",
