@@ -207,6 +207,11 @@ export async function recordActivity(user: PortalUser, action: string, detail: s
   });
 }
 
+/** Manual commands expire quickly: a stale manual OPEN must never fire late. */
+export const MANUAL_COMMAND_EXPIRY_MS = 2 * 60 * 1000;
+/** Emergency packets (fire OPEN and all-clear CLOSE): see queueGateCommands. */
+export const EMERGENCY_COMMAND_EXPIRY_MS = 12 * 60 * 60 * 1000;
+
 export async function queueGateCommands(
   gateIds: string[],
   position: GatePosition,
@@ -218,7 +223,12 @@ export async function queueGateCommands(
   const validIds = [...new Set(gateIds)];
   if (!validIds.length) throw new Error("No valid gate was selected.");
   const correlationId = crypto.randomUUID();
-  const expiry = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+  // A fire OPEN stays collectable as long as the controller would keep the hold
+  // (audit F2): a gate whose controller is offline for more than two minutes when
+  // the alarm is raised still opens once it reconnects. Clearing the emergency
+  // cancels any fire OPEN not yet collected, so a long expiry cannot open a gate
+  // after the all-clear.
+  const expiry = new Date(Date.now() + (options.mode ? EMERGENCY_COMMAND_EXPIRY_MS : MANUAL_COMMAND_EXPIRY_MS)).toISOString();
   const d1 = getSql();
   const statements = [];
   if (options.mode) {
@@ -259,9 +269,11 @@ export async function queueGateCommands(
   return { correlationId, queuedCount: validIds.length };
 }
 
-/** How long an all-clear CLOSE stays collectable. Longer than a normal command
- *  (2 min) so a short network dropout at the gate does not leave a fire hold on. */
-export const ALL_CLEAR_CLOSE_EXPIRY_MS = 15 * 60 * 1000;
+/** How long an all-clear CLOSE stays collectable. It matches the controller's
+ *  default EMERGENCY_RESTORE_MAX_S (12 h): a controller that restores a fire hold
+ *  after an outage of up to 12 h can still collect the CLOSE that ends it. With
+ *  the earlier 15 minutes, a gate offline for longer stayed held open (audit F2). */
+export const ALL_CLEAR_CLOSE_EXPIRY_MS = EMERGENCY_COMMAND_EXPIRY_MS;
 
 /**
  * Clear fire / evacuation priority AND release the gates the fire command opened
@@ -297,9 +309,11 @@ export async function clearEmergencyPriority(user: PortalUser) {
        AND cq.id = (SELECT MAX(latest.id) FROM command_queue latest WHERE latest.gate_id = cq.gate_id)
        AND cq.gate_id IN (${activeIds.map(() => "?::text").join(", ") || "NULL"})`;
   await d1.batch([
-    d1.prepare("INSERT INTO activity_log (action, detail, category, actor_name, actor_role) SELECT 'Emergency priority cleared', ? || ' cleared ' || mode || ' priority. Queued emergency packets were cancelled. A CLOSE was sent to every gate still held open by the fire command: each controller releases its hold and the gate closes by itself under its own safety devices. Each gate is shown closed only when its controller confirms it. The site was not declared safe.', 'emergency-clear', ?, ? FROM system_state WHERE id = 1").bind(user.displayName, user.displayName, user.role),
-    d1.prepare("UPDATE gate_states SET last_command_state = 'failed', last_error = 'Emergency packet cancelled before controller collection when portal priority was cleared.', updated_at = CURRENT_TIMESTAMP WHERE last_command_id IN (SELECT id FROM command_queue WHERE source = 'emergency' AND state = 'queued')"),
-    d1.prepare("UPDATE command_queue SET state = 'failed', acknowledged_at = CURRENT_TIMESTAMP, detail = 'Cancelled before controller collection when emergency priority was cleared.' WHERE source = 'emergency' AND state = 'queued'"),
+    d1.prepare("INSERT INTO activity_log (action, detail, category, actor_name, actor_role) SELECT 'Emergency priority cleared', ? || ' cleared ' || mode || ' priority. Uncollected fire OPEN packets were cancelled. A CLOSE was sent to every gate still held open by the fire command: each controller releases its hold and the gate closes by itself under its own safety devices. Each gate is shown closed only when its controller confirms it. The site was not declared safe.', 'emergency-clear', ?, ? FROM system_state WHERE id = 1").bind(user.displayName, user.displayName, user.role),
+    d1.prepare("UPDATE gate_states SET last_command_state = 'failed', last_error = 'Emergency packet cancelled before controller collection when portal priority was cleared.', updated_at = CURRENT_TIMESTAMP WHERE last_command_id IN (SELECT id FROM command_queue WHERE source = 'emergency' AND command = 'open' AND state = 'queued')"),
+    // Only uncollected fire OPENs are cancelled. An all-clear CLOSE from an earlier
+    // press is left queued: cancelling it would leave the fire hold on (audit F1).
+    d1.prepare("UPDATE command_queue SET state = 'failed', acknowledged_at = CURRENT_TIMESTAMP, detail = 'Cancelled before controller collection when emergency priority was cleared.' WHERE source = 'emergency' AND command = 'open' AND state = 'queued'"),
     // All-clear: one CLOSE per gate still under the fire command (see above).
     d1.prepare(`INSERT INTO command_queue (correlation_id, gate_id, command, source, state, requested_by, expires_at)
       SELECT ?::text, held.gate_id, 'closed', 'emergency', 'queued', ?::text, ?::text FROM (${heldByFire}) held`)

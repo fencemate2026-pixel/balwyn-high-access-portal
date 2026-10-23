@@ -635,5 +635,49 @@ class NewSettingsTests(unittest.TestCase):
                 Config.from_env({**env(URL, "/tmp/x"), **bad})
 
 
+class Audit20261024Tests(unittest.TestCase):
+    """24 Oct 2026 full audit. Each test failed on the code before its fix."""
+
+    def test_clock_behind_the_record_still_restores_the_fire_hold(self) -> None:
+        # Controller F1: a Pi boots after a power cut with an old clock (no RTC). The hold record then looks like it
+        # is from the future; it must be restored, not erased.
+        rig = Rig(self)
+        FireHoldSurvivesRestartTests.fire(self, rig)
+        rig.ctl.shutdown()
+        state = Path(rig.tmp.name, "state.json")
+        data = json.loads(state.read_text(encoding="utf-8"))
+        data["emergency_since"] = data["emergency_since"] + 2 * 3600
+        state.write_text(json.dumps(data), encoding="utf-8")
+        rig.build()
+        self.assertTrue(rig.gate.relay_on(), "a slow boot clock ended the evacuation hold")
+        self.assertIn("emergency_hold_restored", rig.audit_events())
+        self.assertIsNotNone(Journal(Path(rig.tmp.name)).emergency_since, "the hold record was erased")
+
+    def test_a_failed_relay_write_is_not_recorded_as_a_hold(self) -> None:
+        # Controller F2: state was set to "holding" before the GPIO write, so a failed write left a phantom hold and
+        # the next fire OPEN returned early without retrying the write.
+        from balwyn_gate_controller.relay import RelaySupervisor
+        levels: list = []
+        fail = {"on": True}
+
+        def write(on: bool) -> None:
+            if on and fail["on"]:
+                raise OSError("gpio write failed")
+            levels.append(on)
+
+        relay = RelaySupervisor(write, hold_max_s=3600, network_loss_release_s=300, loop_stall_s=10,
+                                audit=lambda *_a: None)
+        with self.assertRaises(OSError):
+            relay.hold("emergency")
+        self.assertEqual(relay.state.mode, "idle", "a hold was recorded although the relay never switched on")
+        with self.assertRaises(OSError):
+            relay.pulse(1.0)
+        self.assertEqual(relay.state.mode, "idle")
+        fail["on"] = False
+        relay.hold("emergency")
+        self.assertEqual(relay.state.mode, "holding")
+        self.assertEqual(levels[-1], True, "the retried fire hold actually energised the relay")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -228,12 +228,17 @@ class GateController:
         if since is None:
             return
         age = time.time() - since
-        if self.cfg.dry_run or self.cfg.monitor_only or self.cfg.emergency_restore_max_s <= 0 or not 0 <= age <= self.cfg.emergency_restore_max_s:
+        # A Pi has no battery clock: after a power cut it boots with the time last saved (fake-hwclock), which can be
+        # EARLIER than when the fire hold started, until NTP corrects it. A record "from the future" therefore means
+        # the clock is behind, not that the record is bad. It is restored (and kept) rather than erased, so a power
+        # cut during an evacuation does not silently end the hold (audit 24 Oct 2026, controller F1).
+        clock_behind = age < 0
+        if self.cfg.dry_run or self.cfg.monitor_only or self.cfg.emergency_restore_max_s <= 0 or age > self.cfg.emergency_restore_max_s:
             self.journal.audit("emergency_hold_not_restored", {"age_s": round(age)})
             self.journal.set_emergency_hold(False)
             return
         self.relay.hold("emergency")
-        self.journal.audit("emergency_hold_restored", {"age_s": round(age)})
+        self.journal.audit("emergency_hold_restored", {"age_s": round(age), "clock_behind_record": clock_behind})
 
     def _recover_interrupted(self) -> None:
         flight = self.journal.interrupted()

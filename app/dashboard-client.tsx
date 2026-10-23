@@ -655,7 +655,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
     try {
       await postPortal({ action: "clear_emergency" }, "clear-emergency");
-      toast.success("Emergency priority cleared", { description: "Uncollected emergency packets were cancelled. Already-collected packets cannot be recalled; confirm every gate before resuming normal operation." });
+      toast.success("Emergency priority cleared", { description: "Uncollected fire OPEN packets were cancelled and a CLOSE was sent to each gate the fire command opened. Confirm every gate shows closed before resuming normal operation." });
       announceAllClear();
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "";
