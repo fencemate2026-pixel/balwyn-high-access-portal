@@ -370,8 +370,15 @@ passes.
    journalctl -u balwyn-gate@TF-ENTRY -n 20 --no-pager
    ```
    The first line is either `OK: gate TF-ENTRY, relay board generic, relay ON when HIGH, relay GPIO22, ...` or
-   `Configuration error: <SETTING> ...`,
-   and a configuration error stops the service before any GPIO is touched.
+   `Configuration error: <SETTING> ...`.
+   A configuration error stops the controller before it starts; systemd then drives the relay pins OFF
+   (`relays-off`) and retries every 3 s until the file is fixed.
+   With both gates' files written, also check that no GPIO pin is used by two gates (each file is otherwise
+   checked on its own only):
+   ```
+   cd /opt/balwyn-gate-controller && sudo python3 -m balwyn_gate_controller check-pin-plan
+   ```
+   It must print `OK: no GPIO pin is shared ...`. It reads the files only and touches no GPIO.
 
 ## 4. Prove the inputs (relay stays OFF)
 

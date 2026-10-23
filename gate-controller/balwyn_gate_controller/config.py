@@ -132,6 +132,46 @@ def _pin(env: Mapping[str, str], name: str, required: bool) -> Optional[int]:
     return int(raw)
 
 
+PIN_SETTINGS = ("RELAY_PIN", "UNLOCK_RELAY_PIN", "CLOSED_REED_PIN", "OPEN_REED_PIN", "SAFETY_INPUT", "UNLOCK_SENSE_PIN")
+
+
+def read_env_file(path: Path) -> dict:
+    """KEY=VALUE lines as systemd's EnvironmentFile reads them (comments and blank lines ignored, quotes stripped)."""
+    values = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
+def pin_plan_clashes(env_files: "list[Path]") -> "list[str]":
+    """Every GPIO pin named by more than one gate's env file on this Pi (audit 24 Oct 2026, controller F6).
+
+    Each file is checked on its own by Config.from_env, but nothing compared the gates with each other: a SIDE-ENTRY
+    reed on TF-ENTRY's relay pin passed, and whichever service started first took the pin."""
+    owners: dict = {}
+    problems = []
+    for path in sorted(env_files):
+        env = read_env_file(path)
+        gate = env.get("GATE_ID") or path.stem
+        for name in PIN_SETTINGS:
+            try:
+                pin = _pin(env, name, required=False)
+            except ConfigError as error:
+                problems.append(f"{path.name}: {error}")
+                continue
+            if pin is not None:
+                owners.setdefault(pin, []).append(f"{gate} {name}")
+    for pin, users in sorted(owners.items()):
+        gates = {user.split(" ")[0] for user in users}
+        if len(gates) > 1:
+            problems.append(f"GPIO {pin} is used by more than one gate: {', '.join(users)}")
+    return problems
+
+
 def _check_token_file_mode(token_file: str, credentials_dir: str) -> None:
     """A credential file other users can read is a leaked credential. The private copy systemd makes under
     $CREDENTIALS_DIRECTORY is exempt (systemd already controls it)."""

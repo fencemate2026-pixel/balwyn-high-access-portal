@@ -678,6 +678,72 @@ class Audit20261024Tests(unittest.TestCase):
         self.assertEqual(relay.state.mode, "holding")
         self.assertEqual(levels[-1], True, "the retried fire hold actually energised the relay")
 
+    def test_restart_report_matches_a_restored_fire_hold(self) -> None:
+        # Controller F3a: the interrupted fire OPEN was reported "the relay is off" while the restored hold had it on.
+        rig = Rig(self)
+        rig.run(1)
+        rig.portal.queue.append({"id": 10, "command": "open", "source": "emergency"})
+        rig.run(0.6)                # collected; the gate is still travelling, so the command is in flight
+        rig.build()                 # killed (no shutdown) and started again
+        rig.run(3)
+        self.assertTrue(rig.gate.relay_on())
+        details = [ack.get("detail", "") for ack in rig.acks_for(10)]
+        self.assertTrue(details, "the interrupted command was reported")
+        self.assertFalse(any("the relay is off" in d for d in details), details)
+        self.assertTrue(any("hold was restored" in d for d in details), details)
+
+    def test_an_all_clear_is_not_undone_by_a_restart_before_the_second_save(self) -> None:
+        # Controller F3b: the hold was forgotten in a separate save after the release. If that save never happened
+        # (power cut, disk error) the restart switched the fire hold back on.
+        rig = Rig(self)
+        FireHoldSurvivesRestartTests.fire(self, rig)
+        rig.ctl.journal.set_emergency_hold = lambda active: None   # the second save never reaches the disk
+        rig.portal.queue.append({"id": 11, "command": "closed", "source": "emergency"})
+        for _ in range(100):        # until the close has been collected and the relay released
+            rig.run(0.1)
+            if not rig.gate.relay_on():
+                break
+        self.assertFalse(rig.gate.relay_on())
+        rig.build()
+        self.assertFalse(rig.gate.relay_on(), "the fire hold came back after the all-clear")
+        self.assertIsNone(Journal(Path(rig.tmp.name)).emergency_since)
+
+    def test_a_stalled_audit_write_does_not_stretch_a_pulse(self) -> None:
+        # Controller F4: pulse() audited while holding the lock the watchdog needs, so the deadline waited for the disk.
+        import time as _time
+        from balwyn_gate_controller.relay import RelaySupervisor
+        log: list = []
+        t0 = _time.monotonic()
+
+        def audit(event: str, _data: dict) -> None:
+            if event == "relay_pulse":
+                _time.sleep(1.5)
+
+        relay = RelaySupervisor(lambda on: log.append((_time.monotonic() - t0, on)), hold_max_s=3600,
+                                network_loss_release_s=300, loop_stall_s=10, audit=audit)
+        watchdog = relay.start_watchdog(0.02)
+        self.addCleanup(watchdog.stop.set)
+        worker = threading.Thread(target=lambda: relay.pulse(0.3))
+        worker.start()
+        worker.join()
+        _time.sleep(0.2)
+        on_at = next(t for t, on in log if on)
+        off_at = next(t for t, on in log if not on and t > on_at)
+        self.assertLess(off_at - on_at, 0.8, f"relay stayed on {off_at - on_at:.2f} s for a 0.3 s pulse")
+
+    def test_pin_plan_check_compares_the_gates_on_one_pi(self) -> None:
+        # Controller F6: each env file was validated alone; a pin shared by two gates passed.
+        from balwyn_gate_controller.config import pin_plan_clashes
+        deploy = Path(__file__).resolve().parents[1] / "deploy"
+        good = [deploy / "venus-TF-ENTRY.env.example", deploy / "venus-SIDE-ENTRY.env.example"]
+        self.assertEqual(pin_plan_clashes(good), [], "the shipped two-gate Venus plan has no shared pin")
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp, "SIDE-ENTRY.env")
+            bad.write_text(good[1].read_text(encoding="utf-8").replace("CLOSED_REED_PIN=24", "CLOSED_REED_PIN=22"), encoding="utf-8")
+            problems = pin_plan_clashes([good[0], bad])
+        self.assertTrue(any("GPIO 22" in problem for problem in problems), problems)
+        self.assertEqual(entry.main(["x", "check-pin-plan", str(deploy / "no-such-dir")]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

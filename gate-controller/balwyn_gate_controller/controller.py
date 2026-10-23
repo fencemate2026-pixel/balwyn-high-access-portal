@@ -216,8 +216,10 @@ class GateController:
         self.position = "unknown"
         self.safety_ok = False
         self.faults: List[str] = []
-        self._recover_interrupted()
+        # The hold is restored first so the report about an interrupted command can say truthfully whether the
+        # relay is on (audit controller F3: it said "the relay is off" and the next line switched a fire hold on).
         self._restore_emergency_hold()
+        self._recover_interrupted()
 
     # ------------------------------------------------------------- start-up
     def _restore_emergency_hold(self) -> None:
@@ -244,7 +246,10 @@ class GateController:
         flight = self.journal.interrupted()
         if not flight:
             return
-        detail = "Controller restarted during this command. It was not repeated; the relay is off."
+        if self.relay.state.mode == "holding" and self.relay.state.hold_kind == "emergency":
+            detail = "Controller restarted during this command. It was not repeated; the fire / evacuation hold was restored."
+        else:
+            detail = "Controller restarted during this command. It was not repeated; the relay is off."
         self.journal.finish(int(flight["id"]), "failed", detail)
         self._queue_ack(int(flight["id"]), "failed", detail, live=True)  # no reading exists yet: report at send time
         self.journal.audit("command_interrupted", {"id": flight["id"]})
@@ -589,7 +594,8 @@ class GateController:
             self._open_times.append(now)
 
         try:
-            self.journal.begin({"id": command_id, "command": target, "source": source})
+            ends_hold = target == "closed" and source in EMERGENCY_RELEASE_SOURCES and self.journal.emergency_since is not None
+            self.journal.begin({"id": command_id, "command": target, "source": source}, ends_emergency_hold=ends_hold)
         except OSError as error:
             detail = f"Execution journal could not be written ({error.strerror}). Relay not operated."
             self._queue_ack(command_id, "failed", detail)

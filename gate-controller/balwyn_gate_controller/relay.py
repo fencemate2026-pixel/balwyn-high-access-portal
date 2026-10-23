@@ -78,8 +78,10 @@ class RelaySupervisor:
             now = self._clock()
             self._energise()
             self.state = RelayState(mode="pulsing", pulse_until=now + seconds)
-            self._audit("relay_pulse", {"seconds": round(seconds, 2)})
-            return True
+        # Audited outside the lock (audit controller F4): a slow SD card write must never stop the watchdog
+        # enforcing the pulse deadline, which needs the same lock.
+        self._audit("relay_pulse", {"seconds": round(seconds, 2)})
+        return True
 
     def hold(self, kind: str) -> None:
         with self._lock:
@@ -91,7 +93,7 @@ class RelaySupervisor:
                 return
             self._energise()
             self.state = RelayState(mode="holding", hold_kind=kind, hold_since=now)
-            self._audit("relay_hold", {"kind": kind})
+        self._audit("relay_hold", {"kind": kind})
 
     def _energise(self) -> None:
         """Switch the relay on BEFORE recording it as on (audit 24 Oct 2026, controller F2). If the GPIO write fails

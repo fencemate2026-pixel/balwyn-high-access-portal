@@ -2,6 +2,10 @@
 
   python -m balwyn_gate_controller               run (systemd service)
   python -m balwyn_gate_controller check-config  validate settings, touch nothing
+  python -m balwyn_gate_controller check-pin-plan [DIR]
+                                                 compare every gate's env file in DIR (default /etc/balwyn-gate,
+                                                 run with sudo) and refuse a GPIO pin used by two gates. Touches
+                                                 no GPIO.
   python -m balwyn_gate_controller read-inputs   print reeds, safety and the access board's unlock
                                                  signal for 30 s. Both relays are claimed OFF and never energised.
   python -m balwyn_gate_controller relays-off    force this gate's relay outputs OFF and exit. Needs only
@@ -176,6 +180,24 @@ def main(argv: list[str]) -> int:
     command = argv[1] if len(argv) > 1 else "run"
     if command == "relays-off":
         return relays_off()  # must work even if the full configuration does not load
+    if command == "check-pin-plan":
+        from pathlib import Path
+        from .config import pin_plan_clashes
+        directory = Path(argv[2] if len(argv) > 2 else "/etc/balwyn-gate")
+        files = sorted(directory.glob("*.env"))
+        if not files:
+            print(f"No gate env files found in {directory}", file=sys.stderr)
+            return 2
+        try:
+            problems = pin_plan_clashes(files)
+        except OSError as error:
+            print(f"Could not read the env files ({error.strerror}). Run with sudo.", file=sys.stderr)
+            return 2
+        for problem in problems:
+            print(f"Pin plan error: {problem}", file=sys.stderr)
+        if not problems:
+            print(f"OK: no GPIO pin is shared between {len(files)} gate env files in {directory}")
+        return 1 if problems else 0
     try:
         config = Config.from_env(need_token=command != "read-inputs")
     except ConfigError as error:
