@@ -55,6 +55,7 @@ from .journal import Journal
 from .portal import PortalClient, PortalError
 from .position import PositionTracker
 from .relay import PulseOutput, RelaySupervisor
+from .system_health import CpuTemperature
 
 LOG = logging.getLogger("balwyn-gate")
 HOLD_SOURCES = {"schedule", "emergency"}
@@ -213,6 +214,7 @@ class GateController:
         self.next_poll = 0.0
         self.next_ack = 0.0
         self.poll_failures = 0
+        self.cpu_temperature = CpuTemperature()  # Pi CPU temperature for the portal panel (system_health.py)
         self.position = "unknown"
         self.safety_ok = False
         self.faults: List[str] = []
@@ -404,14 +406,14 @@ class GateController:
                 if ack.get("live"):
                     ack["position"], ack["safety_ok"], ack["live"] = self.position, self.safety_ok, False
         acks = list(self.pending_acks) if acks_due else []
-        status = (self.position, self.safety_ok, list(self.faults), self.cfg.schedule_control)
+        status = (self.position, self.safety_ok, list(self.faults), self.cfg.schedule_control, self.cpu_temperature.get(now))
         self.link.start(lambda: self._exchange(acks, status), now)
         if not self.link.threaded:
             finished = self.link.take()
             if finished is not None:
                 self._absorb(finished, now)
 
-    def _exchange(self, acks: List[Dict[str, Any]], status: Optional[Tuple[str, bool, List[str], bool]]) -> Exchange:
+    def _exchange(self, acks: List[Dict[str, Any]], status: Optional[Tuple[str, bool, List[str], bool, Optional[float]]]) -> Exchange:
         """Runs on the worker thread in the service: touches only the portal client, never controller state."""
         result = Exchange()
         for ack in acks:

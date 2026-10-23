@@ -90,12 +90,16 @@ class PortalClient:
         except (urllib.error.URLError, TimeoutError, OSError, ValueError, RecursionError, http.client.HTTPException) as error:
             raise PortalError(f"portal unreachable: {type(error).__name__}") from None
 
-    def poll(self, position: str, safety_ok: bool, faults: List[str], schedule_control: bool) -> Dict[str, Any]:
-        return self._post("/api/controller/commands", {
+    def poll(self, position: str, safety_ok: bool, faults: List[str], schedule_control: bool,
+             cpu_temp_c: Optional[float] = None) -> Dict[str, Any]:
+        body: Dict[str, Any] = {
             "gateId": self.gate_id, "position": position, "safetyOk": safety_ok,
             "faults": faults[:8], "softwareVersion": f"balwyn-gate-controller {__version__}",
             "scheduleControl": schedule_control,
-        })
+        }
+        if cpu_temp_c is not None:
+            body["cpuTempC"] = cpu_temp_c  # the Pi's CPU temperature (system_health.py), omitted when unreadable
+        return self._post("/api/controller/commands", body)
 
     def ack(self, command_id: int, state: str, position: str, safety_ok: bool, detail: str) -> None:
         self._post(f"/api/controller/commands/{int(command_id)}/ack", {

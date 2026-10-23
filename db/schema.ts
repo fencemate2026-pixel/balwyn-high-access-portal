@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, customType, index, integer, pgSchema, text, uniqueIndex } from "drizzle-orm/pg-core";
+import { bigint, customType, doublePrecision, index, integer, pgSchema, text, uniqueIndex } from "drizzle-orm/pg-core";
 
 const portal = pgSchema("balwyn_portal");
 // Keep 0/1 storage compatible with the imported portal records and raw statements.
@@ -29,6 +29,8 @@ export const gateStates = portal.table("gate_states", {
   lastCommandState: text("last_command_state").notNull().default("idle"),
   lastError: text("last_error"),
   softwareVersion: text("software_version"),
+  /** Pi CPU temperature (°C) from the last heartbeat; null when not reported. Not enclosure air temperature. */
+  cpuTempC: doublePrecision("cpu_temp_c"),
   updatedAt: text("updated_at").notNull().default(sql`to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`),
 });
 
