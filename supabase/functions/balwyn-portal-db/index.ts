@@ -34,6 +34,21 @@ const ALLOWED_PATTERN = /^\s*(SELECT|INSERT|UPDATE|DELETE)\b/i;
 // a statement naming one is refused outright.
 const FORBIDDEN_PATTERN = /\b(set_config|pg_advisory\w*|pg_sleep\w*|dblink\w*|pg_read_\w+|pg_ls_\w+|lo_import|lo_export)\b/i;
 
+// 24 Oct 2026 (audit DB-01): the checks above test only the start of the text, and
+// unsafe() with no parameters used the simple query protocol, which runs every
+// ';'-separated statement. "INSERT ...; RESET ROLE; DELETE FROM activity_log" passed
+// and ran as the login role. Each request is now exactly one statement: a ';'
+// outside quotes or comments is refused, and every statement is sent with the
+// extended protocol (simple: false), which Postgres limits to one command.
+function hasStackedStatement(text: string): boolean {
+  const code = text
+    .replace(/'(?:[^']|'')*'/g, "''")      // string literals ('it''s' included)
+    .replace(/"(?:[^"]|"")*"/g, '""')      // quoted identifiers
+    .replace(/--[^\n]*/g, " ")             // line comments
+    .replace(/\/\*[\s\S]*?\*\//g, " ");     // block comments
+  return /;|\$\w*\$/.test(code);          // any ';' left, or a dollar-quoted body
+}
+
 function safeFailureCode(error: unknown): string {
   const raw = typeof error === "object" && error && "code" in error ? String(error.code) : "unavailable";
   if (/^[0-9A-Z]{5}$/.test(raw) || /^[A-Z][A-Z0-9_]{1,40}$/.test(raw)) return raw;
@@ -64,7 +79,7 @@ Deno.serve(async request => {
     if (text.length > 131072) return new Response(null, { status: 413 });
     const { statements } = JSON.parse(text);
     if (!Array.isArray(statements) || !statements.length || statements.length > 100 || statements.some(s =>
-      typeof s.sql !== "string" || s.sql.length > 32768 || !ALLOWED_PATTERN.test(s.sql) || FORBIDDEN_PATTERN.test(s.sql)
+      typeof s.sql !== "string" || s.sql.length > 32768 || !ALLOWED_PATTERN.test(s.sql) || FORBIDDEN_PATTERN.test(s.sql) || hasStackedStatement(s.sql)
       || !Array.isArray(s.params) || s.params.length > 1000
       || s.params.some((p: unknown) => p !== null && !["string", "number", "boolean"].includes(typeof p)))) {
       return Response.json({ error: "Invalid database request" }, { status: 400, headers });
@@ -89,7 +104,7 @@ Deno.serve(async request => {
       }
       const results = [];
       for (const statement of statements) {
-        const result = await transaction.unsafe(statement.sql, statement.params).values();
+        const result = await transaction.unsafe(statement.sql, statement.params, { simple: false }).values();
         const columns = Array.isArray(result.columns) ? result.columns.map(column => column.name) : [];
         results.push({ rows: Array.from(result ?? []), columns, count: Number(result.count ?? 0) });
       }

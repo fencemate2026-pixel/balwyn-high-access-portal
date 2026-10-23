@@ -303,9 +303,12 @@ export async function clearEmergencyPriority(user: PortalUser) {
   const activeIds = GATES.filter((gate) => isGateActive(gate.id)).map((gate) => gate.id);
   const correlationId = crypto.randomUUID();
   const expiry = new Date(Date.now() + ALL_CLEAR_CLOSE_EXPIRY_MS).toISOString();
-  // Gates still under the fire command: the latest command for the gate is an emergency OPEN.
+  // Gates still under the fire command: the latest command for the gate is an
+  // emergency OPEN, or an all-clear CLOSE that failed (expired or not confirmed),
+  // so pressing Clear again re-sends it (audit F5). A queued or confirmed
+  // all-clear CLOSE is left alone, so repeated presses never duplicate it.
   const heldByFire = `SELECT cq.gate_id FROM command_queue cq
-     WHERE cq.source = 'emergency' AND cq.command = 'open'
+     WHERE cq.source = 'emergency' AND (cq.command = 'open' OR (cq.command = 'closed' AND cq.state = 'failed'))
        AND cq.id = (SELECT MAX(latest.id) FROM command_queue latest WHERE latest.gate_id = cq.gate_id)
        AND cq.gate_id IN (${activeIds.map(() => "?::text").join(", ") || "NULL"})`;
   await d1.batch([
@@ -570,7 +573,18 @@ async function getControllerScheduleDirective(gateId: string) {
   const today = melbourneDate(now);
   // Yesterday is included so a booking run-out that crosses midnight is still honoured.
   const windows = (await loadGateWindows(addDays(today, -1), today)).filter((window) => Date.parse(window.end) > melbourneToUtc(today, "00:00").getTime());
-  return resolveDirective(gateId, windows, now);
+  const directive = resolveDirective(gateId, windows, now);
+  if (directive) return directive;
+  // No window today any more, but the gate is still held by an automation OPEN
+  // (the only window was paused, deleted or switched off mid-hold). Release it,
+  // once; otherwise the controller keeps the hold until HOLD_MAX_S (audit F3).
+  const latest = await db.select({ correlationId: commandQueue.correlationId, command: commandQueue.command, source: commandQueue.source, state: commandQueue.state })
+    .from(commandQueue).where(eq(commandQueue.gateId, gateId)).orderBy(desc(commandQueue.id)).limit(1);
+  const last = latest[0];
+  if (last && last.source === "schedule" && last.command === "open" && last.state === "acknowledged") {
+    return { target: "closed", key: `${last.correlationId}-released`, reason: "Its automation window was removed or paused" } as const;
+  }
+  return null;
 }
 
 /** Re-open limits for one hold window (see reopenCorrelationId). */

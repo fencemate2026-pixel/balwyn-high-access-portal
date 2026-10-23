@@ -1,5 +1,8 @@
 # Balwyn relay controller agent
 
+> **Superseded at Balwyn by `gate-controller/`. Do not install on the Balwyn gate Pi** (see
+> `gate-controller/deploy/INSTALL.md` section 1d).
+
 This service is the onsite half of the Magic Keys control path. It receives a
 single command for its assigned gate, pulses the existing gate operator's
 dedicated dry-contact `OPEN` or `CLOSE` input, waits for independent limit-switch

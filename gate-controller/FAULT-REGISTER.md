@@ -60,7 +60,7 @@ still ends a fire hold, an unconfirmed fire hold is kept, a 401 ack is kept, an 
 
 | # | Item | Why it is open |
 |---|---|---|
-| C | **Venus hold-open.** The controller holds the single IN1 contact for schedule and fire opens. The Venus also has a separate "hold to keep open" input (IN2) | Whether a maintained IN1 contact holds a Venus open is UNVERIFIED and cannot be settled in code. With `SCHEDULE_CONTROL=false` (the example files) only a fire open holds IN1. Bench test V-series with the real Venus decides whether a second relay channel on IN2 is needed |
+| C | **Venus hold-open.** The Pi gate relay (COM/NO) is wired across Venus **IN2**, set to "Hold to keep open" (INSTALL.md section 1d, `venus-*.env.example`). The ACB door relay is on IN1 ("Open and close"). Corrected 24 Oct 2026: this row said IN1, and the 22 Oct restore had undone the earlier correction | Bench 24 Oct 2026 (Jarrod, TF-ENTRY): a manual open held for the pulse time (8 s placeholder), a fire open held the gate open on IN2, and the all-clear released it. Still open: the V-series stopwatch timings and the 2 h hold test (V3) with real reeds |
 | G | `DynamicUser=` and a system-call filter | A wrong filter stops `lgpio` working; cannot be tested without a Pi. Run `systemd-analyze verify` and the B-tests on the Pi first |
 | H | Both gates run as one Linux user | One compromised service could read the other's token. Low; needs a per-gate user, which changes the install |
 | J | A stalled SD card during `pulse()` can hold the relay lock while the audit write waits | The pulse deadline is still enforced by the watchdog thread. Low |

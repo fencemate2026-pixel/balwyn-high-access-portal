@@ -166,6 +166,18 @@ export function controllerResponsive(runtime: GateRuntime | undefined, now: numb
   return Number.isFinite(seen) && now - seen <= 90_000;
 }
 
+/**
+ * Whether a CLOSE (relay release) can be sent: the controller is commissioned and
+ * was heard from in the last 90 s, even if it reports a fault or an unhealthy
+ * safety input. The controller accepts a CLOSE in those states; the portal route
+ * applies the same rule (audit 24 Oct 2026, gate logic F5).
+ */
+export function controllerCanRelease(runtime: GateRuntime | undefined, now: number): boolean {
+  if (!runtime?.commissioned || !runtime.lastSeen || !["online", "fault"].includes(runtime.controllerState)) return false;
+  const seen = Date.parse(runtime.lastSeen);
+  return Number.isFinite(seen) && now - seen <= 90_000;
+}
+
 export function gateVisualState(gate: Gate, runtime?: GateRuntime, monitoring = true): GateVisualState {
   if (!gate.active) return "inactive";
   if (!monitoring || !runtime?.commissioned || runtime.controllerState !== "online") return "unknown";

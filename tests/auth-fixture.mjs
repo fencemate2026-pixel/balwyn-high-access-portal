@@ -2,6 +2,18 @@ import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { postgresPlaceholders } from "../db/sql-dialect.ts";
 
+// The real edge function's request guard (supabase/functions/balwyn-portal-db),
+// read from its source, so every test that uses fetchDatabase also proves the
+// portal's own SQL passes it (audit DB-01, 24 Oct 2026).
+const edgeSource = readFileSync(new URL("../supabase/functions/balwyn-portal-db/index.ts", import.meta.url), "utf8");
+const edgePattern = (name) => new Function(`return ${edgeSource.match(new RegExp(`const ${name} = (/.*/i);`))[1]}`)();
+const edgeAllowed = edgePattern("ALLOWED_PATTERN");
+const edgeForbidden = edgePattern("FORBIDDEN_PATTERN");
+export const edgeHasStackedStatement = new Function(`${edgeSource.match(/function hasStackedStatement[\s\S]*?\n}\n/)[0].replace("(text: string): boolean", "(text)")} return hasStackedStatement;`)();
+export function edgeGuardRejects(sql) {
+  return !edgeAllowed.test(sql) || edgeForbidden.test(sql) || edgeHasStackedStatement(sql);
+}
+
 export async function databaseFixture(t) {
   const pg = await PGlite.create();
   t.after(() => pg.close());
@@ -38,6 +50,8 @@ export async function databaseFixture(t) {
   };
   const fetchDatabase = async (_path, options) => {
     const { statements } = JSON.parse(options.body);
+    const refused = statements.find((s) => edgeGuardRejects(s.sql));
+    if (refused) throw new Error(`The database edge function would refuse this statement: ${refused.sql}`);
     try { const results = await pg.transaction(async tx => {
       const result = [];
       for (const s of statements) {

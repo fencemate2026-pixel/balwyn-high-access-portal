@@ -38,3 +38,22 @@ test("the portal's own statements are not affected", () => {
     "SELECT count(*) AS n FROM portal_accounts WHERE active = true",
   ]) { assert.ok(allowed.test(sql), sql); assert.ok(!forbidden.test(sql), sql); }
 });
+
+test("stacked statements are refused and every statement uses the extended protocol (audit DB-01)", async () => {
+  const { edgeHasStackedStatement } = await import("./auth-fixture.mjs");
+  for (const sql of [
+    "INSERT INTO activity_log (action) VALUES ('x'); RESET ROLE; DELETE FROM activity_log",
+    "SELECT 1; COMMIT; DROP TABLE x",
+    "SELECT 1;",
+    "SELECT 1 /* c */ ; SET ROLE postgres",
+    "SELECT $$; RESET ROLE$$",
+  ]) assert.ok(edgeHasStackedStatement(sql), sql);
+  for (const sql of [
+    "SELECT ';' AS semicolon, 'it''s; fine' FROM t WHERE a = $1",
+    "SELECT \"odd;name\" FROM t",
+    "SELECT 1 -- trailing; comment",
+    "UPDATE t SET a = $1::text, b = $2 WHERE id = $3",
+  ]) assert.ok(!edgeHasStackedStatement(sql), sql);
+  assert.match(source, /hasStackedStatement\(s\.sql\)/, "the guard is applied to every statement");
+  assert.match(source, /transaction\.unsafe\(statement\.sql, statement\.params, \{ simple: false \}\)/);
+});

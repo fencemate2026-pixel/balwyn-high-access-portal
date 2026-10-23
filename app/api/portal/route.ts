@@ -54,8 +54,18 @@ export async function POST(request: Request) {
       if (current.systemMode !== "normal") throw new Error("Manual commands are blocked while an emergency mode is active.");
       const runtime = current.gates.find((candidate) => candidate.gateId === gateId);
       if (!runtime?.commissioned) throw new Error("This gate controller has not been commissioned.");
-      if (runtime.controllerState !== "online") throw new Error("This gate controller is offline. Use the approved local gate control and investigate the connection.");
-      if (runtime.safetyOk !== true) throw new Error("The local safety circuit is not healthy. The relay command was blocked.");
+      // A CLOSE only ever releases the relay, and the controller accepts it with an
+      // unhealthy safety input (closeOnly) or a reported fault (for example its own
+      // "fire hold on too long" alarm). Refusing it there removed the only remote
+      // way to end a hold (audit 24 Oct 2026, gate logic F5). An OPEN still needs a
+      // healthy, fault-free controller.
+      if (runtime.controllerState === "offline") throw new Error("This gate controller is offline. Use the approved local gate control and investigate the connection.");
+      if (position === "open") {
+        if (runtime.controllerState !== "online") throw new Error(`This gate controller is reporting a fault, so OPEN was blocked: ${runtime.lastError ?? "see the gate status"}`);
+        if (runtime.safetyOk !== true) throw new Error("The local safety circuit is not healthy. The relay command was blocked.");
+      } else if (runtime.controllerState !== "online" && runtime.controllerState !== "fault") {
+        throw new Error("This gate controller is not available.");
+      }
       if (commandIsInFlight(runtime.lastCommandState)) throw new Error("A command packet is already awaiting completion for this gate.");
       await queueGateCommands([gateId], position, auth.user, {
         activityAction: `${gate.name} command queued`,

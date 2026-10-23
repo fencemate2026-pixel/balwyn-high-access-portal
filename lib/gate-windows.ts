@@ -188,7 +188,11 @@ export function resolveDirective(gateId: string, windows: GateWindow[], now: Dat
   if (active.length) {
     // Merge overlapping windows into one hold, keyed by the earliest start.
     const first = active.reduce((a, b) => (a.start <= b.start ? a : b));
-    return { target: "open", key: `win-${gateId}-${first.start}-open-${signature}`, reason: active.map((window) => window.label).join(" + ") };
+    // The OPEN key names only the window being held (its rule and start), not every
+    // window the gate has today. With the whole-day signature, adding or editing an
+    // unrelated window made a new key, which re-opened a gate staff had closed by
+    // hand and reset the re-open cap (audit 24 Oct 2026, gate logic F4).
+    return { target: "open", key: `win-${gateId}-${first.start}-open-${hash(first.ref)}`, reason: active.map((window) => window.label).join(" + ") };
   }
   const ended = mine.filter((window) => Date.parse(window.end) <= t).sort((a, b) => b.end.localeCompare(a.end))[0];
   const since = ended ? ended.end : `${melbourneDate(now)}T-start`;

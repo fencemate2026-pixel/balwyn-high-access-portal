@@ -27,10 +27,10 @@ SSH apps, e.g. Termius, scramble multi-line pastes).
 
 | Pi input / output | Goes to | Notes |
 |---|---|---|
-| Relay module (RELAY_PIN) COM/NO | Operator **OPEN** input and its common | Confirm the terminals on the operator's own wiring diagram. Not a step-by-step input. |
+| Relay module (RELAY_PIN) COM/NO | Operator open / hold input and its common (Venus: **IN2**, "Hold to keep open"; never IN1, which carries the ACB-004 DR1) | Confirm the terminals on the operator's own wiring diagram. Not a step-by-step input. |
 | CLOSED_REED_PIN + GND | Magnetic reed at the **closed** position | Required. Made = fully closed. |
 | OPEN_REED_PIN + GND | Magnetic reed at the **open** position | Fitted at Balwyn. Made = fully open. This is what lets the portal confirm an open. |
-| SAFETY_INPUT + GND | Volt-free contact that is made while the operator's safety circuit is healthy | Without it the controller is monitor-only: it reports position, never moves the gate. **Which operator output to use is still to be decided on site.** |
+| SAFETY_INPUT + GND | Volt-free contact that is made while the operator's safety circuit is healthy | Without it the controller is monitor-only: it reports position, never moves the gate. Venus gates: a BEM-41F relay with its coil on Venus OUT2 (24 V AUX); its COM goes to SAFETY_INPUT (TF GPIO5 pin 29, SIDE GPIO6 pin 31) and its NO to GND (pin 30). It proves Venus power only (section 1d). |
 
 **Reed switches.** Use normally-open reeds (contact closes when the magnet is
 present), wired between the GPIO pin and GND with `INPUT_ACTIVE_LOW=true` and
@@ -122,7 +122,9 @@ one by its LED during test B0 and label it.
 
 **If your Keyestudio board is a loose module with jumper wires (not a shield
 that plugs onto the header), this section does not apply:** use
-`gate.env.example` with `RELAY_BOARD=generic` and prove the pins and polarity at B0.
+`venus-TF-ENTRY.env.example` / `venus-SIDE-ENTRY.env.example` (section 1d, `RELAY_BOARD=generic`) and prove the
+pins and polarity at B0. Do not start from `gate.env.example`: its pins (relay GPIO 17, active low, closed reed 22)
+and 1 s pulse are a generic sample, not this installation's wiring.
 
 Proposed pin plan (copy `ks0212-TF-ENTRY.env.example` and `ks0212-SIDE-ENTRY.env.example`):
 
@@ -177,7 +179,7 @@ Venus; each gate weighs about 40 kg (the Venus limit is 100 kg); the gates are t
 to be small; the magnetic locks accept 12 V or 24 V.
 
 **Still to confirm before buying or fitting:**
-* The lock's make and model. Not confirmed that it is a Locinox MAGMAG-3000. If it is, the Locinox MAG-3000 /
+* The lock's make and model: MAGMAG-3000-BLK on the TF-ENTRY bench rig (23–24 Oct 2026), wired for 24 V. Confirm the same model on each site gate. If it is, the Locinox MAG-3000 /
   MAGMAG-3000 fitting sheet (MANU-000414, 2023-08-18 rev 3) gives: 300 kg (3000 N), 12 V DC 0.66 A or 24 V DC
   0.33 A, 7.9 W either way. A retailer page lists different currents (about 500 mA at 12 V, 250 mA at 24 V), so the
   fitting sheet is the authority and the retailer figures are not used. The Venus outputs are 24 V DC only (p. 6), so
@@ -375,9 +377,12 @@ passes.
 
 ```
 sudo systemctl stop balwyn-gate@TF-ENTRY
-cd /opt/balwyn-gate-controller && sudo -u balwyn-gate env $(grep -v '^#' /etc/balwyn-gate/TF-ENTRY.env | grep -v TOKEN | xargs) python3 -m balwyn_gate_controller read-inputs
+cd /opt/balwyn-gate-controller && sudo -u balwyn-gate env $(sudo grep -v '^#' /etc/balwyn-gate/TF-ENTRY.env | grep -v TOKEN | xargs) python3 -m balwyn_gate_controller read-inputs
 ```
-(The second command is one long line.) `read-inputs` does not contact the portal, so it needs no credential and none
+(The second command is one long line. The env file is readable only by root, so the inner `grep` needs its own
+`sudo`; without it the settings come out empty and the command stops with "PORTAL_URL is required". If it says a
+GPIO is already in use, the other gate's service on this Pi is holding that pin: check with `sudo pinctrl get`
+instead of stopping it.) `read-inputs` does not contact the portal, so it needs no credential and none
 is put on the command line (a token typed there is visible to every user in `ps` and is written to the sudo log).
 Prints the reeds and safety input once a second for 30 s. Check by hand:
 gate closed → `closed_reed=True`; open the gate with its own remote → `open_reed=True`;
