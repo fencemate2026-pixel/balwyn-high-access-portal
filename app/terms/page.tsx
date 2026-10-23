@@ -35,7 +35,7 @@ export default function TermsPage() {
       },
       {
         title: "Emergency functions",
-        content: <p>The fire / evacuation function is available to administrators only. It queues open commands to active gates; it does not replace the school’s emergency management plan, fire indicator panel, emergency services or local controls, and gates’ own safety devices continue to apply. Clearing an emergency in the portal does not close gates or declare the site safe.</p>,
+        content: <p>The fire / evacuation function is available to administrators only. It queues open commands to active gates; it does not replace the school’s emergency management plan, fire indicator panel, emergency services or local controls, and gates’ own safety devices continue to apply. Clearing an emergency in the portal sends a close command to gates still held open by the fire response, so they release and close under their own safety devices; it does not declare the site safe.</p>,
       },
       {
         title: "Help chat",

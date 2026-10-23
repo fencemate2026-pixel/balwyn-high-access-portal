@@ -3,6 +3,8 @@
 // active gate, each driving a simulated gate (no GPIO). Proves the button asks
 // EVERY active gate to open, each controller opens and holds its gate, the
 // portal records each open as confirmed, and "clear" returns to normal.
+// 24 Oct 2026: "clear" also sends CLOSE to every gate the fire command opened,
+// so each controller releases its hold and the gate closes by itself.
 import { serverFixturePlugin } from "./server-fixture.mjs";
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
@@ -50,7 +52,7 @@ function runController(url, gateId, token, seconds) {
   });
 }
 
-test("the fire button opens and holds EVERY active gate, confirmed by each controller, and clear returns to normal", { timeout: 120000 }, async (t) => {
+test("the fire button opens and holds EVERY active gate, confirmed by each controller, and clear releases them so each gate closes", { timeout: 120000 }, async (t) => {
   const { pg, fetchDatabase } = await databaseFixture(t);
   for (const key of Object.keys(env)) delete env[key];
   Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: "admin@example.test|administrator" });
@@ -65,7 +67,7 @@ test("the fire button opens and holds EVERY active gate, confirmed by each contr
   const server = await controllerServer(); t.after(() => server.close());
   const url = `http://127.0.0.1:${server.address().port}`;
   const runs = [];
-  for (const gateId of gates) runs.push(runController(url, gateId, await store.issueControllerToken(gateId, admin), 16));
+  for (const gateId of gates) runs.push(runController(url, gateId, await store.issueControllerToken(gateId, admin), 30));
 
   // Wait until every controller has commissioned itself (closed + safety healthy).
   for (let i = 0; i < 80; i += 1) {
@@ -81,15 +83,43 @@ test("the fire button opens and holds EVERY active gate, confirmed by each contr
   assert.deepEqual(queued.map((row) => row.gate_id).sort(), [...gates].sort(), "one command per active gate");
   assert.ok(queued.every((row) => row.command === "open" && row.source === "emergency"), "every command is an emergency OPEN");
 
-  const outputs = await Promise.all(runs);
-  const results = (await pg.query("SELECT gate_id, state, detail FROM command_queue ORDER BY gate_id")).rows;
-  for (const row of results) {
+  // Every gate opens and is held: wait for each controller to confirm the fire OPEN.
+  const opens = async () => (await pg.query("SELECT gate_id, state, detail FROM command_queue WHERE command = 'open' ORDER BY gate_id")).rows;
+  for (let i = 0; i < 150; i += 1) {
+    if ((await opens()).every((row) => row.state === "acknowledged")) break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  for (const row of await opens()) {
     assert.equal(row.state, "acknowledged", `${row.gate_id}: ${row.detail}`);
     assert.match(row.detail, /Relay held for emergency open; open confirmed by reed switch/);
   }
-  for (const output of outputs) assert.match(output, /angle=1\.00/, "each simulated gate ended fully open (held)");
+  // The simulated gate auto-closes 5 s after release, so still being open well past
+  // that proves the controller is holding it (not a one-off pulse).
+  await new Promise((r) => setTimeout(r, 6000));
+  for (const gateId of gates) {
+    const row = (await pg.query("SELECT reported_position FROM gate_states WHERE gate_id = $1", [gateId])).rows[0];
+    assert.equal(row.reported_position, "open", `${gateId} is still held open before the all-clear`);
+  }
 
+  // All-clear: the portal returns to normal AND sends CLOSE to every gate the fire command opened.
   const clear = await press({ action: "clear_emergency" });
   assert.equal(clear.status, 200);
   assert.equal((await clear.json()).snapshot.systemMode, "normal");
+  const closes = async () => (await pg.query("SELECT gate_id, state, source, detail FROM command_queue WHERE command = 'closed' ORDER BY gate_id")).rows;
+  assert.deepEqual((await closes()).map((row) => row.gate_id).sort(), [...gates].sort(), "one all-clear CLOSE per gate held by the fire command");
+  assert.ok((await closes()).every((row) => row.source === "emergency"), "the all-clear CLOSE is handed out with emergency priority");
+  const cleared = (await pg.query("SELECT detail FROM activity_log WHERE category = 'emergency-clear' ORDER BY id DESC LIMIT 1")).rows[0];
+  assert.match(cleared.detail, /A CLOSE was sent to every gate still held open by the fire command/);
+
+  const outputs = await Promise.all(runs);
+  for (const row of await closes()) {
+    assert.equal(row.state, "acknowledged", `${row.gate_id}: ${row.detail}`);
+    assert.match(row.detail, /Hold released; operator auto-closes; closed confirmed by reed switch/);
+  }
+  for (const output of outputs) assert.match(output, /angle=0\.00/, "each simulated gate ended fully closed after the all-clear");
+
+  // A second clear has nothing left to release: no further CLOSE is queued.
+  const again = await press({ action: "clear_emergency" });
+  assert.equal(again.status, 200);
+  assert.equal((await closes()).length, gates.length, "clearing again queues no extra CLOSE");
 });

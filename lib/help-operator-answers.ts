@@ -48,7 +48,7 @@ const COMMON: Array<{ id: string; title: string; patterns: RegExp[]; answer: str
       /\b(fire|evacuat|emergency|evac|alarm)\b/i,
       /\blockdown\b/i,
     ],
-    answer: `Follow the school's emergency management plan and staff instructions first. Call Triple Zero (000) when required.\n\nIn the portal (administrators only):\n1. Press START FIRE / EVACUATION at the top of the screen.\n2. Read the confirmation and press Issue OPEN commands. Every active gate is sent an OPEN command, and the screen shows each gate's status.\n3. Afterwards, an administrator presses Clear emergency priority, then Clear priority. This does not close gates or declare the site safe: check each gate and press CLOSE where needed.\n\nLockdown is not available on this site. This chat cannot start or clear an emergency.`,
+    answer: `Follow the school's emergency management plan and staff instructions first. Call Triple Zero (000) when required.\n\nIn the portal (administrators only):\n1. Press START FIRE / EVACUATION at the top of the screen.\n2. Read the confirmation and press Issue OPEN commands. Every active gate is sent an OPEN command, and the screen shows each gate's status.\n3. Afterwards, an administrator presses Clear emergency priority, then Clear priority. Every gate still held open by the fire command is sent CLOSE: it releases and closes by itself after its pause, and shows closed only when its controller confirms it. This does not declare the site safe: check each gate is closed before leaving it.\n\nLockdown is not available on this site. This chat cannot start or clear an emergency.`,
   },
   {
     id: "add-user",
