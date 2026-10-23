@@ -6,43 +6,73 @@ import { createGateOrbit } from "./gate-orbit";
 
 export type GateScene = { update: (position: GateVisualState, target: GatePosition | null) => void; setVisible: (visible: boolean) => void; dispose: () => void };
 
-/** The leaf previews a labelled command; LEDs use verified position only.
- * Geometry and travel duration are illustrative, not a sensor feed. */
+/**
+ * 3D gate model shown on the dashboard and gate panels.
+ *
+ * Look (24 Oct 2026, Jarrod: "regenerate the image to make it 3D but with the same
+ * look"): it matches the flat artwork in public/gates/*-blue.webp, which shows
+ * first while the model loads: a navy studio backdrop with a blue glow behind the
+ * gate (CSS, see .gate-model.is-rendered in control-room.css), galvanised steel
+ * leaves, dark brushed posts, a black card reader with a blue light and a glossy
+ * dark floor that fades out at the edges. Unlike the flat artwork the leaves (or
+ * the boom) really move, and the status beacon flashes.
+ *
+ * Truthfulness: the leaf previews a labelled command; the beacon colour uses the
+ * verified position only. Geometry and travel duration are illustrative, not a
+ * sensor feed.
+ */
 export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: GateVisualState, initialTarget: GatePosition | null, onLost: () => void, interactive = false): GateScene {
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(0x0b131e, 0);
+  renderer.setClearColor(0x000000, 0); // transparent: the CSS backdrop shows through
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.3;
+  renderer.toneMappingExposure = 1.15;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(32, 1, .1, 40);
-  camera.position.set(3.5, 2.6, 5.2);
-  camera.lookAt(0, 1.02, 0);
+  const boom = kind === "boom";
+  const camera = new THREE.PerspectiveCamera(boom ? 30 : 28, 1, .1, 40);
+  if (boom) { camera.position.set(-.9, 1.6, 5.7); camera.lookAt(.3, .85, 0); }
+  else { camera.position.set(1.3, 1.35, kind === "double-swing" ? 5.2 : 5.1); camera.lookAt(0, 1.05, 0); }
+
+  // Reflections: a neutral studio, tinted blue by the lights below.
   const pmrem = new THREE.PMREMGenerator(renderer);
   const room = new RoomEnvironment();
   const environment = pmrem.fromScene(room, .04);
   scene.environment = environment.texture;
+  scene.environmentIntensity = .55;
   room.dispose();
   pmrem.dispose();
-  const key = new THREE.DirectionalLight(0xeaf5ff, 4);
-  key.position.set(-2, 5, 4);
+
+  // Lighting like the artwork: a cool key from the front, a strong blue light
+  // behind the gate (the halo), and a soft navy fill.
+  const key = new THREE.DirectionalLight(0xe8f1ff, 2.6);
+  key.position.set(-2.5, 5, 5);
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
-  key.shadow.camera.left = -3; key.shadow.camera.right = 3;
+  key.shadow.camera.left = -3.5; key.shadow.camera.right = 3.5;
   key.shadow.camera.top = 4; key.shadow.camera.bottom = -3;
-  key.shadow.bias = -.001;
-  scene.add(key, new THREE.HemisphereLight(0xbcdcff, 0x122231, 2.1));
-  const rim = new THREE.DirectionalLight(0x55acff, 3);
-  rim.position.set(2, 3, -3); scene.add(rim);
+  key.shadow.bias = -.0008;
+  key.shadow.radius = 4;
+  scene.add(key, new THREE.HemisphereLight(0x5f8fe0, 0x050c1c, .75));
+  const rim = new THREE.DirectionalLight(0x2f74ff, 5.5);
+  rim.position.set(.5, 2.5, -4); scene.add(rim);
+  const halo = new THREE.PointLight(0x2a6cff, 9, 6, 1.6);
+  halo.position.set(0, 1.4, -1.1); scene.add(halo);
+  const sheen = new THREE.PointLight(0x4f8dff, 1.2, 4, 2);
+  sheen.position.set(0, .35, 1.6); scene.add(sheen);
 
-  const steel = new THREE.MeshStandardMaterial({ color: 0x8094a8, metalness: .9, roughness: .26 });
-  const edge = new THREE.MeshStandardMaterial({ color: 0xc5d0d8, metalness: .9, roughness: .2 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x162331, metalness: .75, roughness: .29 });
-  const rubber = new THREE.MeshStandardMaterial({ color: 0x080f18, roughness: .65 });
-  const lens = new THREE.MeshStandardMaterial({ color: 0x55acff, emissive: 0x168bea, emissiveIntensity: .65, metalness: .4, roughness: .14 });
+  // Materials, matched to the artwork.
+  const galvanised = new THREE.MeshStandardMaterial({ color: 0x939ca5, metalness: .85, roughness: .44 });
+  const galvanisedEdge = new THREE.MeshStandardMaterial({ color: 0xaab3bb, metalness: .85, roughness: .36 });
+  const post = new THREE.MeshStandardMaterial({ color: 0x5d6873, metalness: .88, roughness: .3 });
+  const postCap = new THREE.MeshStandardMaterial({ color: 0x8a95a0, metalness: .9, roughness: .25 });
+  const cabinet = new THREE.MeshStandardMaterial({ color: 0x3a424b, metalness: .85, roughness: .32 });
+  const black = new THREE.MeshStandardMaterial({ color: 0x07090c, metalness: .3, roughness: .18 });
+  const readerGlow = new THREE.MeshStandardMaterial({ color: 0x2f7bff, emissive: 0x1f6bff, emissiveIntensity: 1.1, roughness: .3 });
+  const motorBody = new THREE.MeshStandardMaterial({ color: 0x1d2228, metalness: .55, roughness: .42 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xe6ebf0, metalness: 1, roughness: .12 });
   const beacon = new THREE.MeshStandardMaterial({ color: 0xf5bd64, emissive: 0xf5bd64, emissiveIntensity: .75, roughness: .2 });
   const statusMaterials = [beacon];
   const model = new THREE.Group(); scene.add(model);
@@ -51,65 +81,112 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
     mesh.position.set(x, y, z); mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh); return mesh;
   };
   const cylinder = (parent: THREE.Object3D, radius: number, height: number, x: number, y: number, z: number, material: THREE.Material) => {
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, 16), material);
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, height, 20), material);
     mesh.position.set(x, y, z); mesh.castShadow = true; parent.add(mesh); return mesh;
   };
-  const pad = box(model, 2.8, .12, 1.28, 0, -.06, 0, dark, .04);
-  pad.receiveShadow = true;
-  box(model, 2.58, .012, .013, 0, -.01, .647, lens, .002);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(15, 15), new THREE.ShadowMaterial({ opacity: .3 }));
-  floor.rotation.x = -Math.PI / 2; floor.position.y = -.125; floor.receiveShadow = true; scene.add(floor);
+  /** A card reader on a post: black glossy body with a blue light, as in the artwork. */
+  const reader = (x: number, y: number, z: number) => {
+    box(model, .155, .27, .028, x, y, z - .004, readerGlow, .025);
+    box(model, .115, .225, .036, x, y, z + .006, black, .02);
+  };
+  /** A square base plate with four bolts. */
+  const basePlate = (x: number, size: number) => {
+    box(model, size, .03, size, x, .015, 0, postCap, .006);
+    for (const dx of [-1, 1]) for (const dz of [-1, 1]) cylinder(model, .016, .03, x + dx * size * .38, .04, dz * size * .38, chrome);
+  };
+
+  // Glossy dark floor that fades into the backdrop at its edges.
+  const fade = document.createElement("canvas"); fade.width = fade.height = 256;
+  const fadeContext = fade.getContext("2d");
+  if (fadeContext) {
+    const gradient = fadeContext.createRadialGradient(128, 128, 10, 128, 128, 128);
+    gradient.addColorStop(0, "#ffffff"); gradient.addColorStop(.55, "#bbbbbb"); gradient.addColorStop(1, "#000000");
+    fadeContext.fillStyle = gradient; fadeContext.fillRect(0, 0, 256, 256);
+  }
+  const fadeTexture = new THREE.CanvasTexture(fade);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(9, 6), new THREE.MeshStandardMaterial({ color: 0x010409, metalness: .45, roughness: .42, transparent: true, alphaMap: fadeTexture, envMapIntensity: .18 }));
+  floor.rotation.x = -Math.PI / 2; floor.position.set(boom ? .3 : 0, 0, .4); floor.receiveShadow = true; scene.add(floor);
+
   const leaves: THREE.Group[] = [];
-  const boom = kind === "boom";
   if (boom) {
-    box(model, .42, 1.2, .48, .84, .6, 0, steel, .05);
-    box(model, .46, .09, .52, .84, 1.22, 0, dark, .025);
-    box(model, .29, .32, .018, .84, .89, .249, dark, .01);
-    box(model, .20, .10, .022, .84, .96, .26, lens, .008);
-    box(model, .045, .04, .025, .95, .65, .25, beacon);
-    const arm = new THREE.Group(); arm.position.set(.84, 1.09, .29); model.add(arm); leaves.push(arm);
-    box(arm, 2.0, .09, .085, -.91, 0, 0, edge, .015);
-    const stripe = new THREE.MeshStandardMaterial({ color: 0xcd3a47, roughness: .36 });
-    for (let i = 0; i < 4; i++) box(arm, .14, .093, .089, -i * .43 - .3, 0, 0, stripe, .006);
-    const hub = cylinder(model, .12, .15, .84, 1.09, .34, steel); hub.rotation.x = Math.PI / 2;
+    // Cabinet on the left, boom running right to a rest post (as in boom-blue.webp).
+    const cx = -1.05;
+    box(model, .62, .05, .58, cx, .025, 0, postCap, .01);
+    box(model, .46, 1.28, .44, cx, .69, 0, cabinet, .03);
+    box(model, .47, .03, .45, cx, .77, 0, post, .004); // panel seam
+    box(model, .48, .07, .46, cx, 1.36, 0, post, .03);
+    box(model, .40, .05, .38, cx, 1.41, 0, postCap, .03);
+    reader(cx - .12, .98, .225);
+    box(model, .05, .05, .025, cx + .12, 1.25, .225, beacon, .01);
+    const hub = cylinder(model, .14, .12, cx + .25, 1.06, .17, cabinet); hub.rotation.x = Math.PI / 2;
+    const hubCap = cylinder(model, .09, .03, cx + .25, 1.06, .24, post); hubCap.rotation.x = Math.PI / 2;
+    const arm = new THREE.Group(); arm.position.set(cx + .25, 1.06, .2); model.add(arm); leaves.push(arm);
+    box(arm, .26, .14, .12, .13, 0, 0, cabinet, .02);
+    const white = new THREE.MeshStandardMaterial({ color: 0xf1f3f5, metalness: .15, roughness: .35 });
+    const red = new THREE.MeshStandardMaterial({ color: 0xd61f2c, roughness: .4 });
+    box(arm, 2.45, .085, .075, 1.42, 0, 0, white, .012);
+    for (const at of [.75, 1.55, 2.3]) box(arm, .42, .088, .078, at, 0, 0, red, .004);
+    const restX = cx + .25 + 2.5;
+    box(model, .22, .03, .22, restX, .015, .2, postCap, .006);
+    box(model, .08, 1.0, .08, restX, .5, .2, post, .01);
+    box(model, .14, .08, .12, restX, 1.01, .2, post, .012);
   } else {
-    const width = kind === "double-swing" ? 2.05 : 1.48;
-    for (const x of [-width / 2 - .10, width / 2 + .10]) {
-      box(model, .16, 2.18, .18, x, 1.09, 0, steel, .008);
-      box(model, .19, .045, .21, x, 2.20, 0, edge, .012);
-      box(model, .30, .035, .32, x, .02, 0, steel);
-      for (const dx of [-.11, .11]) for (const dz of [-.12, .12]) cylinder(model, .017, .015, x + dx, .045, dz, edge);
+    const width = kind === "double-swing" ? 2.15 : 1.42;
+    for (const x of [-width / 2 - .1, width / 2 + .1]) {
+      box(model, .17, 2.05, .17, x, 1.055, 0, post, .01);
+      box(model, .19, .05, .19, x, 2.1, 0, postCap, .012);
+      basePlate(x, .34);
     }
     const count = kind === "double-swing" ? 2 : 1;
-    const leafWidth = (width - .055) / count;
+    const leafWidth = (width - .04) / count;
     for (let side = 0; side < count; side++) {
       const leaf = new THREE.Group();
-      leaf.position.set(side === 0 ? -width / 2 : width / 2, .13, 0);
+      leaf.position.set(side === 0 ? -width / 2 : width / 2, .2, 0);
       if (side === 1) leaf.scale.x = -1;
       model.add(leaf); leaves.push(leaf);
-      box(leaf, .066, 1.92, .085, .032, .96, 0, steel);
-      box(leaf, .066, 1.92, .085, leafWidth - .032, .96, 0, steel);
-      box(leaf, leafWidth, .09, .085, leafWidth / 2, .045, 0, steel);
-      box(leaf, leafWidth, .09, .085, leafWidth / 2, 1.875, 0, steel);
-      const bars = count === 1 ? 8 : 5;
-      for (let i = 1; i <= bars; i++) box(leaf, .026, 1.75, .033, .065 + i * (leafWidth - .13) / (bars + 1), .96, 0, edge, .006);
-      for (const y of [.30, 1.63]) cylinder(model, .038, .13, leaf.position.x - (side ? -.01 : .01), y, .072, edge);
-      box(leaf, .12, .28, .045, leafWidth - .08, 1.1, .069, dark, .014);
-      box(leaf, .048, .022, .052, leafWidth - .08, 1.07, .09, edge);
+      // Galvanised frame and pickets.
+      box(leaf, .07, 1.68, .07, .035, .84, 0, galvanised);
+      box(leaf, .07, 1.68, .07, leafWidth - .035, .84, 0, galvanised);
+      box(leaf, leafWidth, .08, .07, leafWidth / 2, .04, 0, galvanised);
+      box(leaf, leafWidth, .08, .07, leafWidth / 2, 1.64, 0, galvanised);
+      const bars = count === 1 ? 9 : 9;
+      for (let i = 1; i <= bars; i++) box(leaf, .032, 1.52, .032, .07 + i * (leafWidth - .14) / (bars + 1), .84, 0, galvanisedEdge, .004);
+      // Hinges on the post side.
+      for (const y of [.22, 1.42]) {
+        cylinder(model, .03, .2, leaf.position.x - (side ? -.03 : .03), y + .2, .06, chrome);
+        box(model, .09, .12, .012, leaf.position.x - (side ? -.065 : .065), y + .2, .087, galvanisedEdge, .004);
+      }
+      if (count === 2) {
+        // Swing-gate motor near the bottom hinge, as in double-swing-blue.webp. It is
+        // part of the leaf group so it swings with the leaf.
+        box(leaf, .36, .1, .1, .24, .32, .1, motorBody, .03);
+        const rod = cylinder(leaf, .018, .18, .5, .32, .1, chrome); rod.rotation.z = Math.PI / 2;
+      }
+      if (count === 2 && side === 1) {
+        // Centre latch and drop bolt, on the right leaf so they swing with it.
+        box(leaf, .16, .14, .03, leafWidth - .03, .95, .06, galvanisedEdge, .006);
+        cylinder(leaf, .016, .62, leafWidth - .06, .3, .06, chrome);
+      }
+      if (count === 1) {
+        // Latch handle on the leaf; the keeper stays on the post.
+        box(leaf, .12, .05, .05, leafWidth - .08, .9, .07, galvanisedEdge, .01);
+      }
     }
-    const post = -width / 2 - .1;
-    box(model, .108, .24, .046, post, 1.38, .117, rubber, .012);
-    box(model, .074, .14, .014, post, 1.405, .15, lens, .009);
-    box(model, .046, .018, .019, post, 1.315, .15, beacon, .004);
-    cylinder(model, .048, .045, post, 2.249, 0, rubber);
-    cylinder(model, .043, .065, post, 2.301, 0, beacon);
+    if (count === 1) box(model, .05, .16, .03, width / 2 + .02, 1.1, .06, galvanisedEdge, .006);
+    // Card reader on the right post (as in the artwork) and the status beacon on top.
+    const readerPost = width / 2 + .1;
+    reader(readerPost, 1.45, .1);
+    cylinder(model, .05, .04, readerPost, 2.145, 0, black);
+    cylinder(model, .044, .07, readerPost, 2.2, 0, beacon);
   }
+
   let position = initial;
   let visible = true;
   let disposed = false;
   let dirtyFrames = 2;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const openAngle = boom ? -Math.PI / 2.1 : -Math.PI / 2.5;
+  // The boom runs to the right, so opening raises it with a positive rotation.
+  const openAngle = boom ? Math.PI / 2.1 : -Math.PI / 2.5;
   const angleFor = (target: GatePosition) => target === "open" ? openAngle : 0;
   // Unknown feedback holds the current illustration instead of falsely closing.
   let angle = initial === "open" || initial === "closed" ? angleFor(initial) : openAngle / 2;
@@ -162,7 +239,7 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
       renderer.domElement.removeEventListener("webglcontextlost", lost);
       const materials = new Set<THREE.Material>();
       scene.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); (Array.isArray(object.material) ? object.material : [object.material]).forEach((material) => materials.add(material)); } });
-      materials.forEach((material) => material.dispose()); environment.dispose(); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
+      materials.forEach((material) => material.dispose()); fadeTexture.dispose(); environment.dispose(); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
     },
   };
 }

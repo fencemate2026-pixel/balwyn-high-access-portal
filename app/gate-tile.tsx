@@ -10,11 +10,11 @@ import type { GateScene } from "./gate-scene";
 // dashboard (and the fire button) appears and responds first; the flat gate
 // illustration shows until the model is ready (sign-in speed, 28 Sep 2026).
 //
-// 24 Oct 2026 (Jarrod): the flat gate illustration that shows first looks
-// better than the 3D model that replaced it, so the illustration now stays.
-// The 3D model is kept in the code, switched off here; set this to true to
-// bring it back. Gate state is still shown by the LED strip and state colours.
-export const GATE_3D_MODEL_ENABLED = false;
+// 24 Oct 2026 (Jarrod): the flat illustration looked better than the old 3D
+// model, but the model is what moves. The model was restyled to match the
+// illustration (gate-scene.ts) and is back on. Set this to false to show only
+// the flat illustration.
+export const GATE_3D_MODEL_ENABLED = true;
 
 let sceneQueue: Promise<void> = Promise.resolve();
 function whenIdle(task: () => void) {
