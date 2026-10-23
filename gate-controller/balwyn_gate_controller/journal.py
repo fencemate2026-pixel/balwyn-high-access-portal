@@ -103,14 +103,22 @@ class Journal:
         key = str(command_id)
         return key in self.done or (self.in_flight is not None and str(self.in_flight.get("id")) == key)
 
-    def begin(self, command: Dict[str, Any]) -> None:
-        """Record intent BEFORE actuation. If this raises, the relay is not touched."""
+    def begin(self, command: Dict[str, Any], ends_emergency_hold: bool = False) -> None:
+        """Record intent BEFORE actuation. If this raises, the relay is not touched.
+
+        ends_emergency_hold (24 Oct 2026, audit controller F3): a close that will end a fire hold forgets the hold in
+        the SAME atomic save. Saving it separately after the release left a window (power cut, or a failed second
+        save) in which a restart switched the fire hold back on after the all-clear."""
         previous = self.in_flight
+        previous_since = self.emergency_since
         self.in_flight = {"id": command["id"], "command": command["command"], "source": command.get("source"), "at": time.time()}
+        if ends_emergency_hold:
+            self.emergency_since = None
         try:
             self._save()
         except BaseException:
             self.in_flight = previous  # nothing was written, so nothing is "in flight": no phantom restart report later
+            self.emergency_since = previous_since
             raise
 
     def finish(self, command_id: int, outcome: str, detail: str) -> None:

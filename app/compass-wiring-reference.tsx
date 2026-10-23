@@ -1,70 +1,62 @@
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+// Rewritten 24 Oct 2026 (audit H4): this page described the superseded Roger
+// F70/IPU36 plan with the lock on an ACB-004 relay. Balwyn uses Locinox Venus
+// operators driven by gate-controller/. Source of truth for the wiring:
+// gate-controller/deploy/INSTALL.md section 1d and venus-*.env.example. Keep this
+// page in step with those files.
 export default function CompassWiringReference() {
   return (
     <section className="settings-card compass-wiring-reference" aria-labelledby="compass-wiring-title">
       <div className="panel-heading">
         <div>
           <h2 id="compass-wiring-title">Wiring</h2>
-          <small>Compass ACB-004 · Magnetic lock · Roger F70/IPU36</small>
+          <small>Compass ACB-004 · Locinox Venus · Magic Keys Pi gate controller</small>
         </div>
       </div>
-      <p>The existing four-door Compass controller remains in place. This reference describes the lock-power and gate-command connections; the installed board, lock ratings and local release sequence must be checked during commissioning.</p>
-
-      <div className="compass-wiring-isolation">
-        <strong>Keep lock power separate from the gate command.</strong>
-        <p>NC and NO on one changeover relay share COM. Once that COM carries the lock’s +12 V supply, its NO is a switched power output. It cannot also provide the Roger’s voltage-free command. Use a correctly rated local interface or sequencer with electrically isolated contacts.</p>
-      </div>
+      <p>Each gate has a Locinox Venus operator with two command inputs. The Compass ACB-004 door relay and the Magic Keys Pi each have their own input, so the two systems are never wired to the same terminals. The installed board, lock rating and Venus settings are confirmed during commissioning.</p>
 
       <div className="compass-wiring-steps">
-        <section aria-labelledby="maglock-wiring-title">
-          <h3 id="maglock-wiring-title">1. Magnetic lock (fail-safe)</h3>
-          <p>A fail-safe maglock stays locked while powered and releases when power is interrupted. Use 12 V DC only when specified on the installed lock.</p>
+        <section aria-labelledby="acb-wiring-title">
+          <h3 id="acb-wiring-title">1. Compass ACB-004 (keypad, card and exit button)</h3>
           <ul>
-            <li><strong>Lock negative (−):</strong> connect to the dedicated lock power supply’s negative terminal.</li>
-            <li><strong>Lock positive (+):</strong> connect to NC on the assigned ACB-004 door relay.</li>
-            <li><strong>Lock supply positive:</strong> connect to COM on that same door relay, through the approved protected supply and emergency-release arrangement.</li>
+            <li><strong>Door relay DR1 (J14) COM / NO:</strong> to Venus <strong>IN1</strong> and its common. Volt-free: no supply on COM.</li>
+            <li><strong>Venus IN1 setting:</strong> Control device, Normally Open, &ldquo;Open and close&rdquo;.</li>
+            <li><strong>Keypad / reader:</strong> reader 1 (J1). <strong>Exit button:</strong> J2, P1 and GND.</li>
           </ul>
-          <p>An authorised access request opens the NC path and removes lock power. Confirm contact ratings and retain the installed emergency power-release circuit.</p>
         </section>
-        <section aria-labelledby="roger-wiring-title">
-          <h3 id="roger-wiring-title">2. Roger F70/IPU36 open command</h3>
-          <p>The local interface must release the lock before requesting movement. Its separate, isolated normally-open contact then connects the following Roger inputs:</p>
+        <section aria-labelledby="pi-wiring-title">
+          <h3 id="pi-wiring-title">2. Magic Keys Pi gate controller</h3>
           <ul>
-            <li><strong>Isolated contact COM:</strong> connect to terminal 32 (COM).</li>
-            <li><strong>Isolated contact NO:</strong> connect to terminal 34 (AP / opening).</li>
+            <li><strong>Pi relay COM / NO:</strong> to Venus <strong>IN2</strong> and its common (TF-ENTRY relay on GPIO 22, SIDE-ENTRY relay on GPIO 23). Never connect a GPIO pin directly to the Venus.</li>
+            <li><strong>Venus IN2 setting:</strong> Control device, Normally Open, &ldquo;Hold to keep open&rdquo;. The controller closes the contact for its set pulse time on a manual open, and keeps it closed for schedule and fire / evacuation holds. How the Venus responds to a short close is bench test V2 (INSTALL.md).</li>
+            <li><strong>Safety input:</strong> Venus OUT2 (24 V AUX) drives a 24 V relay coil (BEM-41F, A1 / A2). That relay&rsquo;s COM goes to the Pi safety input (TF-ENTRY GPIO 5, SIDE-ENTRY GPIO 6) and its NO to Pi GND. It proves the Venus is powered.</li>
+            <li><strong>Reed switches:</strong> TF-ENTRY closed GPIO 17 / open GPIO 27; SIDE-ENTRY closed GPIO 24 / open GPIO 25, each to Pi GND.</li>
           </ul>
-          <p>Terminal 36 is PP (step-by-step), paired with 38 COM. PP can perform different actions depending on configuration and is excluded from this open-only design. Verify the terminal labels on the installed revision.</p>
+        </section>
+        <section aria-labelledby="maglock-wiring-title">
+          <h3 id="maglock-wiring-title">3. Magnetic lock</h3>
+          <p>The lock is powered and released by the Venus (OUT1, set to Lock), wired for 24 V DC as its fitting sheet specifies. It is not powered from the ACB-004 or the Pi. The Venus releases the lock before it moves the gate.</p>
         </section>
       </div>
 
       <h3>Summary connection matrix</h3>
       <Table>
-        <TableCaption>Proposed connections, subject to the installed equipment and local interface being verified.</TableCaption>
-        <TableHeader><TableRow><TableHead>Device / wire</TableHead><TableHead>ACB-004 / lock supply</TableHead><TableHead>Separate isolated interface</TableHead><TableHead>F70/IPU36</TableHead></TableRow></TableHeader>
+        <TableCaption>As set out in gate-controller/deploy/INSTALL.md section 1d. TF-ENTRY bench-tested 23–24 Oct 2026; SIDE-ENTRY not yet tested.</TableCaption>
+        <TableHeader><TableRow><TableHead>From</TableHead><TableHead>To</TableHead><TableHead>Venus setting / note</TableHead></TableRow></TableHeader>
         <TableBody>
-          <TableRow><TableCell>Maglock positive (+)</TableCell><TableCell>Assigned door-relay NC</TableCell><TableCell>—</TableCell><TableCell>—</TableCell></TableRow>
-          <TableRow><TableCell>Maglock negative (−)</TableCell><TableCell>Lock power supply negative</TableCell><TableCell>—</TableCell><TableCell>—</TableCell></TableRow>
-          <TableRow><TableCell>Lock supply positive (+12 V if rated)</TableCell><TableCell>Assigned door-relay COM, via the approved supply / emergency-release circuit</TableCell><TableCell>—</TableCell><TableCell>—</TableCell></TableRow>
-          <TableRow><TableCell>Gate trigger wire 1</TableCell><TableCell>No direct connection to the powered door-relay COM</TableCell><TableCell>Voltage-free contact COM</TableCell><TableCell>32 (COM)</TableCell></TableRow>
-          <TableRow><TableCell>Gate trigger wire 2</TableCell><TableCell>No direct connection to the powered door-relay NO</TableCell><TableCell>Voltage-free contact NO</TableCell><TableCell>34 (AP / opening)</TableCell></TableRow>
+          <TableRow><TableCell>ACB-004 DR1 (J14) COM / NO</TableCell><TableCell>Venus IN1 + common</TableCell><TableCell>Open and close · volt-free</TableCell></TableRow>
+          <TableRow><TableCell>Pi gate relay COM / NO</TableCell><TableCell>Venus IN2 + common</TableCell><TableCell>Hold to keep open</TableCell></TableRow>
+          <TableRow><TableCell>Venus OUT2 (24 V AUX)</TableCell><TableCell>BEM-41F coil A1 / A2</TableCell><TableCell>Relay COM to Pi safety input, NO to Pi GND</TableCell></TableRow>
+          <TableRow><TableCell>Venus OUT1</TableCell><TableCell>Magnetic lock</TableCell><TableCell>Lock · 24 V DC</TableCell></TableRow>
+          <TableRow><TableCell>Closed / open reed switches</TableCell><TableCell>Pi GPIO inputs and GND</TableCell><TableCell>Position feedback for the portal</TableCell></TableRow>
         </TableBody>
       </Table>
 
-      <h3>Unlock timing and return to secure operation</h3>
-      <p>The access-controller unlock period and the gate activation pulse are separate settings. A 3–5-second unlock period is a commissioning candidate only, not a confirmed site setting or a universal requirement for residual magnetism. Measure lock release, bracket clearance and gate travel, then set the local sequence so the lock releases before movement and re-energises at the appropriate point.</p>
-      <p>The Roger manual states that holding AP active prevents automatic reclosing; the reclose timer resumes when AP is released. Verify the intended hold-open and return-to-secure behaviour locally.</p>
-
-      <details>
-        <summary>Magic Keys Pi remote-open interface</summary>
-        <p>The Pi requests access through one isolated relay NO/COM contact across the verified ACB-004 door exit input P1–P4 and its matching GND. Each request pulses only its assigned channel for the commissioned 300–10,000 ms duration. Never connect GPIO directly to the board.</p>
-        <p>This pulse does not determine the lock-release period or sequence the lock and motor. The service provides no close, hold-open, fire or lockdown command. Acknowledgement confirms only the pulse; it provides no live gate-position, lock-release or safety feedback.</p>
-      </details>
-
       <h3>Commissioning and testing</h3>
-      <p>Testing will cover permissions and readers, operating schedules, hold-open and return to secure operation, remote commands, required gate-state feedback, emergency behaviour, safety functions and recovery after a power or communications failure. Required feedback must be independently verified; the open-only Pi path supplies none.</p>
-      <p>The manuals describe the contact functions. They do not verify the installed interface or certify the complete system; the installed configuration and local safety operation will be confirmed through commissioning.</p>
-      <p className="compass-source">References: supplied S4A ACB-00 wiring manual, ACB-004 diagram (PDF sheet 3); supplied software guide §§2.2, 2.5, 3.2.2 and 3.3.1; <a href="https://www.manualslib.com/manual/3373474/Roger-Technology-F70-Ipu36.html?page=23" target="_blank" rel="noreferrer">Roger F70/IPU36 installer manual, command terminals</a>.</p>
+      <p>Testing covers readers and permissions, schedules, hold-open and return to closed, remote commands, position feedback, fire / evacuation behaviour, safety functions and recovery after a power or network failure. The Venus pause time, obstacle detection and lock timing are set in the Venus app at the gate; this portal does not change them.</p>
+      <p>The manuals describe the terminal functions. They do not certify the complete system; the installed configuration and local safety operation are confirmed through commissioning.</p>
+      <p className="compass-source">References: supplied S4A ACB-004 wiring manual; Locinox Venus installation and training manuals (project files); gate-controller/deploy/INSTALL.md section 1d.</p>
     </section>
   );
 }

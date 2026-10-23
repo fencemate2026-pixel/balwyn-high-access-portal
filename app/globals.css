@@ -799,7 +799,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .timezone-card small { color: var(--ink-soft); font-size: .57rem; text-transform: uppercase; letter-spacing: .07em; }
 .timezone-card strong { font-size: .67rem; }
 .week-schedule { padding: 0 20px; }
-.week-row { min-height: 72px; display: grid; grid-template-columns: 1.05fr 1.35fr 1fr 1fr 1.5fr; align-items: center; gap: 16px; border-bottom: 1px solid var(--line); }
+.week-row { min-height: 72px; display: grid; grid-template-columns: 1.05fr 1.35fr 1.5fr 1fr 1fr 1.5fr; align-items: center; gap: 16px; border-bottom: 1px solid var(--line); }
 .week-row > strong { font-size: .76rem; }
 .week-head { min-height: 47px; color: var(--ink-soft); background: #fff; font-size: .58rem; font-weight: 400; letter-spacing: .07em; text-transform: uppercase; }
 .week-row label { min-width: 0; }

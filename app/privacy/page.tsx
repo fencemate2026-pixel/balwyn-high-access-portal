@@ -66,7 +66,7 @@ export default function PrivacyPage() {
       },
       {
         title: "Gate service and fault data",
-        content: <p>The portal counts gate openings sent through Magic Keys and records service dates for each gate. These records are about equipment, not people; service records show the name of the administrator who recorded the service. RJL is emailed when a gate approaches or reaches its service limit, or when a commissioned gate reports a fault.</p>,
+        content: <p>The portal counts gate openings detected by each gate controller and records service dates for each gate. These records are about equipment, not people; service records show the name of the administrator who recorded the service. RJL is emailed when a gate approaches or reaches its service limit, or when a commissioned gate reports a fault.</p>,
       },
       {
         title: "Where information is stored",

@@ -13,6 +13,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      restore_image_tag:
+        description: "Rollback only: an existing magickeys-portal image tag (a full commit SHA) to put back live. Leave empty for a normal build and deploy."
+        required: false
+        default: ""
 
 permissions:
   id-token: write
@@ -24,7 +29,11 @@ concurrency:
 
 jobs:
   test:
-    if: ${{ !contains(github.event.head_commit.message, '[restore-known-live]') }}
+    # 24 Oct 2026 (audit INFRA-01): a rollback used to be triggered by the text
+    # "[restore-known-live]" anywhere in a pushed commit message, skipping the tests
+    # and putting a fixed old image live. A merge or revert quoting that text would
+    # have done it silently. A rollback is now a manual run with an explicit tag.
+    if: ${{ github.event_name == 'push' || inputs.restore_image_tag == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -60,33 +69,49 @@ jobs:
           az webapp restart --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}"
       - name: Wait for the health check
         run: |
-          HOST=$(az webapp show --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" --query defaultHostName -o tsv)
-          echo "App host: $HOST (direct access is Cloudflare-only; the platform health check is authoritative)"
           for i in $(seq 1 30); do
             STATE=$(az webapp show --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" --query state -o tsv)
-            echo "state=$STATE"; [ "$STATE" = "Running" ] && exit 0; sleep 10
+            echo "state=$STATE"; [ "$STATE" = "Running" ] && break; sleep 10
           done
-          echo "Web app did not reach Running"; exit 1
+          [ "$STATE" = "Running" ] || { echo "Web app did not reach Running"; exit 1; }
+          # The site state reads Running straight after a restart even if the new
+          # container never starts (audit INFRA-02), so the portal itself must answer.
+          URL="${{ vars.PORTAL_URL || 'https://magickeys-balwyn-portal.com' }}/api/health"
+          for i in $(seq 1 40); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL" || true)
+            echo "health=$CODE"; [ "$CODE" = "200" ] && exit 0; sleep 10
+          done
+          echo "The portal did not answer $URL with 200 after the deploy"; exit 1
 
-  restore-known-live:
-    if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[restore-known-live]') }}
+  restore-image:
+    # Manual rollback only (Actions > Deploy to Azure > Run workflow, with a tag).
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.restore_image_tag != '' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     environment: production
+    env:
+      TAG: ${{ inputs.restore_image_tag }}
     steps:
+      - name: Check the tag is a commit SHA
+        run: echo "$TAG" | grep -Eq '^[0-9a-f]{40}$' || { echo "restore_image_tag must be a full 40-character commit SHA"; exit 1; }
       - uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Confirm the previously running image exists
-        run: az acr repository show --name "${{ vars.AZURE_ACR }}" --image "magickeys-portal:fc814f226b2b53ff079c4d38569348faf61382b1" --query digest --output tsv
-      - name: Restore the exact image recorded before the login deployment
+      - name: Confirm the image exists
+        run: az acr repository show --name "${{ vars.AZURE_ACR }}" --image "magickeys-portal:$TAG" --query digest --output tsv
+      - name: Put the image live
         run: |
-          az webapp config container set  --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}"  --container-image-name "${{ vars.AZURE_ACR }}.azurecr.io/magickeys-portal:fc814f226b2b53ff079c4d38569348faf61382b1"  --container-registry-url "https://${{ vars.AZURE_ACR }}.azurecr.io" --output none
+          az webapp config container set  --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}"  --container-image-name "${{ vars.AZURE_ACR }}.azurecr.io/magickeys-portal:$TAG"  --container-registry-url "https://${{ vars.AZURE_ACR }}.azurecr.io" --output none
           az webapp restart --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" --output none
-      - name: Confirm Azure is configured for the original image
+      - name: Confirm it is configured and answering
         run: |
           CONFIGURED=$(az webapp config show --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" --query linuxFxVersion --output tsv)
-          test "$CONFIGURED" = "DOCKER|${{ vars.AZURE_ACR }}.azurecr.io/magickeys-portal:fc814f226b2b53ff079c4d38569348faf61382b1"
-          echo "Original pre-change portal image restored."
+          test "$CONFIGURED" = "DOCKER|${{ vars.AZURE_ACR }}.azurecr.io/magickeys-portal:$TAG"
+          URL="${{ vars.PORTAL_URL || 'https://magickeys-balwyn-portal.com' }}/api/health"
+          for i in $(seq 1 40); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL" || true)
+            echo "health=$CODE"; [ "$CODE" = "200" ] && exit 0; sleep 10
+          done
+          exit 1

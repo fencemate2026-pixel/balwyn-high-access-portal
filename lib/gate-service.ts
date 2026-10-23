@@ -7,12 +7,12 @@
  * gate reaches the operation limit BEFORE its scheduled service date, with an
  * early warning at 90 % of the limit.
  *
- * What counts as an operation: one opening that Magic Keys itself triggered and
- * that was confirmed — a remote-open pulse acknowledged by the door service, or
- * a controller OPEN acknowledged by the gate controller. Openings by fob, keypad,
- * exit button or the school's own access system are not seen by the portal and
- * are not counted until gate position sensors are fitted. The dashboard states
- * this so the figure is never presented as more than it is.
+ * What counts as an operation (24 Oct 2026): for a gate with a commissioned
+ * controller, every time its closed-position reed reports the gate leaving
+ * closed (portal-store countReedCycle). That includes keypad, Compass reader,
+ * exit-button and schedule openings, not only portal commands. For a gate
+ * without a controller, a remote-open pulse acknowledged by the door service.
+ * A cycle that starts and finishes while the controller is offline is missed.
  *
  * Counting must never block or slow a gate command: recordGateOperation never
  * throws, and a missing table (migration not applied yet) just disables counting.
@@ -126,7 +126,7 @@ function serviceAlertText(gateName: string, gateId: string, status: GateServiceI
     `Last service: ${dateText(status.lastServiceAt)}`,
     `Scheduled next service: ${status.nextServiceAt ? dateText(status.nextServiceAt) : "not set (record the last service in the portal)"}`,
     "",
-    "Counted: openings triggered and confirmed through Magic Keys (remote open and controller commands). Fob, keypad, exit-button and school-system openings are not included, so actual use may be higher.",
+    "Counted: every time the gate controller saw the gate leave its closed-position sensor (portal, keypad / Compass reader, exit button and schedules). Openings made while the controller was offline are not included, so actual use may be slightly higher.",
     "",
     "After servicing, record it in the portal (Campus overview > Gate service > Record service) to reset the count.",
   ].join("\n");
@@ -138,11 +138,17 @@ function serviceAlertText(gateName: string, gateId: string, status: GateServiceI
  * early-warning or service-due count before its scheduled service date, emails
  * RJL once for that service period. Never throws.
  */
-export async function recordGateOperation(gateId: string, options: { now?: Date; fetcher?: typeof fetch; runtime?: Runtime; waitForAlert?: boolean } = {}) {
+export async function recordGateOperation(gateId: string, options: { now?: Date; fetcher?: typeof fetch; runtime?: Runtime; waitForAlert?: boolean; unlessReedCounted?: boolean } = {}) {
   if (!isGateActive(gateId)) return null;
   const now = options.now ?? new Date();
   try {
     const d1 = getSql();
+    if (options.unlessReedCounted) {
+      // A gate with a commissioned controller is counted from its reeds
+      // (countReedCycle in portal-store), so a door-service pulse is not counted again.
+      const row = await d1.prepare("SELECT commissioned FROM gate_states WHERE gate_id = ?").bind(gateId).first<{ commissioned: number | boolean }>();
+      if (row && (row.commissioned === true || Number(row.commissioned) === 1)) return null;
+    }
     const stamp = now.toISOString();
     const [, read] = await d1.batch<CounterRow>([
       d1.prepare(

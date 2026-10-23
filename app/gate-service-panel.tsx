@@ -28,7 +28,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import type { Gate, GateServiceInfo } from "@/lib/portal-model";
 
 export const COUNTING_CAVEAT =
-  "Counts openings sent through Magic Keys. Fob, keypad, exit-button and school-system openings are not counted until position sensors are fitted.";
+  "Counts every opening the gate controller sees on its closed-position sensor: portal, keypad / Compass reader, exit button and schedules. An opening made while the controller is offline is not counted.";
 
 const MELBOURNE = "Australia/Melbourne";
 const number = (value: number) => value.toLocaleString("en-AU");

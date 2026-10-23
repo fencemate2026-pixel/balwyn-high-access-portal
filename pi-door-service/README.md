@@ -1,5 +1,10 @@
 # Compass ACB-004 open-only relay service
 
+> **Superseded for Balwyn (15 Oct 2026). Do not install on the Balwyn gate Pi.** Balwyn uses
+> `gate-controller/` with Locinox Venus operators: the lock is powered by the Venus (OUT1) and the Pi relay drives
+> Venus IN2 ("Hold to keep open"). See `gate-controller/deploy/INSTALL.md` section 1d. This service and the wiring
+> below belong to the old ACB-004 / Roger F70 design only.
+
 The existing Compass ACB-004 is a four-door access controller. This Python 3.10+
 service drives an isolated Pi relay contact for an assigned request-to-exit
 input. It does not speak the ACB-004 TCP/IP protocol, read cards, change its
@@ -85,7 +90,7 @@ reachable HTTPS origin. A cloud-hosted portal cannot reach a private Pi IP just
 because it is entered in an environment variable. Keep tokens out of URLs,
 client bundles and proxy/access logs. Do not expose an unauthenticated Pi port.
 
-## Maglock and Roger F70/IPU36 interface
+## Maglock and Roger F70/IPU36 interface (superseded design, not used at Balwyn)
 
 The supplied ACB-004 diagram shows door exit inputs P1–P4/GND and per-door
 COM/NO/NC lock contacts. Have the installer confirm labels and current usage

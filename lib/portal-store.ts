@@ -17,6 +17,7 @@ import {
   isGateActive,
   INITIAL_AUTOMATIONS,
   makeWeekPlan,
+  SCHEDULE_LABEL_MAX,
   type AutomationRule,
   type ControllerState,
   type DayKey,
@@ -132,7 +133,7 @@ export async function getPortalSnapshot(user: PortalUser, seededCheckDone = fals
   const scheduleMap = Object.fromEntries(GATES.map((gate) => [gate.id, makeWeekPlan(gate)])) as Record<string, WeekPlan>;
   for (const row of scheduleRows) {
     if (!isGateActive(row.gateId) || !scheduleMap[row.gateId] || !DAYS.includes(row.day as DayKey)) continue;
-    scheduleMap[row.gateId][row.day as DayKey] = { enabled: row.enabled, open: row.openTime, close: row.closeTime };
+    scheduleMap[row.gateId][row.day as DayKey] = { enabled: row.enabled, open: row.openTime, close: row.closeTime, label: row.label ?? "" };
   }
 
   const currentTime = Date.now();
@@ -303,9 +304,12 @@ export async function clearEmergencyPriority(user: PortalUser) {
   const activeIds = GATES.filter((gate) => isGateActive(gate.id)).map((gate) => gate.id);
   const correlationId = crypto.randomUUID();
   const expiry = new Date(Date.now() + ALL_CLEAR_CLOSE_EXPIRY_MS).toISOString();
-  // Gates still under the fire command: the latest command for the gate is an emergency OPEN.
+  // Gates still under the fire command: the latest command for the gate is an
+  // emergency OPEN, or an all-clear CLOSE that failed (expired or not confirmed),
+  // so pressing Clear again re-sends it (audit F5). A queued or confirmed
+  // all-clear CLOSE is left alone, so repeated presses never duplicate it.
   const heldByFire = `SELECT cq.gate_id FROM command_queue cq
-     WHERE cq.source = 'emergency' AND cq.command = 'open'
+     WHERE cq.source = 'emergency' AND (cq.command = 'open' OR (cq.command = 'closed' AND cq.state = 'failed'))
        AND cq.id = (SELECT MAX(latest.id) FROM command_queue latest WHERE latest.gate_id = cq.gate_id)
        AND cq.gate_id IN (${activeIds.map(() => "?::text").join(", ") || "NULL"})`;
   await d1.batch([
@@ -324,6 +328,15 @@ export async function clearEmergencyPriority(user: PortalUser) {
   ]);
 }
 
+/** A schedule name: optional, single line, at most SCHEDULE_LABEL_MAX characters. */
+export function cleanScheduleLabel(value: unknown, day: string): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value !== "string") throw new Error(`Invalid schedule name for ${day}.`);
+  const label = value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
+  if (label.length > SCHEDULE_LABEL_MAX) throw new Error(`${day}'s schedule name must be ${SCHEDULE_LABEL_MAX} characters or fewer.`);
+  return label;
+}
+
 export async function saveGateSchedule(gateId: string, week: WeekPlan, user: PortalUser) {
   if (!isGateActive(gateId)) throw new Error("Schedules are blocked for inactive or unknown gates.");
   const d1 = getSql();
@@ -336,9 +349,10 @@ export async function saveGateSchedule(gateId: string, week: WeekPlan, user: Por
       throw new Error(`Invalid schedule for ${day}.`);
     }
     if (plan.enabled && open >= close) throw new Error(`${day}'s opening time must be before its closing time.`);
+    const label = cleanScheduleLabel(plan.label, day);
     return d1.prepare(
-      "INSERT INTO gate_schedules (gate_id, day, enabled, open_time, close_time, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?) ON CONFLICT(gate_id, day) DO UPDATE SET enabled = excluded.enabled, open_time = excluded.open_time, close_time = excluded.close_time, updated_at = CURRENT_TIMESTAMP, updated_by = excluded.updated_by",
-    ).bind(gateId, day, plan.enabled ? 1 : 0, open, close, user.displayName);
+      "INSERT INTO gate_schedules (gate_id, day, enabled, open_time, close_time, label, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?) ON CONFLICT(gate_id, day) DO UPDATE SET enabled = excluded.enabled, open_time = excluded.open_time, close_time = excluded.close_time, label = excluded.label, updated_at = CURRENT_TIMESTAMP, updated_by = excluded.updated_by",
+    ).bind(gateId, day, plan.enabled ? 1 : 0, open, close, label, user.displayName);
   });
   await d1.batch(statements);
   const gate = GATES.find((candidate) => candidate.id === gateId)!;
@@ -446,6 +460,39 @@ export async function controllerTokenValid(gateId: string, token: string) {
   return difference === 0;
 }
 
+/**
+ * Gate cycle counter (24 Oct 2026, Jarrod: "Gate cycles since service" did not count).
+ *
+ * One cycle is counted each time the controller reports the gate LEAVING its closed
+ * reed (closed -> any other reading). Between the reeds the controller reports
+ * "unknown" for a movement it did not start (keypad, Compass, exit button) and
+ * "moving" for one it did, so both count. This counts every real opening, whatever started
+ * it: the portal, the keypad / Compass reader, the exit button or a schedule. Before
+ * this, only portal OPEN commands confirmed by the open reed were counted, so keypad
+ * openings (most of a school's use) never appeared.
+ *
+ * The change is claimed with a single conditional UPDATE, so a repeated or
+ * concurrent report of the same movement is counted once. A report that carries a
+ * fault (for example both reeds made) never counts, and a restarting controller
+ * never reports a shut gate as anything but closed. A cycle is missed only if the gate
+ * opens and recloses entirely while the controller is not reporting (offline).
+ * Counting never throws: a failure here must not stop a heartbeat.
+ */
+export async function countReedCycle(gateId: string, position: ReportedPosition, hasFault = false): Promise<boolean> {
+  if (position === "closed" || hasFault) return false;
+  try {
+    const left = await getSql().prepare(
+      "UPDATE gate_states SET reported_position = ?::text WHERE gate_id = ? AND reported_position = 'closed' RETURNING gate_id",
+    ).bind(position, gateId).all<{ gate_id: string }>();
+    if (!left.results.length) return false;
+    await recordGateOperation(gateId);
+    return true;
+  } catch {
+    console.warn("gate_cycle_count_failed", JSON.stringify({ gateId }));
+    return false;
+  }
+}
+
 export async function recordHeartbeat(input: {
   gateId: string;
   position: ReportedPosition;
@@ -457,6 +504,7 @@ export async function recordHeartbeat(input: {
   const current = await getDb().select({ commissioned: gateStates.commissioned, controllerState: gateStates.controllerState }).from(gateStates).where(eq(gateStates.gateId, input.gateId)).limit(1);
   const hasVerifiedInitialState = heartbeatCompletesCommissioning(input.position, input.safetyOk);
   const commissioned = Boolean(current[0]?.commissioned) || hasVerifiedInitialState;
+  await countReedCycle(input.gateId, input.position, Boolean(faultText));
   await getDb().update(gateStates).set({
     reportedPosition: input.position,
     controllerState: faultText || !input.safetyOk ? "fault" : "online",
@@ -526,7 +574,7 @@ export async function loadGateWindows(fromDate: string, toDate: string): Promise
   const scheduleMap = Object.fromEntries(GATES.map((gate) => [gate.id, makeWeekPlan(gate)])) as Record<string, WeekPlan>;
   for (const row of scheduleRows) {
     if (!isGateActive(row.gateId) || !scheduleMap[row.gateId] || !DAYS.includes(row.day as DayKey)) continue;
-    scheduleMap[row.gateId][row.day as DayKey] = { enabled: row.enabled, open: row.openTime, close: row.closeTime };
+    scheduleMap[row.gateId][row.day as DayKey] = { enabled: row.enabled, open: row.openTime, close: row.closeTime, label: row.label ?? "" };
   }
   const rules: StoredRule[] = ruleRows.map((row) => ({ id: row.id, name: row.name, kind: row.kind, config: row.config ?? null, enabled: row.enabled }));
   // Bookings from the day before (a run-out can cross midnight) to the day after.
@@ -570,8 +618,53 @@ async function getControllerScheduleDirective(gateId: string) {
   const today = melbourneDate(now);
   // Yesterday is included so a booking run-out that crosses midnight is still honoured.
   const windows = (await loadGateWindows(addDays(today, -1), today)).filter((window) => Date.parse(window.end) > melbourneToUtc(today, "00:00").getTime());
-  return resolveDirective(gateId, windows, now);
+  const directive = resolveDirective(gateId, windows, now);
+  if (directive) return directive;
+  // No window today any more, but the gate is still held by an automation OPEN
+  // (the only window was paused, deleted or switched off mid-hold). Release it,
+  // once; otherwise the controller keeps the hold until HOLD_MAX_S (audit F3).
+  const latest = await db.select({ correlationId: commandQueue.correlationId, command: commandQueue.command, source: commandQueue.source, state: commandQueue.state })
+    .from(commandQueue).where(eq(commandQueue.gateId, gateId)).orderBy(desc(commandQueue.id)).limit(1);
+  const last = latest[0];
+  if (last && last.source === "schedule" && last.command === "open" && last.state === "acknowledged") {
+    return { target: "closed", key: `${last.correlationId}-released`, reason: "Its automation window was removed or paused" } as const;
+  }
+  return null;
 }
+
+const scheduleOffChecked = new Map<string, number>();
+export const SCHEDULE_OFF_CHECK_INTERVAL_MS = 60_000;
+
+/**
+ * 24 Oct 2026 (Jarrod: "the gate scheduler doesn't work"). A controller started with
+ * SCHEDULE_CONTROL=false (the commissioning setting in the Venus env files) tells the
+ * portal not to send schedule commands, and the portal used to skip the window
+ * without a word. Now, when a window is due and the controller has schedule control
+ * off, the activity log says so, once per window, so the reason is visible.
+ * Checked at most once a minute per gate (the controller polls every 750 ms).
+ */
+export async function noteScheduleControlOff(gateId: string, nowMs = Date.now()): Promise<boolean> {
+  const last = scheduleOffChecked.get(gateId) ?? 0;
+  if (nowMs - last < SCHEDULE_OFF_CHECK_INTERVAL_MS) return false;
+  scheduleOffChecked.set(gateId, nowMs);
+  try {
+    const directive = await getControllerScheduleDirective(gateId);
+    if (!directive || directive.target !== "open") return false;
+    const gate = GATES.find((candidate) => candidate.id === gateId);
+    const marker = `[window ${directive.key}]`;
+    const detail = `${gate?.name ?? gateId}: ${directive.reason} is due now, but this gate's controller has schedule control switched off (SCHEDULE_CONTROL=false on the gate Pi), so the gate was not held open. ${marker}`;
+    const result = await getSql().prepare(
+      "INSERT INTO activity_log (action, detail, category, actor_name, actor_role) SELECT 'Scheduled window not run', ?, 'schedule', 'Magic Keys schedule', 'system' WHERE NOT EXISTS (SELECT 1 FROM activity_log WHERE category = 'schedule' AND action = 'Scheduled window not run' AND right(detail, length(?::text)) = ?::text)",
+    ).bind(detail.slice(0, 1000), marker, marker).run();
+    return Number(result?.meta?.changes ?? 0) === 1;
+  } catch {
+    console.warn("schedule_control_off_note_failed", JSON.stringify({ gateId }));
+    return false;
+  }
+}
+
+/** Test hook: forget the once-a-minute throttle. */
+export function resetScheduleOffThrottle() { scheduleOffChecked.clear(); }
 
 /** Re-open limits for one hold window (see reopenCorrelationId). */
 export const REOPEN_COOLDOWN_MS = 60_000;
@@ -693,6 +786,8 @@ export async function acknowledgeControllerCommand(input: {
   const detail = validated.detail;
   const gate = GATES.find((candidate) => candidate.id === input.gateId);
   const timestamp = nowIso();
+  // The acknowledgement carries a position reading too: count a movement off the closed reed here as well.
+  await countReedCycle(input.gateId, input.position);
   const results = await getSql().batch([
     getSql().prepare("UPDATE command_queue SET state = ?, acknowledged_at = ?, detail = ? WHERE id = ? AND gate_id = ? AND state IN ('queued', 'dispatched')").bind(effectiveState, timestamp, detail, input.commandId, input.gateId),
     getSql().prepare("UPDATE gate_states SET reported_position = ?, controller_state = ?, safety_ok = ?, last_seen = ?, last_command_state = ?, last_error = ?, updated_at = CURRENT_TIMESTAMP WHERE gate_id = ? AND EXISTS (SELECT 1 FROM command_queue WHERE id = ? AND gate_id = ? AND acknowledged_at = ?)").bind(input.position, effectiveState === "acknowledged" ? "online" : "fault", input.safetyOk ? 1 : 0, timestamp, effectiveState, effectiveState === "acknowledged" ? null : detail || "Controller did not complete the relay command.", input.gateId, input.commandId, input.gateId, timestamp),
@@ -705,12 +800,9 @@ export async function acknowledgeControllerCommand(input: {
       timestamp,
     ),
   ]);
-  // One confirmed OPEN = one gate operation for the service counter. Only when this
-  // acknowledgement actually completed the command (a duplicate ack changes nothing).
+  // Cycles are counted from the reeds (countReedCycle), not from confirmed OPEN
+  // commands, so a portal open is not counted twice.
   const completedNow = Number(results[0]?.meta?.changes ?? 0) === 1;
-  if (completedNow && effectiveState === "acknowledged" && command.command === "open") {
-    await recordGateOperation(input.gateId);
-  }
   // A command the controller could not complete is a fault: tell RJL (throttled,
   // not awaited). Covers faults first seen through a command rather than a heartbeat.
   if (completedNow && effectiveState !== "acknowledged") {

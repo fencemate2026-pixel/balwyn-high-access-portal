@@ -120,7 +120,7 @@ test("RJL is emailed once at 90 % and once at the limit when it comes before the
   await service.recordGateOperation("SIDE-ENTRY", { runtime, fetcher, waitForAlert: true }); // 4001: no repeat
   assert.equal(sent.length, 2);
   assert.match(sent[1].body.subject, /is due for service \(4,000 operations reached\)/);
-  assert.match(sent[1].body.text, /Fob, keypad, exit-button and school-system openings are not included/);
+  assert.match(sent[1].body.text, /portal, keypad \/ Compass reader, exit button and schedules\)\. Openings made while the controller was offline are not included/);
   assert.equal((await counter(pg, "SIDE-ENTRY")).alert_level, 2);
   const log = await notifications(pg);
   assert.deepEqual(log.map((n) => [n.kind, n.delivery]), [["service_warning", "sent"], ["service_due", "sent"]]);
