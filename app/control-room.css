@@ -458,7 +458,7 @@ h1, h2, h3 { letter-spacing: -.025em; }
   .workspace-header-right { margin-left: auto; }
   .system-status-cluster { display: none; }
   .week-schedule { overflow-x: auto; }
-  .week-row { min-width: 680px; }
+  .week-row { min-width: 860px; }
 }
 @media (prefers-reduced-motion: reduce) { .gate-led-indicator > i { animation: none; } }
 @media (max-width: 767px) {

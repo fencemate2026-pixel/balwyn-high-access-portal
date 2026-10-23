@@ -56,7 +56,7 @@ async function logOutcome(user: PortalUser, gateId: string, requestId: string, r
       : ["Remote open not confirmed", `${gateName}: no verified pulse acknowledgement (status ${response.status}). Inspect the gate locally before another request. Request ${requestId}.`];
   try { await recordActivity(user, action, detail, "gate-command"); }
   catch { console.warn("remote_open_outcome_log_failed", JSON.stringify({ gateId, requestId })); }
-  if (response.ok && status === "pulsed" && !replayed) await recordGateOperation(gateId);
+  if (response.ok && status === "pulsed" && !replayed) await recordGateOperation(gateId, { unlessReedCounted: true });
 }
 
 async function handle(request: Request) {

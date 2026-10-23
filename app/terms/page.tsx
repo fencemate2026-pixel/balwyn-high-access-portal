@@ -47,7 +47,7 @@ export default function TermsPage() {
       },
       {
         title: "Gate servicing",
-        content: <p>The gate cycle counter counts openings sent through Magic Keys only; openings by fob, keypad, exit button or other systems are not counted until position sensors are fitted, so actual use may be higher. Service reminders are an aid and do not replace the maintenance schedule agreed with RJL or the manufacturer’s requirements.</p>,
+        content: <p>The gate cycle counter counts each opening the gate controller detects on the gate’s closed-position sensor, whatever started it; openings made while the controller is offline are not counted, so actual use may be higher. Service reminders are an aid and do not replace the maintenance schedule agreed with RJL or the manufacturer’s requirements.</p>,
       },
       {
         title: "Monitoring and records",

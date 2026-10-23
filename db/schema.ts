@@ -39,6 +39,8 @@ export const schedules = portal.table("gate_schedules", {
   enabled: integerBoolean("enabled").notNull().default(false),
   openTime: text("open_time").notNull(),
   closeTime: text("close_time").notNull(),
+  /** Optional name for the day's window (display only, max SCHEDULE_LABEL_MAX). */
+  label: text("label").notNull().default(""),
   updatedAt: text("updated_at").notNull().default(sql`to_char(clock_timestamp() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`),
   updatedBy: text("updated_by").notNull().default("system"),
 }, (table) => [

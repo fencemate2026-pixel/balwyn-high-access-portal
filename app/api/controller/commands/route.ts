@@ -1,4 +1,4 @@
-import { controllerTokenValid, getNextControllerCommand, getOrCreateScheduledControllerCommand, recordHeartbeat } from "@/lib/portal-store";
+import { controllerTokenValid, getNextControllerCommand, getOrCreateScheduledControllerCommand, noteScheduleControlOff, recordHeartbeat } from "@/lib/portal-store";
 import { GATES, type ReportedPosition } from "@/lib/portal-model";
 import { readControllerRequest } from "@/lib/controller-request";
 
@@ -28,6 +28,8 @@ export async function POST(request: Request) {
     let command = commissioned ? await getNextControllerCommand(gateId, { closeOnly: !body.safetyOk }) : null;
     if (!command && body.safetyOk && commissioned && body.scheduleControl === true) {
       command = await getOrCreateScheduledControllerCommand(gateId);
+    } else if (!command && body.safetyOk && commissioned && body.scheduleControl === false) {
+      await noteScheduleControlOff(gateId);
     }
     return Response.json({ command, commissioned, pollAfterMs: 750, serverTime: new Date().toISOString() }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

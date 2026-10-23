@@ -135,7 +135,7 @@ export function windowsForDate(
     const plan = week?.[day];
     if (!isGateActive(gateId) || !plan?.enabled || !HHMM.test(plan.open) || !HHMM.test(plan.close) || plan.open >= plan.close) continue;
     windows.push({
-      gateId, source: "schedule", label: `Weekly schedule ${plan.open}–${plan.close}`, ref: `schedule:${gateId}:${day}:${plan.open}-${plan.close}`,
+      gateId, source: "schedule", label: plan.label?.trim() ? `${plan.label.trim()} ${plan.open}–${plan.close}` : `Weekly schedule ${plan.open}–${plan.close}`, ref: `schedule:${gateId}:${day}:${plan.open}-${plan.close}`,
       start: melbourneToUtc(dateISO, plan.open).toISOString(), end: melbourneToUtc(dateISO, plan.close).toISOString(),
     });
   }

@@ -18,7 +18,9 @@ export type Gate = {
   defaultPosition: GatePosition;
 };
 
-export type DayPlan = { enabled: boolean; open: string; close: string };
+/** label: optional name for the window ("School drop-off"). Display only. */
+export type DayPlan = { enabled: boolean; open: string; close: string; label?: string };
+export const SCHEDULE_LABEL_MAX = 60;
 export type WeekPlan = Record<DayKey, DayPlan>;
 
 export type ActivityRecord = {
@@ -193,6 +195,7 @@ export function makeWeekPlan(gate: Gate): WeekPlan {
     enabled: false,
     open: "",
     close: "",
+    label: "",
   }])) as WeekPlan;
 }
 
