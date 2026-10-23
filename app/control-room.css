@@ -968,3 +968,26 @@ body:has(.control-portal) :is([data-slot="sheet-content"], [data-slot="dialog-co
   .quick-state-button { transition: none; }
   .gate-current-state strong i { animation: none; }
 }
+
+/* Top-bar gate lights (24 Oct 2026): one bright light per gate on every page.
+   Colour comes only from the controller's reported position (header-gate-leds.tsx). */
+.header-gate-leds { display: flex; align-items: center; gap: 8px; margin-right: 6px; }
+.header-gate-led { --led: #ffb020; display: inline-flex; align-items: center; gap: 8px; max-width: 290px; padding: 6px 12px 6px 9px; border: 1px solid color-mix(in srgb, var(--led) 55%, #2a3646); border-radius: 999px; background: color-mix(in srgb, var(--led) 14%, #07101c); color: #e9f1fb; font-size: 12px; line-height: 1.2; cursor: pointer; box-shadow: 0 0 12px color-mix(in srgb, var(--led) 30%, transparent); }
+.header-gate-led:hover { background: color-mix(in srgb, var(--led) 24%, #07101c); }
+.header-gate-led:focus-visible { outline: 2px solid var(--led); outline-offset: 2px; }
+.header-gate-led > i { flex: 0 0 14px; width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, var(--led) 45%, color-mix(in srgb, var(--led) 40%, #000) 100%); box-shadow: 0 0 8px var(--led), 0 0 18px var(--led); }
+.header-gate-led-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #c9d6e6; }
+.header-gate-led > strong { font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--led); }
+.header-gate-led.is-open { --led: #00e676; }
+.header-gate-led.is-open > i { animation: header-led-pulse 1.4s ease-in-out infinite; }
+.header-gate-led.is-closed { --led: #ff3b47; }
+.header-gate-led.is-moving { --led: #ffb020; }
+.header-gate-led.is-moving > i { animation: header-led-pulse .5s ease-in-out infinite; }
+.header-gate-led.is-check { --led: #ffb020; }
+.header-gate-led.is-offline, .header-gate-led.is-paused { --led: #7d8a9b; }
+.header-gate-led.is-offline > i, .header-gate-led.is-paused > i { box-shadow: none; }
+@keyframes header-led-pulse { 0%, 100% { opacity: .5; box-shadow: 0 0 3px var(--led); } 50% { opacity: 1; box-shadow: 0 0 10px var(--led), 0 0 22px var(--led); } }
+@media (prefers-reduced-motion: reduce) { .header-gate-led > i { animation: none !important; } }
+.header-gate-led-id { display: none; color: #c9d6e6; white-space: nowrap; }
+@media (max-width: 1100px) { .header-gate-led-name { display: none; } .header-gate-led-id { display: inline; } }
+@media (max-width: 767px) { .header-gate-led { padding: 5px 8px; } .header-gate-led > strong { display: none; } }
