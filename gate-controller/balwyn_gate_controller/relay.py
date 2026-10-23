@@ -76,8 +76,8 @@ class RelaySupervisor:
                 return False
             seconds = min(max(seconds, 0.3), MAX_PULSE_S)
             now = self._clock()
+            self._energise()
             self.state = RelayState(mode="pulsing", pulse_until=now + seconds)
-            self._set(True)
             self._audit("relay_pulse", {"seconds": round(seconds, 2)})
             return True
 
@@ -89,9 +89,23 @@ class RelaySupervisor:
                 if self.state.hold_kind != "emergency":
                     self.state.hold_kind = kind
                 return
+            self._energise()
             self.state = RelayState(mode="holding", hold_kind=kind, hold_since=now)
-            self._set(True)
             self._audit("relay_hold", {"kind": kind})
+
+    def _energise(self) -> None:
+        """Switch the relay on BEFORE recording it as on (audit 24 Oct 2026, controller F2). If the GPIO write fails
+        the state stays idle, so it never claims a hold the contact is not making, and the next request (a repeated
+        fire OPEN, for example) tries the write again instead of returning early as "already holding"."""
+        try:
+            self._set(True)
+        except Exception:
+            self._audit("relay_write_failed", {})
+            try:
+                self._set(False)
+            except Exception:  # noqa: BLE001 - the original error is the one to report
+                pass
+            raise
 
     def release(self, reason: str) -> bool:
         """End a hold or pulse. Returns True if the relay was on."""

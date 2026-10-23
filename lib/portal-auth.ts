@@ -12,6 +12,8 @@ import { clientAddress } from "./client-address.ts";
 
 const COOKIE_NAME = "balwyn_operator_session";
 const MFA_COOKIE_NAME = "balwyn_operator_mfa";
+/** Domain separation: an MFA challenge signature can never verify as a session or settings cookie. */
+const MFA_SIGNING_CONTEXT = "balwyn-mfa-challenge\n";
 const ADMIN_COOKIE_NAME = "__Host-balwyn_admin_settings";
 const ADMIN_LIFETIME_MS = 10 * 60 * 1000;
 const encoder = new TextEncoder();
@@ -319,7 +321,7 @@ export async function createMfaChallengeCookie(user: PortalUser, fingerprint: st
     credentialVersion: identity.subject,
     expiresAt: Date.now() + 10 * 60 * 1000,
   })));
-  const signature = await hmac(payload, sessionSecret());
+  const signature = await hmac(`${MFA_SIGNING_CONTEXT}${payload}`, sessionSecret());
   return `${MFA_COOKIE_NAME}=${payload}.${signature}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=600`;
 }
 
@@ -336,7 +338,7 @@ export async function getMfaChallenge(request: Request): Promise<MfaChallenge | 
   const [payload, signature] = parts;
   if (!payload || !signature) return null;
   try {
-    if (!constantTimeEqual(signature, await hmac(payload, sessionSecret()))) return null;
+    if (!constantTimeEqual(signature, await hmac(`${MFA_SIGNING_CONTEXT}${payload}`, sessionSecret()))) return null;
     const challenge = JSON.parse(new TextDecoder().decode(decodeBase64Url(payload))) as MfaChallenge;
     if (!challenge.user?.displayName || !["administrator", "operator", "viewer"].includes(challenge.user.role) || !challenge.fingerprint
       || !Number.isSafeInteger(challenge.expiresAt) || challenge.expiresAt <= Date.now()) return null;
@@ -482,7 +484,12 @@ export async function getSessionUser(request: Request): Promise<PortalUser | nul
     // Per-person accounts are approved individually by an administrator, so the
     // site-wide email list does not apply to them; every other identity must pass it.
     if (typeof parsed.user.email !== "string" || (!parsed.user.accountId && !portalEmailAllowed(parsed.user.email))) return null;
-    const identity = parsed.identity ?? { provider: "google" };
+    // Every session cookie this code issues names its identity (createSessionCookie
+    // always serialises it). A signed payload without one is not a session: before
+    // 24 Oct 2026 the password-only MFA challenge cookie, signed with the same key,
+    // was accepted here as a Google session (audit SEC-1).
+    const identity = parsed.identity;
+    if (!identity || typeof identity !== "object") return null;
     if (identity.provider === "password") {
       const current = await credentialIdentity(parsed.user);
       if (!current?.subject || current.subject !== identity.subject) return null;
