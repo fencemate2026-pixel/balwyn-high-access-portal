@@ -219,14 +219,11 @@ test('password credentials and existing sessions cannot bypass the site email re
   assert.equal(await auth.getSessionUser(request('/api/portal', undefined, cookie)), null);
 });
 
-test("schedules need an administrator with the settings password (10 Oct 2026); operators, viewers and other sites are refused", async (t) => {
+test("schedules need an administrator but not the settings password (24 Oct 2026); operators, viewers and other sites are refused", async (t) => {
   const { pg, cookie } = await fixture(t);
   const week = Object.fromEntries(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(day => [day, { enabled: true, open: "06:00", close: "18:00" }]));
   const body = { action: "save_schedule", gateId: "TF-ENTRY", week };
-  const locked = await portal.POST(request("/api/portal", body, cookie));
-  assert.equal(locked.status, 403);
-  assert.equal((await locked.json()).code, "admin_password_required");
-  const unlocked = await unlock(cookie);
+  const unlocked = cookie; // no settings unlock: a signed-in administrator is enough
   const response = await portal.POST(request("/api/portal", body, unlocked));
   assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
   assert.equal((await pg.query("SELECT open_time FROM gate_schedules WHERE gate_id = 'TF-ENTRY' AND day = 'Monday'")).rows[0].open_time, "06:00");

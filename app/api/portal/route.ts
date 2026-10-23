@@ -86,7 +86,7 @@ export async function POST(request: Request) {
       // loading the full dashboard before the write. Return confirmed state below.
       await clearEmergencyPriority(auth.user);
     } else if (action === "save_schedule") {
-      // Administrator + settings unlock (PROTECTED_SETTINGS_ACTIONS), 10 Oct 2026.
+      // Administrator only. The settings password is not required (24 Oct 2026, Jarrod).
       if (auth.user.role !== "administrator") throw new Error("Administrator approval is required to change gate schedules.");
       if (!body.week || typeof body.week !== "object") throw new Error("Invalid schedule.");
       await saveGateSchedule(String(body.gateId ?? ""), body.week as WeekPlan, auth.user);
