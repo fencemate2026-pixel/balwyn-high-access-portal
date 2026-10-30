@@ -84,7 +84,12 @@ test("the owner lists sites and the key hash never reaches the browser", async (
   const { get } = await setup(t);
   const list = await get();
   assert.equal(list.status, 200);
-  assert.equal((await list.json()).sites[0].slug, "thomastown");
+  const listed = await list.json();
+  assert.equal(listed.sites[0].slug, "thomastown");
+  // 30 Oct 2026: the owner's other sites (Balwyn in place, Mildura external) come
+  // with the owner-only list, so they never ship to school staff.
+  assert.deepEqual(listed.links.map((l) => l.id), ["balwyn", "mildura"]);
+  assert.equal(listed.links.find((l) => l.id === "mildura").kind, "external");
   const detail = await (await get("?site=thomastown")).json();
   assert.equal(detail.units[0].has_device_key, true);
   assert.equal("secret_hash" in detail.units[0], false);
