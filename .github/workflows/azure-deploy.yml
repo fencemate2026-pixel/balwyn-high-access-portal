@@ -55,7 +55,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -104,7 +104,7 @@ jobs:
     steps:
       - name: Check the tag is a commit SHA
         run: echo "$TAG" | grep -Eq '^[0-9a-f]{40}$' || { echo "restore_image_tag must be a full 40-character commit SHA"; exit 1; }
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
