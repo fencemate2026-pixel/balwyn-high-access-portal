@@ -7,7 +7,8 @@
 // request, so hiding this component is presentation, not security.
 // No "delete all": one click must never be able to wipe a whitelist.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { LoaderCircle, Plus, RefreshCw } from "lucide-react";
+import { ExternalLink, LoaderCircle, Plus, RefreshCw } from "lucide-react";
+import type { OwnerSiteLink } from "@/lib/owner-sites-links";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +70,9 @@ const CSS = `
 .os-banner.warn{background:rgba(244,180,0,.12);border-color:rgba(244,180,0,.5)} .os-banner.info{background:rgba(26,95,209,.08);border-color:rgba(26,95,209,.35)}
 .os-days label{display:inline-flex;gap:3px;align-items:center;margin-right:8px;font-size:13px}
 .os-mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.os-list h4+h4,.os-list .os-gap{margin-top:12px}
+a.os-site{text-decoration:none}
+.os-site .os-ext{margin-left:auto;opacity:.55;width:14px;height:14px;flex-shrink:0}
 @media (max-width:900px){.os-wrap{grid-template-columns:1fr}.os-form{grid-template-columns:1fr 1fr}.os-kv{grid-template-columns:110px 1fr}}
 `;
 
@@ -81,8 +85,10 @@ async function api<T>(init?: { body?: Record<string, unknown>; query?: string })
   return data as T;
 }
 
-export default function OwnerSitesPanel() {
+// onOpenPortal: switch the dashboard to a view of this portal (Balwyn) in place.
+export default function OwnerSitesPanel({ onOpenPortal }: { onOpenPortal?: () => void } = {}) {
   const [sites, setSites] = useState<SiteRow[] | null>(null);
+  const [links, setLinks] = useState<OwnerSiteLink[]>([]);
   const [slug, setSlug] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [tab, setTab] = useState<Tab>("gates");
@@ -95,8 +101,8 @@ export default function OwnerSitesPanel() {
   const [callResult, setCallResult] = useState("");
 
   const loadSites = useCallback(async () => {
-    const data = await api<{ sites: SiteRow[] }>();
-    setSites(data.sites);
+    const data = await api<{ sites: SiteRow[]; links?: OwnerSiteLink[] }>();
+    setSites(data.sites); setLinks(data.links ?? []);
     setSlug((current) => current ?? data.sites.find((s) => s.slug === "thomastown")?.slug ?? data.sites[0]?.slug ?? null);
   }, []);
   const loadDetail = useCallback(async (which: string) => {
@@ -162,6 +168,16 @@ export default function OwnerSitesPanel() {
             <span>{s.name}<small>{s.gd_units.length} gate unit{s.gd_units.length === 1 ? "" : "s"}</small></span>
           </button>
         ))}
+        {links.length > 0 && <h4 className="os-gap">Other sites</h4>}
+        {links.map((l) => l.kind === "portal"
+          ? <button key={l.id} type="button" className="os-site" onClick={() => onOpenPortal?.()} title="Open this portal's campus dashboard">
+              <span className="os-dot ok" /><span>{l.name}<small>{l.detail}</small></span>
+            </button>
+          : <a key={l.id} className="os-site" href={l.url} target="_blank" rel="noopener noreferrer" title={l.note}>
+              {/* Not monitored from here, so a neutral dot rather than online/offline. */}
+              <span className="os-dot" /><span>{l.name}<small>{l.detail}</small><small>{l.note}</small></span>
+              <ExternalLink className="os-ext" aria-label="Opens in a new tab" />
+            </a>)}
       </nav>
       <div>
         {!detail ? <div className="os-row"><LoaderCircle className="animate-spin" /> Loading…</div> : <>

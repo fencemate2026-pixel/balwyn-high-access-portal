@@ -15,6 +15,7 @@ import {
   updateUnit, updateWhitelist,
 } from "@/lib/owner-sites-store";
 import type { PortalUser } from "@/lib/portal-model";
+import { OWNER_SITE_LINKS } from "@/lib/owner-sites-links";
 
 const headers = { "Cache-Control": "no-store" };
 const notFound = () => Response.json({ error: "Not found." }, { status: 404, headers });
@@ -38,7 +39,8 @@ export async function GET(request: Request) {
   const slug = url.searchParams.get("site");
   const view = url.searchParams.get("view") ?? "detail";
   try {
-    if (!slug) return Response.json({ sites: await listSites(), serverTime: new Date().toISOString() }, { headers });
+    // links: the owner's non-dialler sites (Balwyn, Mildura), owner-only like everything here.
+    if (!slug) return Response.json({ sites: await listSites(), links: OWNER_SITE_LINKS, serverTime: new Date().toISOString() }, { headers });
     if (view === "calls") {
       const site = await getSiteBySlug(slug);
       return Response.json({ calls: await listCalls(String(site.id), {
