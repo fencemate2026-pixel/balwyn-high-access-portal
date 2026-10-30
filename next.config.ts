@@ -4,10 +4,12 @@ import type { NextConfig } from "next";
 // - HSTS: browsers only ever use HTTPS for this domain (1 year).
 // - Permissions-Policy: the portal never needs camera, microphone, location,
 //   payment or USB access, so browsers refuse them outright.
-// - Content-Security-Policy is sent in REPORT-ONLY mode first: it reports what
-//   would be blocked without blocking it, so Google sign-in cannot be broken
-//   by a missed source. Switch the header name to "Content-Security-Policy"
-//   once a week of browser reports shows nothing legitimate would be blocked.
+// - Content-Security-Policy is ENFORCED (30 Oct 2026, audit M4). It ran in
+//   report-only mode first; the public pages showed no violation reports in a
+//   real browser (30 Oct 2026). The signed-in pages must be checked the same
+//   way before this branch is merged. If a
+//   legitimate source is ever blocked, add it to the matching directive below
+//   rather than returning to report-only.
 const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://accounts.google.com",
@@ -32,7 +34,7 @@ const config: NextConfig = {
       { key: "X-Frame-Options", value: "SAMEORIGIN" },
       { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" },
-      { key: "Content-Security-Policy-Report-Only", value: csp },
+      { key: "Content-Security-Policy", value: csp },
     ] }];
   },
 };
