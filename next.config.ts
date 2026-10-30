@@ -5,9 +5,9 @@ import type { NextConfig } from "next";
 // - Permissions-Policy: the portal never needs camera, microphone, location,
 //   payment or USB access, so browsers refuse them outright.
 // - Content-Security-Policy is ENFORCED (30 Oct 2026, audit M4). It ran in
-//   report-only mode first; the public pages showed no violation reports in a
-//   real browser (30 Oct 2026). The signed-in pages must be checked the same
-//   way before this branch is merged. If a
+//   report-only mode first; on 30 Oct 2026 the public pages and all 10 signed-in
+//   sections showed zero violations in a real browser (a securitypolicyviolation
+//   listener, proven by a deliberate test violation it caught). If a
 //   legitimate source is ever blocked, add it to the matching directive below
 //   rather than returning to report-only.
 const csp = [
