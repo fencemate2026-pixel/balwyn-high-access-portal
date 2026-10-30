@@ -14,6 +14,10 @@ RUN npm run build && npm prune --omit=dev
 # ---- runtime -------------------------------------------------------------------
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
+# Commit this image was built from (30 Oct 2026). /api/health reports it so a deploy
+# can prove the NEW version is answering, not the old one shutting down.
+ARG APP_VERSION=unknown
+ENV APP_VERSION=$APP_VERSION
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=8080
