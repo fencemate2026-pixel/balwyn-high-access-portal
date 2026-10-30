@@ -51,7 +51,7 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     environment: production
     steps:
       - uses: actions/checkout@v4
@@ -62,11 +62,14 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - name: Build image in Azure Container Registry
         run: |
-          az acr build --registry "${{ vars.AZURE_ACR }}"  --image "magickeys-portal:${{ github.sha }}"  --image "magickeys-portal:latest" .
+          az acr build --registry "${{ vars.AZURE_ACR }}"  --image "magickeys-portal:${{ github.sha }}"  --image "magickeys-portal:latest"  --build-arg APP_VERSION=${{ github.sha }} .
       - name: Point the web app at the new image
+        # 30 Oct 2026 outage: changing the image already restarts the app. The extra
+        # `az webapp restart` that used to follow cancelled that start
+        # ("SiteStartupCancelled") and began a second one, which then waited
+        # 10 minutes in Azure's start-up queue. One restart only.
         run: |
           az webapp config container set  --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}"  --container-image-name "${{ vars.AZURE_ACR }}.azurecr.io/magickeys-portal:${{ github.sha }}"  --container-registry-url "https://${{ vars.AZURE_ACR }}.azurecr.io"
-          az webapp restart --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}"
       - name: Wait for the health check
         run: |
           for i in $(seq 1 30); do
@@ -76,18 +79,25 @@ jobs:
           [ "$STATE" = "Running" ] || { echo "Web app did not reach Running"; exit 1; }
           # The site state reads Running straight after a restart even if the new
           # container never starts (audit INFRA-02), so the portal itself must answer.
+          # 30 Oct 2026: a plain 200 was also given by the OLD container in the seconds
+          # before it shut down, so the deploy reported success while the site was down
+          # for 12 minutes. Success now means /api/health reports THIS commit, and the
+          # wait covers Azure's slow starts on this plan (up to 20 minutes).
           URL="${{ vars.PORTAL_URL || 'https://magickeys-balwyn-portal.com' }}/api/health"
-          for i in $(seq 1 40); do
-            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL" || true)
-            echo "health=$CODE"; [ "$CODE" = "200" ] && exit 0; sleep 10
+          for i in $(seq 1 120); do
+            BODY=$(curl -s --max-time 10 "$URL" || true)
+            VERSION=$(printf '%s' "$BODY" | sed -n 's/.*"version":"\([0-9a-f]*\)".*/\1/p')
+            echo "$(date -u +%H:%M:%S) version=${VERSION:-none}"
+            [ "$VERSION" = "${{ github.sha }}" ] && exit 0
+            sleep 10
           done
-          echo "The portal did not answer $URL with 200 after the deploy"; exit 1
+          echo "The portal did not report version ${{ github.sha }} within 20 minutes"; exit 1
 
   restore-image:
     # Manual rollback only (Actions > Deploy to Azure > Run workflow, with a tag).
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.restore_image_tag != '' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     environment: production
     env:
       TAG: ${{ inputs.restore_image_tag }}
@@ -103,14 +113,16 @@ jobs:
         run: az acr repository show --name "${{ vars.AZURE_ACR }}" --image "magickeys-portal:$TAG" --query digest --output tsv
       - name: Put the image live
         run: |
+          # Changing the image restarts the app; no second restart (30 Oct 2026 outage).
           az webapp config container set  --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}"  --container-image-name "${{ vars.AZURE_ACR }}.azurecr.io/magickeys-portal:$TAG"  --container-registry-url "https://${{ vars.AZURE_ACR }}.azurecr.io" --output none
-          az webapp restart --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" --output none
       - name: Confirm it is configured and answering
         run: |
           CONFIGURED=$(az webapp config show --name "${{ vars.AZURE_APP }}" --resource-group "${{ vars.AZURE_RG }}" --query linuxFxVersion --output tsv)
           test "$CONFIGURED" = "DOCKER|${{ vars.AZURE_ACR }}.azurecr.io/magickeys-portal:$TAG"
           URL="${{ vars.PORTAL_URL || 'https://magickeys-balwyn-portal.com' }}/api/health"
-          for i in $(seq 1 40); do
+          # Older images do not report a version, so a rollback waits for a 200 instead,
+          # over the same 20 minutes as a normal deploy.
+          for i in $(seq 1 120); do
             CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL" || true)
             echo "health=$CODE"; [ "$CODE" = "200" ] && exit 0; sleep 10
           done
