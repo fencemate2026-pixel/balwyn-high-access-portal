@@ -3,7 +3,7 @@
 # The same image runs anywhere Docker runs, so what is tested is what ships.
 
 # ---- build ---------------------------------------------------------------------
-FROM node:22-bookworm-slim AS build
+FROM node:25-bookworm-slim AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
@@ -12,7 +12,7 @@ COPY . .
 RUN npm run build && npm prune --omit=dev
 
 # ---- runtime -------------------------------------------------------------------
-FROM node:22-bookworm-slim AS runtime
+FROM node:25-bookworm-slim AS runtime
 WORKDIR /app
 # Commit this image was built from (30 Oct 2026). /api/health reports it so a deploy
 # can prove the NEW version is answering, not the old one shutting down.
