@@ -85,12 +85,27 @@ test("deposits in dollars and cents save exactly, including amounts like $19.99"
   }
 });
 
-test("operators can book without gates, but a booking that opens gates needs an administrator with settings unlocked", async (t) => {
+test("operators can book without gates, but a booking that opens gates needs an administrator", async (t) => {
   const { post } = await setup(t, "operator");
   const withGates = await post({ ...booking("2026-11-25", "Gate Club"), gateIds: ["TF-ENTRY"], leadMinutes: 120, lagMinutes: 120 });
   assert.equal(withGates.status, 403);
-  assert.equal((await withGates.json()).code, "admin_password_required");
+  assert.equal((await withGates.json()).code, "administrator_required");
   assert.equal((await post({ ...booking("2026-11-25", "Gate Club"), gateIds: [] })).status, 200);
   assert.equal((await post(booking("2026-11-26", "Default Club"))).status, 200, "no gates unless explicitly ticked");
 });
 
+
+test("an administrator saves a booking that opens gates without the settings password (30 Oct 2026)", async (t) => {
+  // This session has NO settings unlock cookie: only the administrator sign-in.
+  const { post, get } = await setup(t, "administrator");
+  const saved = await post({ ...booking("2026-11-27", "Hire Club"), gateIds: ["TF-ENTRY"], leadMinutes: 15, lagMinutes: 15 });
+  assert.equal(saved.status, 200, JSON.stringify(await saved.clone().json()));
+  const body = await (await get("?from=2026-11-23&to=2026-11-29")).json();
+  assert.equal(body.visits.length, 1);
+});
+
+test("viewers still cannot save any booking", async (t) => {
+  const { post } = await setup(t, "viewer");
+  const refused = await post({ ...booking("2026-11-28", "View Club"), gateIds: ["TF-ENTRY"] });
+  assert.ok([401, 403].includes(refused.status), `viewer got ${refused.status}`);
+});

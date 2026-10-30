@@ -422,3 +422,16 @@
 .control-portal .workspace-header-right { flex-wrap: nowrap !important; min-width: 0; }
 @media (max-width: 1700px) { .control-portal .header-safety-note { display: none; } }
 @media (max-width: 1560px) { .control-portal .header-safety .safety-command.fire em { display: none; } .control-portal .connection-pill { display: none !important; } }
+
+/* ------------------------------------------------------------------
+   Fixed header — 30 Oct 2026 (Jarrod): the top bar (system state, fire
+   button, gate lights, controller status, operator) stays visible while
+   scrolling, on every page. control-room.css set it to position: relative,
+   which let it scroll away; this restores sticky behaviour above content
+   such as the 3D gate views.
+   ------------------------------------------------------------------ */
+.control-portal .workspace-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 50 !important;
+}

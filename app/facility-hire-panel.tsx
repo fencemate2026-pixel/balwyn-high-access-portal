@@ -121,11 +121,11 @@ function monthTitle(iso: string): { month: string; year: string } {
 }
 
 /**
- * canLinkGates: only administrators may tick gates to open for a booking, and
- * the server also requires the settings password (10 Oct 2026). Operators can
- * still save bookings without gates.
+ * canLinkGates: only administrators may tick gates to open for a booking; the
+ * server enforces the same rule. No settings password is needed (30 Oct 2026).
+ * Operators can still save bookings without gates.
  */
-export default function FacilityHirePanel({ canBook = true, canLinkGates = false, adminUnlocked = false, onRequireUnlock }: { canBook?: boolean; canLinkGates?: boolean; adminUnlocked?: boolean; onRequireUnlock?: () => void }) {
+export default function FacilityHirePanel({ canBook = true, canLinkGates = false }: { canBook?: boolean; canLinkGates?: boolean }) {
   const today = melbourneToday();
   const [weekStart, setWeekStart] = useState(() => mondayOf(today));
   const [monthCursor, setMonthCursor] = useState(() => monthStart(today));
@@ -210,11 +210,6 @@ export default function FacilityHirePanel({ canBook = true, canLinkGates = false
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setNotice(""); setError("");
-    if (gateIds.length && !adminUnlocked) {
-      onRequireUnlock?.();
-      setError("Opening gates for a booking needs the administrator settings password. Enter it, then save again, or untick the gates.");
-      return;
-    }
     setSaving(true);
     try {
       const response = await fetch("/api/hire", {

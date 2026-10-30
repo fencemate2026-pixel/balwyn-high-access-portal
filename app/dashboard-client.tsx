@@ -961,7 +961,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             </>
           )}
 
-          {activeView === "hire" && <FacilityHirePanel canBook={canOperate} canLinkGates={isAdministrator} adminUnlocked={adminUnlocked} onRequireUnlock={() => setAdminUnlockOpen(true)} />}
+          {activeView === "hire" && <FacilityHirePanel canBook={canOperate} canLinkGates={isAdministrator} />}
 
           {activeView === "gates" && (
             <section className="view-panel">

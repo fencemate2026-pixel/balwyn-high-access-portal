@@ -31,7 +31,7 @@ export default function TermsPage() {
       },
       {
         title: "Roles and protected changes",
-        content: <p>Each account has a role (viewer, operator or administrator) set by the school’s portal administrator or RJL. Some changes, including gate schedules, automation, staff accounts, system settings and service records, also need the separate administrator settings password. Only use the access your role gives you, keep passwords and authenticator codes private, and lock settings when you have finished.</p>,
+        content: <p>Each account has a role (viewer, operator or administrator) set by the school’s portal administrator or RJL. Some changes, including automation, staff accounts, system settings and service records, also need the separate administrator settings password. Only use the access your role gives you, keep passwords and authenticator codes private, and lock settings when you have finished.</p>,
       },
       {
         title: "Emergency functions",

@@ -65,8 +65,8 @@ function melbourneNow(offsetMinutes) {
   return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
 }
 
-// Bookings that open gates need an administrator with settings unlocked
-// (10 Oct 2026), so gate-linked booking tests use setup(t, "administrator").
+// Bookings that open gates need an administrator (settings password dropped
+// 30 Oct 2026), so gate-linked booking tests use setup(t, "administrator").
 async function setup(t, role = "operator") {
   const { pg, fetchDatabase } = await databaseFixture(t);
   for (const key of Object.keys(env)) delete env[key];

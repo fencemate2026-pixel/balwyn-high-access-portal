@@ -1,5 +1,5 @@
 import { getSql } from "@/db";
-import { assertSameOrigin, getAdminSettingsAccess, requireOperator } from "@/lib/portal-auth";
+import { assertSameOrigin, requireOperator } from "@/lib/portal-auth";
 import { GATES, isGateActive } from "@/lib/portal-model";
 import { readBoundedText } from "@/lib/request-body";
 
@@ -133,11 +133,12 @@ export async function POST(request: Request) {
   if (depositLeft && !(Number.isFinite(depositAmount) && depositAmount > 0 && depositAmount <= 100_000 && Math.abs(depositAmount * 100 - depositCents) < 1e-6)) return json({ error: "Enter the deposit amount (up to $100,000, in dollars and cents)." }, 400);
   if (comment.length > 4000) return json({ error: "The comment is too long." }, 400);
   if (gateIds.length > MAX_GATES || gateIds.some((id) => !isGateActive(id))) return json({ error: "Choose only active gates to open for this booking." }, 400);
-  // 10 Oct 2026 (Jarrod): a booking that opens gates automatically decides when
-  // school gates stand open, like a schedule, so it needs an administrator with
-  // the settings password. Operators can still save bookings with no gates.
-  if (gateIds.length && (auth.user.role !== "administrator" || !await getAdminSettingsAccess(request))) {
-    return json({ error: "Opening gates for a booking needs an administrator with settings unlocked. Untick the gates to save the booking without them.", code: "admin_password_required" }, 403);
+  // A booking that opens gates automatically decides when school gates stand
+  // open, like a schedule, so it needs an administrator. 30 Oct 2026 (Jarrod):
+  // the settings password is no longer required, matching gate schedules
+  // (24 Oct 2026). Operators can still save bookings with no gates.
+  if (gateIds.length && auth.user.role !== "administrator") {
+    return json({ error: "Opening gates for a booking needs an administrator. Untick the gates to save the booking without them.", code: "administrator_required" }, 403);
   }
   for (const minutes of [leadMinutes, lagMinutes]) {
     if (!Number.isInteger(minutes) || minutes < 0 || minutes > 120) return json({ error: "Gate lead-in and run-out must be 0 to 120 minutes." }, 400);
