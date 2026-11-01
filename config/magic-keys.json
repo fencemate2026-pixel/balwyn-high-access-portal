@@ -1,0 +1,72 @@
+{
+  "$schema": "https://balwyn.local/schemas/magic-keys.v1.json",
+  "schemaVersion": "1.0.0",
+  "campus": {
+    "name": "Balwyn High School",
+    "timezone": "Australia/Melbourne",
+    "compassTenant": null,
+    "guardianTenant": null
+  },
+  "pulse": {
+    "durationMs": 1500,
+    "activeLevel": "LOW",
+    "recoverLevel": "HIGH",
+    "minRetriggerMs": 2000,
+    "watchdogMs": 8000
+  },
+  "doors": [
+    {"id": "S1", "label": null, "bcmGpio": 22, "acbInput": "S1", "houseColourToken": "karawun-green", "enabled": true, "lockdownExempt": false, "notes": null},
+    {"id": "S2", "label": null, "bcmGpio": 23, "acbInput": "S2", "houseColourToken": "galada-blue", "enabled": true, "lockdownExempt": false, "notes": null},
+    {"id": "S3", "label": null, "bcmGpio": 24, "acbInput": "S3", "houseColourToken": "ngawan-yellow", "enabled": true, "lockdownExempt": false, "notes": null},
+    {"id": "S4", "label": null, "bcmGpio": 25, "acbInput": "S4", "houseColourToken": "wurun-red", "enabled": true, "lockdownExempt": false, "notes": null}
+  ],
+  "gpio": {
+    "chip": "gpiochip0",
+    "mode": "BCM",
+    "allowedPins": [22, 23, 24, 25],
+    "forbiddenPins": [0, 1, 2, 3, 14, 15]
+  },
+  "webhooks": {
+    "listenBind": "127.0.0.1",
+    "listenPort": 8787,
+    "websocketPath": "/ws/telemetry",
+    "compassPath": "/hooks/compass",
+    "guardianPath": "/hooks/guardian",
+    "auth": {
+      "compassHmacEnv": "COMPASS_HMAC_SECRET",
+      "guardianHmacEnv": "GUARDIAN_HMAC_SECRET",
+      "portalBearerEnv": "PORTAL_BEARER_TOKEN"
+    },
+    "events": {
+      "SCHEDULE_RELEASE": {"action": "PULSE_DOOR", "requiresDoorId": true},
+      "LOCKDOWN": {"action": "INHIBIT_ALL_PULSES", "requiresDoorId": false},
+      "ALL_CLEAR": {"action": "CLEAR_INHIBIT", "requiresDoorId": false},
+      "VISITOR_RELEASE": {"action": "PULSE_DOOR", "requiresDoorId": true},
+      "MOTOR_BLOCKED": {"action": "NOISE_ALERT", "requiresDoorId": true}
+    }
+  },
+  "houseColourTokens": {
+    "karawun-green": {"hex": "#00A651", "usage": "status-only"},
+    "galada-blue": {"hex": "#0057B8", "usage": "status-only"},
+    "ngawan-yellow": {"hex": "#FFD100", "usage": "status-only"},
+    "wurun-red": {"hex": "#E4002B", "usage": "status-only"}
+  },
+  "errorMatrix": {
+    "MOTOR_BLOCKED": {"noiseAmplitude": 0.08, "noiseFrequencyHz": 18.0, "canvasBind": "door.obstruction"},
+    "RELAY_OPEN_FAIL": {"noiseAmplitude": 0.12, "noiseFrequencyHz": 22.0, "canvasBind": "door.relay"},
+    "HMAC_REJECT": {"noiseAmplitude": 0.04, "noiseFrequencyHz": 8.0, "canvasBind": "webhook.auth"}
+  },
+  "weatherHook": {
+    "enabled": true,
+    "providerEnv": "WEATHER_API_URL",
+    "tokenEnv": "WEATHER_API_TOKEN",
+    "pollSeconds": 120,
+    "drivesParticleCanvas": true
+  },
+  "secretsPolicy": {
+    "commitSecrets": false,
+    "rawSecretFieldsForbidden": ["hmac", "secret", "token", "password", "pin", "cardUid", "privateKey"],
+    "envFile": ".env",
+    "envExampleFile": ".env.example"
+  }
+}
