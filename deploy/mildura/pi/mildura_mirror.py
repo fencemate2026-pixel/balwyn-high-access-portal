@@ -144,6 +144,36 @@ def local_status(url):
         return None
 
 
+def system_health():
+    """Best-effort Pi board metrics. Never fatal; empty dict on any error."""
+    try:
+        load = os.getloadavg()
+        with open("/proc/meminfo") as f:
+            mem = dict(l.split(":", 1) for l in f)
+        total = int(mem.get("MemTotal", "0 kB").split()[0])
+        avail = int(mem.get("MemAvailable", "0 kB").split()[0])
+        mem_pct = 100 * (1 - avail / total) if total else None
+        st = os.statvfs("/")
+        disk_pct = 100 * (1 - st.f_bavail / st.f_blocks) if st.f_blocks else None
+        uptime = float(open("/proc/uptime").read().split()[0])
+        temp = None
+        for path in ("/sys/class/thermal/thermal_zone0/temp",):
+            try:
+                temp = int(open(path).read()) / 1000.0
+                break
+            except Exception:
+                pass
+        return {
+            "board_temp_c": temp,
+            "cpu_percent": min(100, load[0] * 100 / (os.cpu_count() or 1)),
+            "memory_percent": mem_pct,
+            "disk_percent": disk_pct,
+            "uptime_s": uptime,
+        }
+    except Exception:
+        return {}
+
+
 def post(url, body):
     req = urllib.request.Request(
         url, data=json.dumps(body, default=str).encode(),
@@ -154,9 +184,10 @@ def post(url, body):
 
 def build_payload(con, state, creds, status_url, caps=()):
     """Return (payload, commit) where commit(state) advances the marks after the cloud acks."""
-    status = local_status(status_url)
+    status = local_status(status_url) or {}
+    status["health"] = system_health()
     if caps:                            # what this Pi will accept from the portal (Phase 2)
-        status = dict(status or {}, mirror_caps=sorted(caps))
+        status["mirror_caps"] = sorted(caps)
     payload = {"device_id": creds["device_id"], "secret": creds["secret"], "action": "push",
                "fw_version": "mirror-" + VERSION, "status": status, "snapshots": {}, "streams": {}}
     snap_marks, stream_marks = {}, {}
