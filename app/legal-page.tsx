@@ -13,7 +13,7 @@ export default function LegalPage({ eyebrow, title, summary, sections, updated =
           <BrandLogo tone="dark" />
           <span><small>Balwyn High School</small><strong>Secure operations portal</strong></span>
         </Link>
-        <Link href="/" className="legal-back"><ArrowLeft /> Home</Link>
+        <Link href="/" className="legal-back"><ArrowLeft /> Sign in</Link>
       </header>
 
       <article className="legal-card">

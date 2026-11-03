@@ -27,6 +27,10 @@ const csp = [
 
 const config: NextConfig = {
   poweredByHeader: false,
+  // The public landing page was removed; the sign-in screen is now the home page.
+  async redirects() {
+    return [{ source: "/brand", destination: "/", permanent: true }];
+  },
   async headers() {
     return [{ source: "/:path*", headers: [
       { key: "X-Content-Type-Options", value: "nosniff" },

@@ -84,16 +84,6 @@ test("renders sidebar skeletons deterministically", async () => {
   assert.match(first, /--skeleton-width:70%/);
 });
 
-test("renders the public landing page with operational overview content", async () => {
-  const { default: PublicAppHome } = await vite.ssrLoadModule("/app/public-app-home.tsx");
-  const html = renderToStaticMarkup(React.createElement(PublicAppHome));
-
-  assert.match(html, /Professional access operations for gates, schedules and controller health/);
-  assert.match(html, /Live operational context/);
-  assert.match(html, /Verified sign-in/);
-  assert.match(html, /Operator sign in/);
-});
-
 test("renders dashboard gate cards with portal sync and heartbeat context", async () => {
   const { default: DashboardClient } = await vite.ssrLoadModule("/app/dashboard-client.tsx");
   const { ACTIVE_GATES, makeSchedules } = await vite.ssrLoadModule("/lib/portal-model.ts");
