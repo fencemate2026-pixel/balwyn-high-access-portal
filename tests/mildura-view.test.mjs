@@ -74,7 +74,9 @@ test("the view has no live controls and no PIN, and the preview is dev-flag only
   const src = readFileSync(new URL("../app/mildura-site-view.tsx", import.meta.url), "utf8");
   assert.ok(!/method:\s*"POST"/.test(src), "no writes from the Mildura view");
   assert.ok(!/\bpin\b/i.test(src.replace(/PINs?/g, "")), "no PIN field");
-  for (const m of src.matchAll(/<Button[^>]*>/g)) assert.match(m[0], /disabled/, m[0]);
+  assert.match(src, /\["Open Gate", "Hold Open", "Lockdown"\]\.map\([^)]*\) => <button[^>]*disabled>/, "gate controls are disabled");
+  assert.match(src, /disabled title=\{PHASE2\}>Add User/, "Add User is disabled");
+  assert.ok(!/onClick=\{[^}]*(fetch|api)\(/.test(src), "no button calls the API");
   assert.match(src, /Waiting for first sync from the Mildura Pi/);
   assert.match(readFileSync(new URL("../app/dev-preview/mildura/page.tsx", import.meta.url), "utf8"), /PORTAL_DEV_FIXTURES !== "1"\) notFound\(\)/);
 });

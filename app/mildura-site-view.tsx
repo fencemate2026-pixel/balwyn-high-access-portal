@@ -5,9 +5,8 @@
 // owner-gated /api/owner/sites?view=mirror. The cloud holds no PINs, so none are
 // shown. Gate controls arrive only in Phase 2; here they are shown disabled.
 import { useEffect, useMemo, useState } from "react";
-import { LoaderCircle, MapPin, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Activity, CalendarClock, ClipboardList, Cpu, Gauge, HardDrive, LoaderCircle, MapPin, MemoryStick, PieChart, Search, ShieldCheck, Thermometer, Timer, UserCheck, Users } from "lucide-react";
+import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
 import { UNIT_ONLINE_SECONDS } from "@/lib/owner-sites-model";
 import { MILDURA_ADDRESS, accessBreakdown, gateStatus, healthTiles, usageByDay, type MirrorAccess, type MirrorStatus } from "@/lib/mildura-view-model";
 
@@ -37,17 +36,38 @@ const days = (d: unknown) => {
   return list.map((x) => typeof x === "number" ? DAYN[x] ?? String(x) : String(x)).join(" ") || "—";
 };
 
-const CSS = `
-.mv-tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
-.mv-tile{border:1px solid var(--border,#e3e7ef);border-radius:12px;padding:12px;background:var(--card,#fff)}
-.mv-tile small{display:block;opacity:.65;font-size:12px}.mv-tile b{font-size:20px}.mv-tile b.nr{font-size:13px;opacity:.6;font-weight:500}
-.mv-two{display:grid;grid-template-columns:1.6fr 1fr;gap:14px}
-.mv-bars{display:flex;align-items:flex-end;gap:3px;height:140px;margin-top:10px}
-.mv-bar{flex:1;background:#ff6b00;border-radius:3px 3px 0 0;min-height:2px;opacity:.85}
-.mv-legend{display:flex;gap:12px;font-size:12px;flex-wrap:wrap;margin-top:8px}.mv-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
-.mv-stack{display:flex;flex-direction:column;gap:14px;margin-top:14px}
-@media (max-width:900px){.mv-tiles{grid-template-columns:repeat(2,1fr)}.mv-two{grid-template-columns:1fr}}
-`;
+// Magic Keys theme (4 Nov 2026): the same building blocks the main dashboard uses —
+// GLASS_PANEL navy gradient cards, the white "Active gate controls" header strip
+// (.gate-condition) with an orange title, orange gate-ordinal badges, metric-block
+// strips, telemetry-badge / connection-pill pills. Utility classes only, no new CSS.
+const MUTED = "text-[#B9CFE2]";
+type Tone = "ok" | "bad" | "warn" | "mute";
+const TONE: Record<Tone, string> = { ok: "text-[#34d399]", bad: "text-[#ff6b6b]", warn: "text-[#fbbf24]", mute: "text-[#B9CFE2]" };
+const Pill = ({ tone, children, caps = false }: { tone: Tone; children: React.ReactNode; caps?: boolean }) =>
+  <em className={`telemetry-badge not-italic ${TONE[tone]} ${caps ? "text-[10px] font-bold tracking-[.08em] uppercase" : ""}`}><i className="signal-dot" />{children}</em>;
+const TH = `px-3 py-2 text-left text-[11px] font-semibold tracking-[.08em] uppercase ${MUTED} border-b border-white/[0.14]`;
+const TD = "px-3 py-2 border-b border-white/[0.08] text-sm";
+// Cell text sits in a <span> so the dashboard's navy-panel text rule (.campus-context .mk-navy span) colours it.
+const Td = ({ children, className = "", colSpan }: { children: React.ReactNode; className?: string; colSpan?: number }) =>
+  <td className={`${TD} ${className}`} colSpan={colSpan}><span>{children}</span></td>;
+/** The dashboard styles its navy panels inside .campus-context (Gate Schedules / Local weather);
+ *  wrapping each panel the same way reuses those exact rules. Inline style only drops its grid layout. */
+const NAVY_SCOPE: React.CSSProperties = { display: "block", padding: 0, background: "transparent", maxWidth: "none" };
+const Navy = ({ children, className = "" }: { children: React.ReactNode; className?: string }) =>
+  <div className="campus-context" style={NAVY_SCOPE}><div className={`${GLASS_PANEL} p-4 ${className}`}>{children}</div></div>;
+
+/** Section = white header strip with orange title + icon (as "Active gate controls"), then a navy glass card. */
+function Section({ n, icon: Icon, title, right, children, label }: { n: number; icon: typeof Activity; title: string; right?: React.ReactNode; children: React.ReactNode; label?: string }) {
+  return <section className="gate-condition mb-4" aria-label={label ?? title}>
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-center gap-3"><span className="gate-ordinal grid size-7 place-items-center rounded-none border border-[#FF7A00] bg-[#FF7A00] text-[11px] font-bold text-white" aria-hidden="true">{String(n).padStart(2, "0")}</span>
+        <h2 className="m-0 flex items-center gap-2 text-lg"><Icon className="size-4 text-[#FF7A00]" aria-hidden="true" /> {title}</h2></div>
+      {right}
+    </div>
+    <Navy>{children}</Navy>
+  </section>;
+}
+const Empty = ({ text = "Waiting for first sync from the Mildura Pi." }: { text?: string }) => <p className={`m-0 text-sm ${MUTED}`}>{text}</p>;
 
 export default function MilduraSiteView({ fixture }: { fixture?: MirrorDetail } = {}) {
   const [data, setData] = useState<MirrorDetail | null>(fixture ?? null);
@@ -68,9 +88,11 @@ export default function MilduraSiteView({ fixture }: { fixture?: MirrorDetail } 
     return () => { cancelled = true; clearTimeout(kick); clearInterval(timer); };
   }, [fixture]);
 
-  if (!data) return error ? <div className="os-banner warn">{error}</div> : <div className="os-row"><LoaderCircle className="animate-spin" /> Loading Mildura…</div>;
+  if (!data) return error ? <div className={`${GLASS_PANEL} p-4 text-sm`}><Pill tone="bad">{error}</Pill></div> : <div className="flex items-center gap-2"><LoaderCircle className="animate-spin" /> Loading Mildura…</div>;
   return <MilduraBody data={data} />;
 }
+
+const HEALTH_ICON = { temp: Thermometer, cpu: Cpu, mem: MemoryStick, disk: HardDrive, uptime: Timer } as const;
 
 function MilduraBody({ data }: { data: MirrorDetail }) {
   const now = Date.parse(data.serverTime) || Date.now();
@@ -81,104 +103,120 @@ function MilduraBody({ data }: { data: MirrorDetail }) {
   const today = new Date(now).toLocaleDateString("en-CA", { timeZone: TZ });
   const usage = useMemo(() => usageByDay(data.access30, today), [data.access30, today]);
   const max = Math.max(1, ...usage.map((b) => b.count));
+  const total = usage.reduce((a, b) => a + b.count, 0);
   const breakdown = useMemo(() => accessBreakdown(data.access30), [data.access30]);
   const [tab, setTab] = useState<"access" | "changes">("access");
   const [q, setQ] = useState("");
   const users = data.users.filter((u) => u.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const lastSeen = ago(unit?.last_seen ?? null, now);
 
   return (
-    <div>
-      <style>{CSS}</style>
-      {/* Header and gate status */}
-      <div className="os-row" style={{ justifyContent: "space-between" }}>
-        <div>
-          <h2 style={{ margin: 0 }}>{SITE_NAME}</h2>
-          <small style={{ opacity: .7 }}>Boom gate · keypad · read-only mirror of the site Pi</small>
+    <div className="mildura-view">
+      {/* 1. Header and gate status */}
+      <section className="gate-condition mb-4" aria-label="Mildura gate status">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="m-0 flex items-center gap-2 text-lg"><ShieldCheck className="size-4 text-[#FF7A00]" aria-hidden="true" /> {SITE_NAME}</h2>
+          <span className="connection-pill"><i /> Read-only mirror · owner only</span>
         </div>
-        <div className="os-row">
-          <span className={`os-pill ${on ? "os-ok" : "os-bad"}`}>{on ? "Online" : "Offline"} · last seen {ago(unit?.last_seen ?? null, now)}</span>
-          <span className={`os-pill os-${gate.tone}`}>Gate: {gate.label}</span>
-        </div>
-      </div>
-      <div className="os-row" style={{ margin: "10px 0" }} title={PHASE2}>
-        {["Open Gate", "Hold Open", "Lockdown"].map((l) => <Button key={l} size="sm" variant="outline" disabled>{l}</Button>)}
-        <small style={{ opacity: .65 }}>{PHASE2}</small>
-      </div>
-      {empty && <div className="os-banner info"><strong>Waiting for first sync from the Mildura Pi.</strong> Nothing has been received yet.</div>}
-
-      <div className="mv-stack">
-        <section className="os-card" aria-label="Authorised persons">
-          <h3>Authorised persons</h3>
-          {data.persons.length ? <table className="os-table" style={{ marginTop: 8 }}><thead><tr><th>Name</th><th>Role</th></tr></thead>
-            <tbody>{data.persons.map((p) => <tr key={p.local_id}><td>{p.name}</td><td>{p.role ?? ""}</td></tr>)}</tbody></table>
-            : <p style={{ fontSize: 13, opacity: .7 }}>None synced yet.</p>}
-        </section>
-
-        <section className="mv-tiles" aria-label="Pi health">
-          {healthTiles(unit?.last_status ?? null).map((t) => <div className="mv-tile" key={t.key}><small>{t.label}</small>{t.value ? <b>{t.value}</b> : <b className="nr">not reported</b>}</div>)}
-        </section>
-
-        <section className="os-card" aria-label="Keypad usage">
-          <h3>Keypad usage <small style={{ opacity: .6, fontWeight: 400 }}>last 30 days</small></h3>
-          <div className="mv-bars" role="img" aria-label={`Keypad uses per day, total ${usage.reduce((a, b) => a + b.count, 0)}`}>
-            {usage.map((b) => <div key={b.day} className="mv-bar" style={{ height: `${(b.count / max) * 100}%` }} title={`${b.day}: ${b.count}`} />)}
-          </div>
-          <div className="os-row" style={{ justifyContent: "space-between", fontSize: 11, opacity: .6 }}><span>{usage[0].day}</span><span>{usage[usage.length - 1].day}</span></div>
-        </section>
-
-        <section className="os-card" aria-label="Site location">
-          <h3><MapPin size={16} aria-hidden="true" /> Site location</h3>
-          <p style={{ fontSize: 13, margin: "8px 0" }}>{SITE_NAME}<br />{MILDURA_ADDRESS}</p>
-          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${SITE_NAME}, ${MILDURA_ADDRESS}`)}`} target="_blank" rel="noopener noreferrer">Open in Google Maps</a>
-        </section>
-
-        <div className="mv-two">
-          <section className="os-card" aria-label="Auto-open schedules">
-            <h3>Auto-open schedules</h3>
-            {data.schedules.length ? <table className="os-table" style={{ marginTop: 8 }}><thead><tr><th>Name</th><th>Days</th><th>Open</th><th>Close</th><th /></tr></thead>
-              <tbody>{data.schedules.map((s) => <tr key={s.local_id}><td>{s.name}</td><td>{days(s.days)}</td><td>{String(s.open_time).slice(0, 5)}</td><td>{String(s.close_time).slice(0, 5)}</td>
-                <td><span className={`os-pill ${s.enabled ? "os-ok" : "os-mute"}`}>{s.enabled ? "Enabled" : "Off"}</span></td></tr>)}</tbody></table>
-              : <p style={{ fontSize: 13, opacity: .7 }}>None synced yet.</p>}
-          </section>
-          <section className="os-card" aria-label="Access breakdown">
-            <h3>Access breakdown <small style={{ opacity: .6, fontWeight: 400 }}>30 days</small></h3>
-            <Donut parts={[["Granted", breakdown.granted, "#0f9d58"], ["Denied", breakdown.denied, "#d93025"], ["Auto-open", breakdown.autoOpen, "#ff6b00"]]} />
-          </section>
-        </div>
-
-        <section className="os-card" aria-label="Authorised users">
-          <div className="os-row" style={{ justifyContent: "space-between" }}>
-            <h3>Authorised users <span className="os-pill os-mute">{data.users.length}</span></h3>
-            <div className="os-row">
-              <label className="os-row" style={{ gap: 4 }}><Search size={14} aria-hidden="true" /><Input placeholder="Search users" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search users" style={{ width: 200 }} /></label>
-              <Button size="sm" variant="outline" disabled title={PHASE2}>Add User</Button>
+        <Navy>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="gate-ordinal grid size-9 place-items-center rounded-none border border-[#FF7A00] bg-[#FF7A00] text-xs font-bold text-white" aria-hidden="true">01</span>
+              <div><h3 className="m-0 text-sm font-semibold">Boom gate</h3><p className={`m-0 mt-1 text-[11px] ${MUTED}`}>Keypad · auto-open · {unit?.fw_version ?? "mirror"}</p></div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Pill tone={on ? "ok" : "bad"}>{on ? "Online" : "Offline"} · last seen {lastSeen}</Pill>
+              <Pill tone={gate.tone}>Gate: {gate.label}</Pill>
             </div>
           </div>
-          <div className="os-scroll" style={{ marginTop: 10, maxHeight: 420, overflowY: "auto" }}><table className="os-table">
-            <thead><tr><th>Name</th><th>Status</th><th>Schedule</th><th>Added</th></tr></thead>
-            <tbody>{users.length ? users.map((u) => <tr key={u.local_id}><td>{u.name}</td>
-              <td><span className={`os-pill ${u.enabled ? "os-ok" : "os-bad"}`}>{u.enabled ? "Enabled" : "Disabled"}</span></td>
-              <td><span className={`os-pill ${!u.schedule_type || u.schedule_type === "always" ? "os-mute" : "os-warn"}`}>{u.schedule_type ? u.schedule_type.replace(/_/g, " ") : "always"}</span></td>
-              <td style={{ opacity: .7 }}>{local(u.created_at_local)}</td></tr>)
-              : <tr><td colSpan={4} style={{ opacity: .7 }}>{data.users.length ? "No user matches that search." : "Waiting for first sync from the Mildura Pi."}</td></tr>}</tbody>
-          </table></div>
-        </section>
-
-        <section>
-          <div className="os-tabs" role="tablist">
-            {([["access", "Access log"], ["changes", "Changes log"]] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={`os-tab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>{l}</button>)}
+          <div className="mt-4 flex flex-wrap items-center gap-2" title={PHASE2}>
+            {["Open Gate", "Hold Open", "Lockdown"].map((l) => <button key={l} type="button" className={glassButton()} disabled>{l}</button>)}
+            <small className={MUTED}>{PHASE2}</small>
           </div>
-          {tab === "access" ? <div className="os-scroll"><table className="os-table">
-            <thead><tr><th>Time (site)</th><th>User</th><th>Method</th><th>Result</th></tr></thead>
-            <tbody>{data.access.length ? data.access.map((a, i) => <tr key={a.local_id ?? i}><td>{local(a.occurred_at_local)}</td><td>{a.user_name ?? "Unknown"}</td><td>{a.method ?? ""}</td>
-              <td><span className={`os-pill ${a.success ? "os-ok" : "os-bad"}`}>{a.success ? "Granted" : "Denied"}</span></td></tr>)
-              : <tr><td colSpan={4} style={{ opacity: .7 }}>Waiting for first sync from the Mildura Pi.</td></tr>}</tbody></table></div>
-          : <div className="os-scroll"><table className="os-table">
-            <thead><tr><th>Time (site)</th><th>Action</th><th>Detail</th><th>By</th></tr></thead>
-            <tbody>{data.changes.length ? data.changes.map((c) => <tr key={c.local_id}><td>{local(c.occurred_at_local)}</td><td>{c.action}</td><td>{c.detail ?? ""}</td><td style={{ opacity: .7 }}>{c.changed_by ?? ""}</td></tr>)
-              : <tr><td colSpan={4} style={{ opacity: .7 }}>Waiting for first sync from the Mildura Pi.</td></tr>}</tbody></table></div>}
-        </section>
-      </div>
+          {empty && <div className={`${GLASS_TILE} mt-4 p-3 text-sm`}><strong className="text-[#FF7A00]">Waiting for first sync from the Mildura Pi.</strong> <span className={MUTED}>Nothing has been received yet.</span></div>}
+        </Navy>
+      </section>
+
+      {/* 2. Authorised persons */}
+      <Section n={2} icon={UserCheck} title="Authorised persons">
+        {data.persons.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{data.persons.map((p) =>
+          <div key={p.local_id} className={`${GLASS_TILE} p-3`}><strong className="block text-sm">{p.name}</strong><small className={MUTED}>{p.role ?? "—"}</small></div>)}</div> : <Empty />}
+      </Section>
+
+      {/* 3. Pi health: the dashboard's metric strip */}
+      <Section n={3} icon={Activity} title="Pi health" label="Pi health">
+        <div className="grid grid-cols-2 divide-white/[0.14] md:grid-cols-5 md:divide-x">
+          {healthTiles(unit?.last_status ?? null).map((t) => { const I = HEALTH_ICON[t.key as keyof typeof HEALTH_ICON]; return (
+            <div key={t.key} className="metric-block px-4 py-1">
+              <span className={MUTED}><I /> {t.label}</span>
+              <strong className="text-[#F5FBFF]">{t.value ?? "—"}</strong>
+              <p className={MUTED}>{t.value ? "From the site Pi" : "not reported"}</p>
+            </div>); })}
+        </div>
+      </Section>
+
+      {/* 4. Keypad usage */}
+      <Section n={4} icon={Gauge} title="Keypad usage" right={<span className="flex items-center gap-2 text-xs text-muted-foreground">Last 30 days · {total} uses</span>}>
+        <div className="flex h-36 items-end gap-[3px]" role="img" aria-label={`Keypad uses per day, total ${total}`}>
+          {usage.map((b) => <div key={b.day} className="min-h-[2px] flex-1 bg-[#FF7A00] shadow-[0_0_8px_rgba(255,122,0,0.45)]" style={{ height: `${(b.count / max) * 100}%` }} title={`${b.day}: ${b.count}`} />)}
+        </div>
+        <div className={`mt-1 flex justify-between text-[11px] ${MUTED}`}><span>{usage[0].day}</span><span>{usage[usage.length - 1].day}</span></div>
+      </Section>
+
+      {/* 5. Site location */}
+      <Section n={5} icon={MapPin} title="Site location" label="Site location">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="m-0 text-sm">{SITE_NAME}<br /><span className={MUTED}>{MILDURA_ADDRESS}</span></p>
+          <a className={glassButton()} href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${SITE_NAME}, ${MILDURA_ADDRESS}`)}`} target="_blank" rel="noopener noreferrer"><MapPin className="size-4" aria-hidden="true" /> Open in Google Maps</a>
+        </div>
+      </Section>
+
+      {/* 6. Auto-open schedules */}
+      <Section n={6} icon={CalendarClock} title="Auto-open schedules">
+        {data.schedules.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{data.schedules.map((s) =>
+          <div key={s.local_id} className={`${GLASS_TILE} p-3 ${s.enabled ? "border-[#FF7A00] bg-[#FF7A00]/[0.12]" : ""}`}>
+            <div className="flex items-center justify-between gap-2"><strong className="text-sm">{s.name}</strong><Pill tone={s.enabled ? "ok" : "mute"} caps>{s.enabled ? "Active" : "Off"}</Pill></div>
+            <p className="m-0 mt-2 text-xl font-bold tabular-nums">{String(s.open_time).slice(0, 5)} – {String(s.close_time).slice(0, 5)}</p>
+            <small className={MUTED}>{days(s.days)}</small>
+          </div>)}</div> : <Empty />}
+      </Section>
+
+      {/* 7. Access breakdown */}
+      <Section n={7} icon={PieChart} title="Access breakdown" right={<span className="text-xs text-muted-foreground">Last 30 days</span>}>
+        <Donut parts={[["Granted", breakdown.granted, "#34d399"], ["Denied", breakdown.denied, "#ff6b6b"], ["Auto-open", breakdown.autoOpen, "#FF7A00"]]} />
+      </Section>
+
+      {/* 8. Authorised users */}
+      <Section n={8} icon={Users} title="Authorised users" label="Authorised users" right={<div className="flex flex-wrap items-center gap-2">
+        <span className="connection-pill"><i /> {data.users.length} users</span>
+        <label className={`${GLASS_PANEL} flex h-9 items-center gap-2 px-3`}><Search className="size-4 text-[#5CC8FF]" aria-hidden="true" />
+          <input className="w-44 bg-transparent text-sm text-[#F5FBFF] outline-none placeholder:text-[#B9CFE2]" placeholder="Search users" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search users" /></label>
+        <button type="button" className={glassButton("orange")} disabled title={PHASE2}>Add User</button>
+      </div>}>
+        <div className="max-h-[440px] overflow-auto"><table className="w-full border-collapse">
+          <thead><tr><th className={TH}>Name</th><th className={TH}>Status</th><th className={TH}>Schedule</th><th className={TH}>Added</th></tr></thead>
+          <tbody>{users.length ? users.map((u) => <tr key={u.local_id}><Td>{u.name}</Td>
+            <Td><Pill tone={u.enabled ? "ok" : "bad"} caps>{u.enabled ? "Enabled" : "Disabled"}</Pill></Td>
+            <Td><Pill tone={!u.schedule_type || u.schedule_type === "always" ? "mute" : "warn"} caps>{u.schedule_type ? u.schedule_type.replace(/_/g, " ") : "always"}</Pill></Td>
+            <Td className={MUTED}>{local(u.created_at_local)}</Td></tr>)
+            : <tr><Td colSpan={4}><Empty text={data.users.length ? "No user matches that search." : undefined} /></Td></tr>}</tbody>
+        </table></div>
+      </Section>
+
+      {/* 9. Access log / Changes log */}
+      <Section n={9} icon={ClipboardList} title={tab === "access" ? "Access log" : "Changes log"} label="Logs" right={<div className="flex gap-2" role="tablist">
+        {([["access", "Access log"], ["changes", "Changes log"]] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={glassButton(tab === k ? "orange" : "glass")} onClick={() => setTab(k)}>{l}</button>)}
+      </div>}>
+        <div className="max-h-[520px] overflow-auto">{tab === "access" ? <table className="w-full border-collapse">
+          <thead><tr><th className={TH}>Time (site)</th><th className={TH}>User</th><th className={TH}>Method</th><th className={TH}>Result</th></tr></thead>
+          <tbody>{data.access.length ? data.access.map((a, i) => <tr key={a.local_id ?? i}><Td className="tabular-nums">{local(a.occurred_at_local)}</Td><Td>{a.user_name ?? "Unknown"}</Td><Td className={MUTED}>{a.method ?? ""}</Td>
+            <Td><Pill tone={a.success ? "ok" : "bad"} caps>{a.success ? "Granted" : "Denied"}</Pill></Td></tr>)
+            : <tr><Td colSpan={4}><Empty /></Td></tr>}</tbody></table>
+        : <table className="w-full border-collapse">
+          <thead><tr><th className={TH}>Time (site)</th><th className={TH}>Action</th><th className={TH}>Detail</th><th className={TH}>By</th></tr></thead>
+          <tbody>{data.changes.length ? data.changes.map((c) => <tr key={c.local_id}><Td className="tabular-nums">{local(c.occurred_at_local)}</Td><Td>{c.action}</Td><Td>{c.detail ?? ""}</Td><Td className={MUTED}>{c.changed_by ?? ""}</Td></tr>)
+            : <tr><Td colSpan={4}><Empty /></Td></tr>}</tbody></table>}</div>
+      </Section>
     </div>
   );
 }
@@ -188,13 +226,13 @@ function Donut({ parts }: { parts: [string, number, string][] }) {
   const r = 42, c = 2 * Math.PI * r;
   let off = 0;
   return (
-    <div className="os-row" style={{ marginTop: 8, gap: 16 }}>
-      <svg width="120" height="120" viewBox="0 0 120 120" role="img" aria-label={parts.map((p) => `${p[0]} ${p[1]}`).join(", ")}>
-        <circle cx="60" cy="60" r={r} fill="none" stroke="rgba(127,127,127,.2)" strokeWidth="16" />
-        {total > 0 && parts.map(([l, v, col]) => { const len = (v / total) * c; const el = <circle key={l} cx="60" cy="60" r={r} fill="none" stroke={col} strokeWidth="16" strokeDasharray={`${len} ${c - len}`} strokeDashoffset={-off} transform="rotate(-90 60 60)" />; off += len; return el; })}
-        <text x="60" y="65" textAnchor="middle" fontSize="16" fontWeight="700" fill="currentColor">{total}</text>
+    <div className="flex flex-wrap items-center gap-6">
+      <svg width="132" height="132" viewBox="0 0 120 120" role="img" aria-label={parts.map((p) => `${p[0]} ${p[1]}`).join(", ")}>
+        <circle cx="60" cy="60" r={r} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth="14" />
+        {total > 0 && parts.map(([l, v, col]) => { const len = (v / total) * c; const el = <circle key={l} cx="60" cy="60" r={r} fill="none" stroke={col} strokeWidth="14" strokeDasharray={`${len} ${c - len}`} strokeDashoffset={-off} transform="rotate(-90 60 60)" />; off += len; return el; })}
+        <text x="60" y="66" textAnchor="middle" fontSize="18" fontWeight="700" fill="#F5FBFF">{total}</text>
       </svg>
-      <div className="mv-legend" style={{ flexDirection: "column" }}>{parts.map(([l, v, col]) => <span key={l}><i style={{ background: col }} />{l}: {v}</span>)}</div>
+      <div className="grid gap-2 sm:grid-cols-3">{parts.map(([l, v, col]) => <div key={l} className={`${GLASS_TILE} min-w-32 p-3`}><small className={`flex items-center gap-2 ${MUTED}`}><i className="inline-block size-2.5" style={{ background: col }} />{l}</small><strong className="text-xl tabular-nums">{v}</strong></div>)}</div>
     </div>
   );
 }
