@@ -113,3 +113,17 @@ export function personInput(body: Record<string, unknown>) {
 export function authorisedBy(body: Record<string, unknown>, ownerName: string): string {
   return text(body.authorisedBy, 80, "Authorised by", false) ?? ownerName;
 }
+
+/**
+ * Health dot for a site in the owner's list. "" = no gate units to report on (not monitored),
+ * "bad" = any unit silent for UNIT_ONLINE_SECONDS or more, "warn" = a unit still applying an
+ * older config or in lockdown, "ok" = every unit reporting and up to date.
+ */
+export function siteHealth(
+  site: { config_version: number; gd_units: { last_seen: string | null; applied_version: number; lockdown: boolean }[] },
+  now: number,
+): "" | "ok" | "warn" | "bad" {
+  if (!site.gd_units.length) return "";
+  if (site.gd_units.some((u) => !u.last_seen || (now - Date.parse(u.last_seen)) / 1000 >= UNIT_ONLINE_SECONDS)) return "bad";
+  return site.gd_units.some((u) => u.applied_version < site.config_version || u.lockdown) ? "warn" : "ok";
+}

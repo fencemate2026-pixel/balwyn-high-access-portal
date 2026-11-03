@@ -1,0 +1,25 @@
+[Unit]
+Description=Mildura gate mirror (read-only, outbound HTTPS only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/mildura-mirror/mildura_mirror.py
+Environment=MIRROR_ENV=/etc/mildura-mirror.env
+Restart=always
+RestartSec=30
+Nice=15
+IOSchedulingClass=idle
+MemoryMax=64M
+User=mildura-mirror
+StateDirectory=mildura-mirror
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# The gate database is read-only to this unit; state lives in /var/lib/mildura-mirror only.
+
+[Install]
+WantedBy=multi-user.target

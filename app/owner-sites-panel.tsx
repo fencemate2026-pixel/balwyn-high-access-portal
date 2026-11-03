@@ -43,6 +43,7 @@ const online = (u: { last_seen: string | null }, now: number) => !!u.last_seen &
 
 const CSS = `
 .os-wrap{display:grid;grid-template-columns:230px 1fr;gap:16px;align-items:start}
+.os-solo{grid-template-columns:1fr}
 .os-list{display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid var(--border,#e3e7ef);border-radius:12px;background:var(--card,#fff)}
 .os-list h4{margin:4px 6px 6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.65}
 .os-site{display:flex;gap:10px;align-items:center;text-align:left;padding:9px 10px;border-radius:8px;border:0;background:none;cursor:pointer;color:inherit}
@@ -86,10 +87,13 @@ async function api<T>(init?: { body?: Record<string, unknown>; query?: string })
 }
 
 // onOpenPortal: switch the dashboard to a view of this portal (Balwyn) in place.
-export default function OwnerSitesPanel({ onOpenPortal }: { onOpenPortal?: () => void } = {}) {
+// selectedId + hideList: the dashboard sidebar owns the site list and tells this panel which
+// site to show (a gd_* site slug, or the id of a linked site such as Mildura). Without them
+// the panel keeps its own list, as before.
+export default function OwnerSitesPanel({ onOpenPortal, selectedId, hideList = false }: { onOpenPortal?: () => void; selectedId?: string | null; hideList?: boolean } = {}) {
   const [sites, setSites] = useState<SiteRow[] | null>(null);
   const [links, setLinks] = useState<OwnerSiteLink[]>([]);
-  const [slug, setSlug] = useState<string | null>(null);
+  const [slugState, setSlugState] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [tab, setTab] = useState<Tab>("gates");
   const [now, setNow] = useState(() => Date.now());
@@ -99,11 +103,15 @@ export default function OwnerSitesPanel({ onOpenPortal }: { onOpenPortal?: () =>
   const [changes, setChanges] = useState<Change[] | null>(null);
   const [callUnit, setCallUnit] = useState("");
   const [callResult, setCallResult] = useState("");
+  // The chosen site: the sidebar's choice when it supplies one, otherwise the panel's own.
+  const picked = selectedId ?? slugState;
+  const linked = links.find((l): l is Extract<OwnerSiteLink, { kind: "external" }> => l.id === picked && l.kind === "external") ?? null;
+  const slug = linked ? null : picked;
 
   const loadSites = useCallback(async () => {
     const data = await api<{ sites: SiteRow[]; links?: OwnerSiteLink[] }>();
     setSites(data.sites); setLinks(data.links ?? []);
-    setSlug((current) => current ?? data.sites.find((s) => s.slug === "thomastown")?.slug ?? data.sites[0]?.slug ?? null);
+    setSlugState((current) => current ?? data.sites.find((s) => s.slug === "thomastown")?.slug ?? data.sites[0]?.slug ?? null);
   }, []);
   const loadDetail = useCallback(async (which: string) => {
     const data = await api<Detail>({ query: `?site=${encodeURIComponent(which)}` });
@@ -158,12 +166,12 @@ export default function OwnerSitesPanel({ onOpenPortal }: { onOpenPortal?: () =>
     : s.gd_units.some((u) => u.applied_version < s.config_version || u.lockdown) ? "warn" : "ok";
 
   return (
-    <section className="os-wrap" aria-label="Owner sites">
+    <section className={`os-wrap${hideList ? " os-solo" : ""}`} aria-label="Owner sites">
       <style>{CSS}</style>
-      <nav className="os-list" aria-label="Sites">
+      {!hideList && <nav className="os-list" aria-label="Sites">
         <h4>My sites</h4>
         {sites.map((s) => (
-          <button key={s.id} type="button" className={`os-site ${s.slug === slug ? "on" : ""}`} onClick={() => { setSlug(s.slug); setCalls(null); setChanges(null); }}>
+          <button key={s.id} type="button" className={`os-site ${s.slug === slug ? "on" : ""}`} onClick={() => { setSlugState(s.slug); setCalls(null); setChanges(null); }}>
             <span className={`os-dot ${dot(s)}`} />
             <span>{s.name}<small>{s.gd_units.length} gate unit{s.gd_units.length === 1 ? "" : "s"}</small></span>
           </button>
@@ -178,9 +186,9 @@ export default function OwnerSitesPanel({ onOpenPortal }: { onOpenPortal?: () =>
               <span className="os-dot" /><span>{l.name}<small>{l.detail}</small><small>{l.note}</small></span>
               <ExternalLink className="os-ext" aria-label="Opens in a new tab" />
             </a>)}
-      </nav>
+      </nav>}
       <div>
-        {!detail ? <div className="os-row"><LoaderCircle className="animate-spin" /> Loading…</div> : <>
+        {linked ? <LinkedSitePanel link={linked} /> : !detail ? <div className="os-row"><LoaderCircle className="animate-spin" /> Loading…</div> : <>
           <div className="os-row" style={{ justifyContent: "space-between" }}>
             <div>
               <h2 style={{ margin: 0 }}>{detail.site.name}</h2>
@@ -441,4 +449,31 @@ function ChangeTable({ changes }: { changes: Change[] | null }) {
     <thead><tr><th>Time</th><th>What</th><th>Action</th><th>Detail</th><th>Authorised by</th><th>Signed in as</th></tr></thead>
     <tbody>{changes.map((c) => <tr key={c.id}><td>{fmt(c.at)}</td><td>{ent[c.entity] ?? c.entity}</td><td>{c.action}</td><td>{what(c)}</td><td>{c.authorised_by ?? ""}</td><td style={{ opacity: .7 }}>{c.actor_email ?? ""}</td></tr>)}</tbody>
   </table></div>;
+}
+
+/**
+ * A site this portal can show but not yet control (Mildura today). Says plainly what is and
+ * is not available instead of pretending the site is connected.
+ */
+function LinkedSitePanel({ link }: { link: Extract<OwnerSiteLink, { kind: "external" }> }) {
+  return (
+    <div>
+      <h2 style={{ margin: 0 }}>{link.name}</h2>
+      <small style={{ opacity: .7 }}>{link.detail}</small>
+      <div className="os-banner info" style={{ marginTop: 14 }}>
+        <strong>Not linked to this portal yet.</strong> This gate controller reports only to its own dashboard, so its
+        users, schedules and access log cannot be shown or changed from here. Nothing on this page is live data.
+      </div>
+      <div className="os-card">
+        <h3>Its own dashboard</h3>
+        <p style={{ fontSize: 13, opacity: .75 }}>{link.note}</p>
+        <a className="os-row" href={link.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} aria-hidden="true" /> Open {link.name} dashboard in a new tab</a>
+      </div>
+      <div className="os-card" style={{ marginTop: 14 }}>
+        <h3>What linking would add</h3>
+        <p style={{ fontSize: 13, opacity: .75 }}>Online status, users, auto-open schedules and the access and changes logs, with the same controls as the other sites.
+          It needs a one-off update to the gate controller itself, which will only be made once you have approved the plan.</p>
+      </div>
+    </div>
+  );
 }

@@ -139,3 +139,17 @@ test("confirming a large removal is optimistic on the version seen", async (t) =
   assert.equal((await post({ action: "site.ackShrink", site: "thomastown", seenVersion: 7 })).status, 200);
   assert.equal((await post({ action: "site.ackShrink", site: "thomastown", seenVersion: 6 })).status, 400);
 });
+
+test("sidebar health dot: red if any unit is silent, amber if behind or locked down, green otherwise, blank if unmonitored", () => {
+  const now = Date.parse("2026-11-03T12:00:00Z");
+  const fresh = new Date(now - 5_000).toISOString();
+  const stale = new Date(now - (model.UNIT_ONLINE_SECONDS + 1) * 1000).toISOString();
+  const unit = (over = {}) => ({ last_seen: fresh, applied_version: 7, lockdown: false, ...over });
+  assert.equal(model.siteHealth({ config_version: 7, gd_units: [] }, now), "", "no units: not monitored");
+  assert.equal(model.siteHealth({ config_version: 7, gd_units: [unit(), unit()] }, now), "ok");
+  assert.equal(model.siteHealth({ config_version: 7, gd_units: [unit(), unit({ last_seen: stale })] }, now), "bad");
+  assert.equal(model.siteHealth({ config_version: 7, gd_units: [unit({ last_seen: null })] }, now), "bad", "never seen counts as silent");
+  assert.equal(model.siteHealth({ config_version: 8, gd_units: [unit()] }, now), "warn", "unit has not applied the newest config");
+  assert.equal(model.siteHealth({ config_version: 7, gd_units: [unit({ lockdown: true })] }, now), "warn");
+  assert.equal(model.siteHealth({ config_version: 8, gd_units: [unit({ last_seen: stale })] }, now), "bad", "silent outranks behind");
+});

@@ -10,10 +10,10 @@
     "dev": "next dev --hostname 0.0.0.0",
     "build": "node scripts/build-help-index.mjs && next build --webpack && node scripts/check-no-purple.mjs .next/static",
     "start": "next start --hostname 0.0.0.0",
-    "test": "npm run build && node --test tests/*.test.mjs && python3 -m unittest discover -s gate-controller/tests && python3 -m unittest discover -s controller-agent/tests -p 'test_*.py' && python3 -m unittest discover -s pi-door-service/tests -v",
+    "test": "npm run build && node --test tests/*.test.mjs && python3 -m unittest discover -s gate-controller/tests && python3 -m unittest discover -s controller-agent/tests -p 'test_*.py' && python3 -m unittest discover -s pi-door-service/tests -v && python3 -m unittest discover -s deploy/mildura/tests",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern archive",
     "db:generate": "drizzle-kit generate",
-    "test:doors": "node --test tests/remote-open.test.mjs && python3 -m unittest discover -s pi-door-service/tests -v",
+    "test:doors": "node --test tests/remote-open.test.mjs && python3 -m unittest discover -s pi-door-service/tests -v && python3 -m unittest discover -s deploy/mildura/tests",
     "test:netlify-gate": "python3 -m unittest discover -s tests -p 'test_netlify_gate.py' -v",
     "typecheck": "tsc --noEmit",
     "build:render": "npm run build",
@@ -44,7 +44,7 @@
     "tailwind-merge": "^3.7.0",
     "three": "0.186.1",
     "vaul": "^1.1.2",
-    "zod": "^3.25.76"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.65.0",
@@ -57,6 +57,7 @@
     "@vitejs/plugin-react": "6.1.2",
     "@vitejs/plugin-rsc": "0.5.38",
     "drizzle-kit": "0.31.11",
+    "esbuild": "0.28.2",
     "eslint": "10.13.0",
     "eslint-config-next": "16.4.3",
     "react-server-dom-webpack": "19.3.1",
