@@ -11,7 +11,7 @@ import {
 } from "@/lib/owner-sites-model";
 import {
   OwnerSitesUnavailableError, acknowledgeShrink, addPerson, addWhitelist, deletePerson, deleteSchedule,
-  deleteWhitelist, getSiteBySlug, getSiteDetail, listCalls, listChanges, listSites, saveSchedule,
+  deleteWhitelist, getMirrorDetail, getSiteBySlug, getSiteDetail, listCalls, listChanges, listSites, saveSchedule,
   updateUnit, updateWhitelist,
 } from "@/lib/owner-sites-store";
 import type { PortalUser } from "@/lib/portal-model";
@@ -47,6 +47,8 @@ export async function GET(request: Request) {
         unitId: url.searchParams.get("unit") ?? undefined, result: url.searchParams.get("result") ?? undefined,
       }) }, { headers });
     }
+    // Mildura: read-only mirror of the Pi's own data (no PINs in the cloud, no controls).
+    if (view === "mirror") return Response.json({ ...(await getMirrorDetail(slug)), serverTime: new Date().toISOString() }, { headers });
     if (view === "changes") {
       const site = await getSiteBySlug(slug);
       return Response.json({ changes: await listChanges(String(site.id)) }, { headers });

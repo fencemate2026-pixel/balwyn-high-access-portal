@@ -25,13 +25,6 @@ export const OWNER_SITE_LINKS: readonly OwnerSiteLink[] = [
     kind: "portal",
     view: "dashboard",
   },
-  {
-    id: "mildura",
-    name: "Mildura Working Man's Club",
-    detail: "Boom gate · keypad, users, auto-open",
-    kind: "external",
-    // The Pi's own Flask dashboard (gunicorn :5000) on its Tailscale address.
-    url: "http://100.103.206.69:5000/",
-    note: "Opens only on a device signed in to your Tailscale.",
-  },
+  // Mildura now reports to gd_sites (slug "mildura") through the read-only mirror,
+  // so it is listed with the other sites and opens in place (app/mildura-site-view.tsx).
 ];
