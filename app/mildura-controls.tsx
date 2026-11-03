@@ -12,7 +12,7 @@ export type MirrorCommand = { id: string; seq?: number; kind: string; args?: Rec
 export type ControlState = { commands: MirrorCommand[]; keyFingerprint: string | null; keyRegistered: boolean; unlocked: boolean; unlockExpiresAt: number | null; gate: { open: boolean; lockdown: boolean; lockdownOn: boolean; hold: false; holdNote: string; offNote: string } };
 type Send = (body: Record<string, unknown>, confirm?: ConfirmSpec) => Promise<boolean>;
 type ConfirmSpec = { title: string; body: string; action: string };
-type Ctx = { state: ControlState | null; send: Send; busy: boolean; openFor: (kind: string, localId?: number) => MirrorCommand | null; preview: boolean };
+type Ctx = { state: ControlState | null; send: Send; busy: boolean; openFor: (kind: string, localId?: number) => MirrorCommand | null; preview: boolean; refresh: () => Promise<void> };
 
 const MUTED = "text-[#B9CFE2]";
 const ControlCtx = createContext<Ctx | null>(null);
@@ -64,7 +64,7 @@ export function MilduraControlProvider({ children, fixture }: { children: ReactN
     const list = state?.commands ?? [];
     return list.find((c) => c.kind.split(".")[0] === kind && (localId === undefined || c.args?.local_id === localId) && (OPEN.has(c.status) || c.status === "failed")) ?? null;
   }, [state]);
-  const value = useMemo(() => ({ state, send, busy, openFor, preview: !!fixture }), [state, send, busy, openFor, fixture]);
+  const value = useMemo(() => ({ state, send, busy, openFor, preview: !!fixture, refresh: load }), [state, send, busy, openFor, fixture, load]);
   return <ControlCtx.Provider value={value}>
     {children}
     {confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}
@@ -123,7 +123,7 @@ export function ControlBar() {
         ? <em className="telemetry-badge not-italic text-[#34d399]"><i className="signal-dot" />Changes unlocked{s.unlockExpiresAt ? ` until ${new Date(s.unlockExpiresAt).toLocaleTimeString("en-AU", { timeZone: "Australia/Melbourne", hour: "2-digit", minute: "2-digit" })}` : ""}</em>
         : <button type="button" className={glassButton("orange")} onClick={() => setShowUnlock((v) => !v)}><LockKeyhole className="size-4" /> Unlock changes</button>}
     </div>
-    {!s?.unlocked && showUnlock && !ctx.preview && <div className={`${GLASS_TILE} p-3`}><AdminSettingsUnlock onUnlocked={() => { setShowUnlock(false); window.location.reload(); }} /></div>}
+    {!s?.unlocked && showUnlock && !ctx.preview && <div className={`${GLASS_TILE} p-3`}><AdminSettingsUnlock onUnlocked={() => { setShowUnlock(false); void ctx.refresh(); }} /></div>}
   </div>;
 }
 
@@ -226,3 +226,4 @@ export function PersonForm({ onDone }: { onDone: () => void }) {
     <div className="flex gap-2 md:col-span-4"><button type="submit" className={glassButton("orange")} disabled={!ctx.state?.unlocked || ctx.busy || needsKey}>Add person</button><button type="button" className={glassButton()} onClick={onDone}>Cancel</button></div>
   </form>;
 }
+
