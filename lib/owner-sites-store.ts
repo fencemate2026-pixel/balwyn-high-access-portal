@@ -165,3 +165,24 @@ export async function acknowledgeShrink(siteId: string, seenVersion: unknown) {
   });
   if (!rows?.length) throw new OwnerSiteInputError("The list changed since you loaded it. Reload and confirm again.");
 }
+
+/**
+ * Mildura (4 Nov 2026): read-only view of the Pi's mirror tables (gd_mirror_*),
+ * pushed by the gd-mirror Edge Function. Reads only; the cloud holds no PINs and
+ * none of these selects name a PIN column.
+ */
+export async function getMirrorDetail(slug: string) {
+  const site = await getSiteBySlug(slug);
+  const sid = String(site.id);
+  const since = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+  const [units, users, schedules, persons, access, access30, changes] = await Promise.all([
+    rest<Array<Record<string, unknown>>>(`gd_units?site_id=eq.${sid}&select=id,name,last_seen,last_status,fw_version&order=name`),
+    rest(`gd_mirror_users?site_id=eq.${sid}&select=local_id,name,enabled,schedule_type,schedule_data,created_at_local&order=name&limit=2000`),
+    rest(`gd_mirror_schedules?site_id=eq.${sid}&select=local_id,name,days,open_time,close_time,enabled&order=name`),
+    rest(`gd_mirror_persons?site_id=eq.${sid}&select=local_id,name,role&order=name`),
+    rest(`gd_mirror_access?site_id=eq.${sid}&select=local_id,occurred_at_local,user_name,method,success&order=occurred_at_local.desc&limit=300`),
+    rest(`gd_mirror_access?site_id=eq.${sid}&occurred_at_local=gte.${since}&select=occurred_at_local,method,success&limit=20000`),
+    rest(`gd_mirror_changes?site_id=eq.${sid}&select=local_id,occurred_at_local,action,detail,changed_by&order=occurred_at_local.desc&limit=300`),
+  ]);
+  return { site: { id: sid, slug: site.slug, name: site.name }, units, users, schedules, persons, access, access30, changes };
+}
