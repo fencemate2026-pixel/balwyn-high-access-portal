@@ -29,7 +29,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSION = "2.1.0"
+VERSION = "2.2.0"
 COMMAND_INTERVAL_S = 10       # Phase 2 command poll (tiny request)
 INTERVAL_S = 60                # normal cycle
 BACKOFF_MAX_S = 900            # cap when the cloud is unreachable
@@ -135,7 +135,10 @@ def local_status(url):
     try:
         with urllib.request.urlopen(url, timeout=STATUS_TIMEOUT_S) as r:   # nosec B310 loopback
             data = json.loads(r.read(65536))
-        keep = ("lockdown", "software_access_paused", "control_mode", "gpio", "gate_position")
+        # Live Pi app: auto_open/auto_name/hold/signal_on/manual_hold/lockdown/gpio; older builds also
+        # control_mode/software_access_paused/gate_position. Booleans and short labels only.
+        keep = ("lockdown", "software_access_paused", "control_mode", "gpio", "gate_position",
+                "auto_open", "auto_name", "hold", "signal_on", "manual_hold")
         return {k: data.get(k) for k in keep if k in data}
     except Exception:
         return None

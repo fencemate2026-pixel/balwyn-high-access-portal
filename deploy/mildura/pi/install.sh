@@ -5,7 +5,8 @@
 # MIRROR_CONTROL=1 to enable Phase 2 portal commands (writes to the gate database).
 # MIRROR_GATE_ACTIONS=1 (with MIRROR_CONTROL=1) lets the portal's Open Gate / Lockdown call the gate app's
 # OWN loopback routes. Needs the gate app's admin PIN, read here ON THE PI from (first found): GATE_ADMIN_PIN,
-# the existing /etc/mildura-mirror.env, <db dir>/admin_pin.txt, boomgate.service ADMIN_PIN. Never printed,
+# the existing /etc/mildura-mirror.env, <db dir>/admin_pin.txt, then ADMIN_PIN from boomgate.service (Environment= /
+# EnvironmentFile=; set GATE_SERVICE if the unit has another name). Never printed,
 # never uploaded; stored only in /etc/mildura-mirror.env (root:rjlcommercial 0640).
 set -eu
 [ "$(id -u)" = 0 ] || { echo "run with sudo"; exit 1; }
@@ -21,7 +22,15 @@ GATE_URL="${GATE_URL:-http://127.0.0.1:5000}"
 if [ "$MIRROR_GATE_ACTIONS" = 1 ]; then
   [ -z "${GATE_ADMIN_PIN:-}" ] && [ -r "$OLD_ENV" ] && GATE_ADMIN_PIN="$(sed -n 's/^GATE_ADMIN_PIN=//p' "$OLD_ENV")"
   [ -z "${GATE_ADMIN_PIN:-}" ] && [ -r "$(dirname "$MIRROR_DB")/admin_pin.txt" ] && GATE_ADMIN_PIN="$(tr -d ' \r\n' < "$(dirname "$MIRROR_DB")/admin_pin.txt")"
-  [ -z "${GATE_ADMIN_PIN:-}" ] && GATE_ADMIN_PIN="$(systemctl show boomgate.service -p Environment --value 2>/dev/null | tr ' ' '\n' | sed -n 's/^ADMIN_PIN=//p' | head -n1)"
+  # The live gate app reads ADMIN_PIN from its systemd environment only (Environment= or EnvironmentFile=).
+  GATE_SERVICE="${GATE_SERVICE:-boomgate.service}"
+  [ -z "${GATE_ADMIN_PIN:-}" ] && GATE_ADMIN_PIN="$(systemctl show "$GATE_SERVICE" -p Environment --value 2>/dev/null | tr ' ' '\n' | sed -n 's/^ADMIN_PIN=//p' | tr -d '"' | head -n1)"
+  if [ -z "${GATE_ADMIN_PIN:-}" ]; then
+    for ef in $(systemctl show "$GATE_SERVICE" -p EnvironmentFiles --value 2>/dev/null | sed 's/ (ignore_errors=[a-z]*)//g'); do
+      [ -r "$ef" ] && GATE_ADMIN_PIN="$(sed -n 's/^[[:space:]]*\(export[[:space:]]\+\)\?ADMIN_PIN=//p' "$ef" | tr -d "\"'" | head -n1)"
+      [ -n "${GATE_ADMIN_PIN:-}" ] && break
+    done
+  fi
   if [ -z "${GATE_ADMIN_PIN:-}" ]; then echo "gate admin PIN not found on this Pi; gate actions stay OFF"; MIRROR_GATE_ACTIONS=0; fi
   # The gate app must answer on loopback (it will not if it was re-bound to the Tailscale IP only).
   if [ "$MIRROR_GATE_ACTIONS" = 1 ] && ! python3 -c "import urllib.request,sys; urllib.request.urlopen(sys.argv[1]+'/login', timeout=5)" "$GATE_URL" 2>/dev/null; then

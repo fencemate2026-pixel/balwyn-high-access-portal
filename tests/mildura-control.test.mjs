@@ -162,7 +162,7 @@ test("bad commands are rejected with no write", async () => {
     { kind: "schedule.add", name: "S", days: [9], open_time: "09:00", close_time: "10:00" }, { kind: "schedule.add", name: "S", days: [1], open_time: "9am", close_time: "10:00" },
     { kind: "schedule.add", name: "S", days: [1], open_time: "10:00", close_time: "10:00" }, { kind: "person.add", name: "P", phone: "call me" },
     { kind: "user.add", name: "X", pin: "1234", schedule_type: "Bad Type" }, { kind: "drop.tables" },
-    { kind: "user.add", name: "X", pin: "0123" }, { kind: "user.add", name: "X", pin: "1234", schedule_type: "business_hours" },
+    { kind: "user.add", name: "X", pin: "1234", schedule_type: "business_hours" },
     { kind: "user.update", local_id: 4, schedule_type: "time_range", schedule_days: [1], schedule_start: "08:00", schedule_end: "08:00" },
     { kind: "user.update", local_id: 4, schedule_type: "time_range", schedule_days: [], schedule_start: "08:00", schedule_end: "09:00" },
     { kind: "gate.hold" }, { kind: "gate.lockdown", on: "yes" },
@@ -232,4 +232,10 @@ test("Open Gate queues one short-lived command; Lockdown carries on/off; both au
   assert.equal(g.gate.open, true); assert.equal(g.gate.lockdown, true); assert.equal(g.gate.hold, false);
   s = await as("owner@example.test", { caps, unlocked: false });
   assert.equal((await s.post({ kind: "gate.open", clientKey: key() })).status, 403, "admin unlock still required");
+});
+
+test("PIN rules match the live gate app: leading zero allowed, 4-6 digits", () => {
+  assert.equal(model.pinInput("0123"), "0123");
+  assert.throws(() => model.pinInput("123"));
+  assert.throws(() => model.pinInput("1234567"));
 });

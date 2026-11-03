@@ -114,7 +114,7 @@ export function ControlBar() {
         onClick={() => ctx.send({ kind: "gate.lockdown", on: !s?.gate.lockdownOn }, s?.gate.lockdownOn
           ? { title: "End lockdown?", body: "Keypad and web PINs will open the gate again.", action: "Resume access" }
           : { title: "Lock down Mildura?", body: "No PIN (keypad or web) and no remote Open will work until lockdown is ended. It does not close the boom or override the time clock.", action: "Lock down" })}>{s?.gate.lockdownOn ? "End Lockdown" : "Lockdown"}</button>
-      <small className={`${MUTED} max-w-xl`}>{s?.gate.open ? "Hold Open is retired: the on-site time clock controls hold." : s?.gate.offNote}</small>
+      <small className={`${MUTED} max-w-xl`}>{s?.gate.open ? "Hold Open is off: the hold line is disconnected and the time clock holds the boom. Open Gate is refused while an auto-open schedule is active." : s?.gate.offNote}</small>
     </div>
     <div className={`${GLASS_TILE} flex flex-wrap items-center justify-between gap-3 p-3 text-sm`}>
       <span className="flex items-center gap-2"><KeyRound className="size-4 text-[#5CC8FF]" />
@@ -168,7 +168,7 @@ export function UserForm({ user, onDone }: { user?: UserLite; users?: UserLite[]
   if (!ctx) return null;
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setErr("");
-    if (!user || pin) { if (!/^[1-9]\d{3,5}$/.test(pin)) return setErr("PIN must be 4 to 6 digits and cannot start with 0."); if (pin !== pin2) return setErr("The two PINs do not match."); }
+    if (!user || pin) { if (!/^\d{4,6}$/.test(pin)) return setErr("PIN must be 4 to 6 digits."); if (pin !== pin2) return setErr("The two PINs do not match."); }
     const body: Record<string, unknown> = user ? { kind: "user.update", local_id: user.local_id } : { kind: "user.add" };
     if (!user || name !== user.name) body.name = name;
     if (pin) body.pin = pin;

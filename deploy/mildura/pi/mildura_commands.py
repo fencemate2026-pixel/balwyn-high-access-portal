@@ -4,27 +4,31 @@
 Imported by mildura_mirror.py only when MIRROR_CONTROL=1. Standard library + the system
 `openssl` binary only (no pip installs on the Pi).
 
-Matched against the gate app source (github fencemate2026-pixel/Milduraworkingmansclub,
-mildura-boomgate/app.py + database.py, main @ 44947f1, 20 Sep 2026):
-  * The app keeps NO user/schedule/settings cache: has_access() and is_lockdown() read SQLite on
-    every keypad entry, so a committed write here takes effect on the next PIN. No reload needed.
-  * Plain rollback journal (no WAL), sqlite3 default 5 s timeout, one short connection per call.
-  * schedule_type is 'always' (schedule_data NULL) or 'time_range' with
-    json.dumps({"days": [0-6, Mon=0], "start": "HH:MM", "end": "HH:MM"}); end < start = overnight,
-    the after-midnight tail belongs to the previous day. Any other type DENIES the user.
-  * auto_schedules.days is json.dumps([0-6]). close_day is not in any version of the source, so it
-    is never written (left NULL / default).
-  * PIN: digits, cannot start with 0 (keypad limitation), not the admin PIN, unique in users.
-    (The app allows 4-8; the portal deliberately allows 4-6.)
-  * changes_log(action, detail, changed_by, synced=0), timestamp = column default.
-  * auth_persons rows use '' (not NULL) for missing role / phone / pin, as add_auth_person() does.
+Matched against the LIVE Mildura Pi ~/boomgate/app.py + database.py (pasted by Jarrod 4 Nov 2026;
+"__mildura_fixpack_v2__"), which differs from the GitHub repo:
+  * No user/schedule/lockdown cache: has_access(), is_auto_open() and is_lockdown() read SQLite on
+    every call, so committed writes apply on the next PIN. Only manual-hold / rate limits are in memory.
+  * WAL journal, busy_timeout 10 s, one short connection per call. BEGIN IMMEDIATE here is compatible.
+  * users.schedule_type 'always' (data NULL) or 'time_range' json.dumps({"days","start","end"});
+    start > end = overnight (tail belongs to the previous day); start == end never matches.
+  * PIN: 4-8 digits, leading zero ALLOWED (issued PINs like 0xxx exist). has_access() also matches a
+    PIN with its leading zeros stripped, so a new PIN must not collide with an existing one after
+    ltrim('0'). The portal still limits to 4-6.
+  * auto_schedules: days json.dumps([0-6]); validate_auto_window(): open != close, overnight <= 16 h.
+    close_day (0=Mon..6=Sun, NULL = normal) is read by is_auto_open() but never written by the app;
+    we never write it either. The ORO hold line is physically disconnected (hold_should_be_on()
+    always False; a time clock holds the boom), so schedules drive no relay, BUT an active window
+    makes POST /gate/open refuse remote opens (db.is_auto_open()).
+  * changes_log(action, detail, changed_by[, synced on older DBs]); the app writes changed_by =
+    session requester or "Admin"; we write "portal:<email>". Authorised persons: action AUTH_PERSON;
+    a blank verification PIN is generated (4 digits, no leading zero, unique vs users and persons).
 
 Safety contract (covered by tests/test_commands.py):
   * Only the kinds in KINDS are accepted. Gate actuation never touches GPIO: gate.open and
-    gate.lockdown call the gate app's OWN admin routes on loopback (POST /gate/open, POST /lockdown)
-    after logging in with the admin PIN held only in the Pi-local env file, and only when
-    MIRROR_GATE_ACTIONS=1. Hold Open is retired in the gate app (410; the external time clock owns
-    hold), so gate.hold is always rejected.
+    gate.lockdown call the gate app's OWN admin routes on loopback (POST /gate/open, POST /lockdown
+    state=on|off) after POST /login (form "pin") with the admin PIN held only in the Pi-local env
+    file, and only when MIRROR_GATE_ACTIONS=1. Hold Open (/hold_open) only toggles GPIO23/ORO, which
+    is disconnected on site, so gate.hold is always rejected.
   * gate.open is at-most-once: its changes_log tag is committed BEFORE the pulse is requested,
     and an open older than GATE_OPEN_MAX_AGE_S is refused rather than fired late.
   * Every write is one short BEGIN IMMEDIATE transaction that also inserts a changes_log row
@@ -53,7 +57,10 @@ KINDS = ("user.add", "user.update", "user.delete", "user.enable", "users.enable_
 GATE_KINDS = ("gate.open", "gate.lockdown")
 RETIRED_KINDS = ("gate.hold",)
 GATE_OPEN_MAX_AGE_S = 90
-PIN_RE = re.compile(r"^\d{4,6}$")
+GATE_HTTP_TIMEOUT_S = 45     # /gate/open pulses synchronously and may wait ~25 s for a previous pulse
+MAX_OVERNIGHT_MIN = 16 * 60  # database.validate_auto_window site limit
+PIN_RE = re.compile(r"^\d{4,6}$")          # portal policy (the app accepts 4-8)
+PERSON_PIN_RE = re.compile(r"^\d{4,8}$")
 PHONE_RE = re.compile(r"^\+?[0-9 ]{8,16}$")
 TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 NAME_RE = re.compile(r"^[^\x00-\x1f\x7f]{1,60}$")
@@ -119,11 +126,9 @@ def _bool(v, field="enabled"):
     return v
 
 
-def _pin(v, admin_pin=None):
-    if not isinstance(v, str) or not PIN_RE.match(v):
-        raise Rejected("PIN must be 4-6 digits")
-    if v.startswith("0"):
-        raise Rejected("PIN cannot start with 0 (keypad hardware limitation)")
+def _pin(v, admin_pin=None, rx=PIN_RE, what="PIN must be 4-6 digits"):
+    if not isinstance(v, str) or not rx.match(v):
+        raise Rejected(what)
     if admin_pin and v == admin_pin.strip():
         raise Rejected("that PIN is reserved")
     return v
@@ -151,9 +156,10 @@ def _exists(con, table, local_id):
 
 
 def _pin_free(con, pin, except_user=None):
-    # users.pin is UNIQUE in the gate schema; check first for a clear message.
-    if con.execute("SELECT 1 FROM users WHERE pin=? AND id IS NOT ?", (pin, except_user)).fetchone():
-        raise Rejected("that PIN is already in use")
+    # users.pin is UNIQUE; has_access() also treats PINs equal after stripping leading zeros as the same.
+    if con.execute("SELECT 1 FROM users WHERE (pin=? OR (ltrim(pin,'0')=ltrim(?,'0') AND pin GLOB '[0-9]*')) AND id IS NOT ?",
+                   (pin, pin, except_user)).fetchone():
+        raise Rejected("that PIN is already in use (or matches one with leading zeros)")
 
 
 def _user_schedule(a):
@@ -232,7 +238,10 @@ def _schedule_add(con, a, s, cfg):
     o, c = _time(a.get("open_time"), "open_time"), _time(a.get("close_time"), "close_time")
     if o == c:
         raise Rejected("open and close time cannot be the same")
-    # Same statement as database.add_auto_schedule(); close_day is not part of the app's source.
+    om, cm = int(o[:2]) * 60 + int(o[3:]), int(c[:2]) * 60 + int(c[3:])
+    if om > cm and (1440 - om + cm) > MAX_OVERNIGHT_MIN:
+        raise Rejected("overnight window longer than 16 h (site limit); did you mean daytime hours?")
+    # Same statement as database.add_auto_schedule(); close_day is never written by the app either.
     cur = con.execute("INSERT INTO auto_schedules (name, days, open_time, close_time) VALUES (?, ?, ?, ?)",
                       (name, json.dumps(days), o, c))
     return "ADD_SCHEDULE", "Added auto-open %s %s-%s" % (name, o, c), {"local_id": cur.lastrowid}
@@ -253,25 +262,39 @@ def _schedule_delete(con, a, s, cfg):
     return "DELETE_SCHEDULE", "Deleted auto-open %s" % name, {"local_id": sid}
 
 
+def _verification_pin(con):
+    """As app._generate_verification_pin(): 4 digits, no leading zero, unused by any user or person."""
+    import secrets as _s
+    taken = {str(r[0]).strip() for r in con.execute("SELECT pin FROM users UNION SELECT pin FROM auth_persons") if r[0]}
+    for _ in range(200):
+        cand = str(1000 + _s.randbelow(9000))
+        if cand not in taken:
+            return cand
+    raise Rejected("could not generate a free verification PIN; enter one")
+
+
 def _person_add(con, a, s, cfg):
     name, role = _name(a.get("name")), _role(a.get("role"))
     phone, pin = s.get("phone") or "", s.get("pin") or ""
     if phone:
         if not isinstance(phone, str) or not PHONE_RE.match(phone):
             raise Rejected("phone is not valid")
-        phone = phone.replace(" ", "")
+        phone = phone.strip()
     if pin:
-        pin = _pin(pin, cfg.get("admin_pin"))
-    # As database.add_auth_person(): '' for anything not given.
+        pin = _pin(pin, cfg.get("admin_pin"), PERSON_PIN_RE, "verification PIN must be 4-8 digits")
+        if con.execute("SELECT 1 FROM users WHERE pin=? UNION SELECT 1 FROM auth_persons WHERE pin=?", (pin, pin)).fetchone():
+            raise Rejected("that verification PIN is already used by a user or another person")
+    else:
+        pin = _verification_pin(con)       # shown on the Pi dashboard only; never sent to the cloud
     cur = con.execute("INSERT INTO auth_persons (name, role, phone, pin) VALUES (?, ?, ?, ?)", (name, role, phone, pin))
-    return "ADD_PERSON", "Added authorised person %s" % name, {"local_id": cur.lastrowid}
+    return "AUTH_PERSON", "Added authorised person %s (%s)" % (name, role or "no role"), {"local_id": cur.lastrowid}
 
 
 def _person_delete(con, a, s, cfg):
     pid = _id(a.get("local_id")); _exists(con, "auth_persons", pid)
     name = con.execute("SELECT name FROM auth_persons WHERE id=?", (pid,)).fetchone()[0]
     con.execute("DELETE FROM auth_persons WHERE id=?", (pid,))
-    return "DELETE_PERSON", "Deleted authorised person %s" % name, {"local_id": pid}
+    return "AUTH_PERSON", "Removed authorised person %s" % name, {"local_id": pid}
 
 
 APPLIERS = {"user.add": _user_add, "user.update": _user_update, "user.delete": _user_delete,
@@ -292,7 +315,7 @@ class LocalGate:
     for a Flask session, then POST /gate/open or POST /lockdown (state=on|off). Origin is set to
     the app's own host so the CSRF check on newer builds passes. Never touches GPIO."""
 
-    def __init__(self, base_url, admin_pin, timeout=8):
+    def __init__(self, base_url, admin_pin, timeout=GATE_HTTP_TIMEOUT_S):
         if not base_url.startswith("http://127.0.0.1:") and not base_url.startswith("http://localhost:"):
             raise ValueError("gate URL must be loopback")
         self.base, self.pin, self.timeout = base_url.rstrip("/"), admin_pin, timeout
@@ -307,6 +330,10 @@ class LocalGate:
             return r.status, r.headers.get("Location", "")
         except urllib.error.HTTPError as e:          # 302 lands here because redirects are not followed
             return e.code, e.headers.get("Location", "") if e.headers else ""
+
+    def status(self):
+        with urllib.request.urlopen(self.base + "/api/status", timeout=5) as r:   # nosec B310 loopback
+            return json.loads(r.read(65536))
 
     def login(self):
         code, loc = self._post("/login", {"pin": self.pin})
@@ -326,16 +353,25 @@ def _max_id(con, table):
     return con.execute('SELECT COALESCE(MAX(id), 0) FROM "%s"' % table).fetchone()[0]
 
 
+def _gate_open_precheck(gate):
+    st = gate.status()
+    if st.get("lockdown"):
+        raise Rejected("gate is in lockdown; no pulse sent")
+    if st.get("auto_open"):
+        # POST /gate/open refuses (and logs nothing) while an auto-open schedule window is active.
+        raise Rejected("auto-open schedule '%s' is active; the gate app ignores remote opens" % str(st.get("auto_name") or "")[:60])
+
+
 def _gate_open(con, cmd, cfg, gate):
     before = _max_id(con, "access_log")
     gate.action("/gate/open", {})
-    # The app logs REMOTE/dashboard (pulse requested) or REMOTE/dashboard-BLOCKED (access paused).
+    # The route pulses synchronously, then logs REMOTE/dashboard (pulsed) or REMOTE/dashboard-no-pulse.
     for _ in range(int(cfg.get("verify_s", 5) * 10)):
         row = con.execute("SELECT method, success FROM access_log WHERE id > ? AND user_name = 'REMOTE' ORDER BY id LIMIT 1", (before,)).fetchone()
         if row:
             if row[0] == "dashboard" and row[1]:
-                return {"pulse": "requested"}
-            raise Rejected("software access is paused (lockdown); no pulse sent")
+                return {"pulse": "sent"}
+            raise Rejected("gate app did not pulse (busy, boom still travelling, or lockdown); try again shortly")
         time.sleep(0.1)
     raise Rejected("gate app gave no confirmation; check the Pi dashboard")
 
@@ -389,7 +425,7 @@ def apply_one(con, cmd, key_path, decrypt=decrypt_sealed, cfg=None, gate=None):
     try:
         kind = cmd.get("kind")
         if kind in RETIRED_KINDS:
-            raise Rejected("not_supported: Hold Open is retired in the gate app; the on-site time clock controls hold")
+            raise Rejected("not_supported: Hold Open drives GPIO23/ORO, which is disconnected on site; the time clock holds the boom")
         if kind not in KINDS:
             raise Rejected("unknown command kind")
         args = cmd.get("args")
@@ -434,6 +470,11 @@ def _apply_gate(con, cmd, kind, actor, cfg, gate):
         raise Rejected("not_supported: gate actions are not enabled on this Pi (MIRROR_GATE_ACTIONS)")
     if kind == "gate.open" and _too_old(cmd):
         raise Rejected("open request too old; not sent late")
+    if kind == "gate.open":
+        try:
+            _gate_open_precheck(gate)       # read-only; refuse before marking so nothing is logged
+        except (urllib.error.URLError, OSError, ValueError) as e:
+            raise Rejected("gate app not reachable on loopback (%s)" % type(e).__name__)
     # Mark first (at-most-once): a re-delivered open after a crash must never pulse twice.
     con.execute("BEGIN IMMEDIATE")
     try:

@@ -27,11 +27,26 @@ CREATE TABLE keypad_frame_log (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp T
 ADMIN = "918273"
 
 
-def fake_gate_app(db, admin_pin=ADMIN):
-    """Loopback stand-in for app.py's admin routes, writing the DB the same way the app does."""
+def fake_gate_app(db, admin_pin=ADMIN, auto_open=None):
+    """Loopback stand-in for the LIVE app.py admin routes, writing the DB the same way the app does.
+    auto_open: dict({"on": bool}) - simulates an active auto_schedules window (db.is_auto_open())."""
     hits = []
+    auto_open = auto_open if auto_open is not None else {"on": False}
+    manual = {"hold": False}
+    def lockdown():
+        c = sqlite3.connect(db)
+        try: return (c.execute("select value from settings where key='lockdown'").fetchone() or ("0",))[0] == "1"
+        finally: c.close()
     class H(BaseHTTPRequestHandler):
         def log_message(self, *a): pass
+        def do_GET(self):
+            hits.append((self.path, None))
+            if self.path != "/api/status":
+                self.send_response(404); self.end_headers(); return
+            body = json.dumps({"auto_open": auto_open["on"], "auto_name": "Club open" if auto_open["on"] else None,
+                               "hold": manual["hold"], "signal_on": manual["hold"], "manual_hold": manual["hold"],
+                               "lockdown": lockdown(), "gpio": True}).encode()
+            self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(body)
         def _go(self, loc, cookie=None):
             self.send_response(302); self.send_header("Location", loc)
             if cookie: self.send_header("Set-Cookie", cookie)
@@ -49,12 +64,14 @@ def fake_gate_app(db, admin_pin=ADMIN):
             c = sqlite3.connect(db)
             try:
                 if self.path == "/gate/open":
-                    paused = (c.execute("select value from settings where key='lockdown'").fetchone() or ("0",))[0] == "1"
-                    c.execute("insert into access_log(user_name,method,success) values('REMOTE',?,?)", ("dashboard-BLOCKED", 0) if paused else ("dashboard", 1))
+                    if auto_open["on"]:                      # live app: flash + redirect, nothing logged
+                        return self._go("/")
+                    paused = lockdown()
+                    c.execute("insert into access_log(user_name,method,success) values('REMOTE',?,?)", ("dashboard-no-pulse", 0) if paused else ("dashboard", 1))
                 elif self.path == "/lockdown":
                     c.execute("insert or replace into settings(key,value) values('lockdown',?)", ("1" if form.get("state", [""])[0] == "on" else "0",))
-                elif self.path == "/hold_open":
-                    self.send_response(410); self.end_headers(); return
+                elif self.path == "/hold_open":            # live: toggles in-memory ORO hold (wire is disconnected)
+                    manual["hold"] = not manual["hold"]
                 c.commit()
             finally:
                 c.close()
@@ -132,7 +149,7 @@ class ApplierTests(unittest.TestCase):
             a = self.run1(self.cmd(kind, args, sec)); self.assertTrue(a["ok"], (kind, a))
         self.assertEqual(self.q("select id,enabled from users"), [(2, 0)])
         self.assertEqual(self.q("select name,days,enabled,close_day from auto_schedules"), [("Weekend", "[5, 6]", 1, None)])
-        self.assertEqual(self.q("select name,role,phone,pin from auth_persons"), [("Eve", "Treasurer", "0411222333", "909090")])
+        self.assertEqual(self.q("select name,role,phone,pin from auth_persons"), [("Eve", "Treasurer", "0411 222 333", "909090")])
         # canonical app format, key order days,start,end as app.add_user json.dumps
         self.assertEqual(self.q("select schedule_type,schedule_data from users where id=2"), [("time_range", '{"days": [4, 5], "start": "18:00", "end": "01:00"}')])
         self.assertEqual(len(self.q("select 1 from changes_log where changed_by like 'portal:%'")), len(steps))
@@ -140,13 +157,24 @@ class ApplierTests(unittest.TestCase):
     def test_formats_match_the_gate_app(self):
         self.run1(self.cmd("schedule.add", {"name": "Late", "days": [4], "open_time": "18:00", "close_time": "02:00", "close_day": 5}))
         self.assertEqual(self.q("select days,close_day from auto_schedules where name='Late'"), [("[4]", None)])   # close_day never written
-        self.run1(self.cmd("person.add", {"name": "NoExtras"}))
-        self.assertEqual(self.q("select role,phone,pin from auth_persons where name='NoExtras'"), [("", "", "")])
+        a = self.run1(self.cmd("person.add", {"name": "NoExtras"}))
+        self.assertTrue(a["ok"], a)
+        role, phone, pin = self.q("select role,phone,pin from auth_persons where name='NoExtras'")[0]
+        self.assertEqual((role, phone), ("", ""))
+        self.assertRegex(pin, r"^[1-9]\d{3}$"); self.assertNotIn(pin, json.dumps(a))   # generated like the app, never reported
+        self.assertEqual(self.q("select action from changes_log order by id desc limit 1"), [("AUTH_PERSON",)])
         a = self.run1(self.cmd("user.add", {"name": "Ranged", "schedule_type": "time_range", "schedule_data": json.dumps({"days": [0], "start": "07:00", "end": "15:30"})}, {"pin": "556677"}))
         self.assertTrue(a["ok"], a)
         self.assertEqual(self.q("select schedule_data from users where name='Ranged'"), [('{"days": [0], "start": "07:00", "end": "15:30"}',)])
         log = self.q("select action,changed_by,synced,timestamp is not null from changes_log order by id desc limit 1")[0]
         self.assertEqual(log, ("ADD_USER", "portal:owner@example.test", 0, 1))
+
+    def test_leading_zero_pins_like_the_live_app(self):
+        self.assertTrue(self.run1(self.cmd("user.add", {"name": "Zero Lead"}, {"pin": "012345"}))["ok"])
+        self.assertEqual(self.q("select pin from users where name='Zero Lead'"), [("012345",)])
+        # has_access() treats 12345 and 012345 as the same PIN, so the second is refused
+        self.assertRejected(self.cmd("user.add", {"name": "Clash"}, {"pin": "12345"}), "leading zeros")
+        self.assertTrue(self.run1(self.cmd("schedule.add", {"name": "Late", "days": [5], "open_time": "18:00", "close_time": "02:00"}))["ok"])
 
     # -- idempotency ---------------------------------------------------------------------
     def test_redelivered_command_is_not_applied_twice(self):
@@ -175,7 +203,6 @@ class ApplierTests(unittest.TestCase):
         R(self.cmd("user.add", {"name": "X"}, {"pin": "1234567"}), "4-6 digits")
         R(self.cmd("user.add", {"name": "X"}, {"pin": "12a4"}), "4-6 digits")
         R(self.cmd("user.add", {"name": "X"}, {"pin": "482913"}), "already in use")          # another user's PIN
-        R(self.cmd("user.add", {"name": "X"}, {"pin": "012345"}), "start with 0")
         R(self.cmd("user.add", {"name": "X"}, {"pin": ADMIN}), "reserved")
         R(self.cmd("user.add", {"name": ""}, {"pin": "555123"}), "name")
         R(self.cmd("user.add", {"name": "Bad\x07"}, {"pin": "555123"}), "name")
@@ -195,9 +222,11 @@ class ApplierTests(unittest.TestCase):
         R(self.cmd("schedule.add", {"name": "S", "days": [1], "open_time": "9am", "close_time": "10:00"}), "HH:MM")
         R(self.cmd("schedule.add", {"name": "S", "days": [1], "open_time": "10:00", "close_time": "10:00"}), "same")
         R(self.cmd("person.add", {"name": "P"}, {"phone": "abc"}), "phone")
+        R(self.cmd("person.add", {"name": "P"}, {"pin": "482913"}), "already used")
+        R(self.cmd("schedule.add", {"name": "S", "days": [1], "open_time": "07:00", "close_time": "06:00"}), "16 h")
         R(self.cmd("users.enable_all", {"enabled": True}, actor=""), "actor")
         R(self.cmd("delete.everything"), "unknown command kind")
-        R(self.cmd("gate.hold"), "retired")
+        R(self.cmd("gate.hold"), "disconnected")
         for k in mc.GATE_KINDS:                                       # no gate client configured -> refused
             R(self.cmd(k, {"on": True} if k == "gate.lockdown" else {}), "not enabled")
 
@@ -245,9 +274,9 @@ class ApplierTests(unittest.TestCase):
         g, hits = self.gate()
         c = self.gcmd("gate.open")
         a = self.run1(c, g)
-        self.assertEqual(a, {"id": c["id"], "ok": True, "result": {"pulse": "requested"}})
-        self.assertEqual([h[0] for h in hits], ["/login", "/gate/open"])
-        self.assertTrue(all(h[1].startswith("http://127.0.0.1:") for h in hits))       # Origin = own host (CSRF check)
+        self.assertEqual(a, {"id": c["id"], "ok": True, "result": {"pulse": "sent"}})
+        self.assertEqual([h[0] for h in hits], ["/api/status", "/login", "/gate/open"])
+        self.assertTrue(all(h[1].startswith("http://127.0.0.1:") for h in hits if h[0] != "/api/status"))       # Origin = own host (CSRF check)
         again = self.run1(c, g)                                                         # re-delivered: no second pulse
         self.assertEqual(again["result"], {"already_applied": True})
         self.assertEqual([h[0] for h in hits].count("/gate/open"), 1)
@@ -258,7 +287,7 @@ class ApplierTests(unittest.TestCase):
         self.assertTrue(self.run1(self.gcmd("gate.lockdown", {"on": True}), g)["ok"])
         self.assertEqual(self.q("select value from settings where key='lockdown'"), [("1",)])
         a = self.run1(self.gcmd("gate.open"), g)
-        self.assertFalse(a["ok"]); self.assertIn("paused", a["error"])
+        self.assertFalse(a["ok"]); self.assertIn("lockdown", a["error"])
         self.assertTrue(self.run1(self.gcmd("gate.lockdown", {"on": False}), g)["ok"])
         self.assertEqual(self.q("select value from settings where key='lockdown'"), [("0",)])
         n = len(hits)
@@ -268,6 +297,15 @@ class ApplierTests(unittest.TestCase):
         a = self.run1(self.gcmd("gate.open"), bad)
         self.assertFalse(a["ok"]); self.assertIn("login", a["error"])
         self.assertRejected(self.gcmd("gate.lockdown", {"on": "yes"}), "true or false")
+
+    def test_open_refused_during_auto_open_window(self):
+        srv, hits = fake_gate_app(self.db, auto_open={"on": True})
+        self.addCleanup(srv.server_close); self.addCleanup(srv.shutdown)
+        g = mc.LocalGate("http://127.0.0.1:%d" % srv.server_address[1], ADMIN)
+        a = self.run1(self.gcmd("gate.open"), g)
+        self.assertFalse(a["ok"]); self.assertIn("auto-open", a["error"])
+        self.assertNotIn("/gate/open", [h[0] for h in hits])
+        self.assertEqual(self.q("select count(*) from changes_log where action='REMOTE_OPEN'"), [(0,)])
 
     def test_gate_client_is_loopback_only_and_unreachable_app_fails_cleanly(self):
         with self.assertRaises(ValueError):

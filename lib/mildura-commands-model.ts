@@ -15,10 +15,10 @@ export const MIRROR_KINDS = [
 ] as const;
 export type MirrorKind = typeof MIRROR_KINDS[number];
 /** Open Gate / Lockdown run through the gate app's own loopback admin routes on the Pi, only when the
- *  Pi reports them in last_status.mirror_caps. Hold Open is retired in the gate app (external time clock). */
+ *  Pi reports them in last_status.mirror_caps. Hold Open only drives the ORO line, which is disconnected on site (time clock holds the boom). */
 export const GATE_KINDS = ["gate.open", "gate.lockdown"] as const;
 export const RETIRED_KINDS = ["gate.hold"] as const;
-export const HOLD_RETIRED_NOTE = "Hold Open is retired in the Mildura gate app: the on-site time clock controls opening hours and hold.";
+export const HOLD_RETIRED_NOTE = "Hold Open is off: the gate app's hold line is disconnected on site and the time clock holds the boom.";
 export const GATE_OFF_NOTE = "Gate actions are not enabled on the Mildura Pi (MIRROR_GATE_ACTIONS=1 and the local admin PIN are needed).";
 /** An Open Gate that the Pi has not picked up within this time is dropped, never fired late. */
 export const GATE_OPEN_TTL_S = 90;
@@ -43,7 +43,6 @@ const localId = (v: unknown) => (Number.isSafeInteger(v) && (v as number) > 0 ? 
 const flag = (v: unknown) => (typeof v === "boolean" ? v : bad("Enabled must be on or off."));
 export function pinInput(v: unknown) {
   if (typeof v !== "string" || !PIN.test(v)) bad("PIN must be 4 to 6 digits.");
-  if ((v as string).startsWith("0")) bad("PIN cannot start with 0 (keypad limitation).");
   return v as string;
 }
 function time(v: unknown, f: string) { return typeof v === "string" && TIME.test(v) ? v : bad(`${f} must be HH:MM (24 hour).`); }

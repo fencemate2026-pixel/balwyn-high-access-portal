@@ -86,3 +86,9 @@ test("Phase 2: only the owner command route is written to, Open/Lockdown gated +
   assert.match(src, /Waiting for first sync from the Mildura Pi/);
   assert.match(readFileSync(new URL("../app/dev-preview/mildura/page.tsx", import.meta.url), "utf8"), /PORTAL_DEV_FIXTURES !== "1"\) notFound\(\)/);
 });
+
+test("gate status shows the live app's auto-open and manual hold", () => {
+  assert.equal(vm.gateStatus({ auto_open: true, auto_name: "Club" }).label, "Auto-open: Club");
+  assert.equal(vm.gateStatus({ manual_hold: true }).label, "Manual hold on");
+  assert.equal(vm.gateStatus({ lockdown: true, auto_open: true }).label, "Lockdown");
+});
