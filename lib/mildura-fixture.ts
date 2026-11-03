@@ -20,3 +20,19 @@ export function milduraFixture(now = Date.now()) {
     serverTime: new Date(now).toISOString(),
   };
 }
+
+/** Phase 2 preview: unlocked, key registered, a few commands in each state. Invented; no PINs. */
+export function milduraControlFixture(now = Date.now()) {
+  const at = (s: number) => new Date(now - s * 1000).toISOString();
+  return {
+    keyRegistered: true, keyFingerprint: "3f9c2a71d04be6a85c11e0d7b2f4a9e6c3d8b17f20a5e9c4d6b3a1f7e8c2d905",
+    unlocked: true, unlockExpiresAt: now + 8 * 60_000,
+    gate: { wired: false, note: "Open Gate, Hold Open and Lockdown are not wired yet." },
+    commands: [
+      { id: "f1", kind: "user.enable", args: { local_id: 12, enabled: false }, status: "pending" as const, created_at: at(4) },
+      { id: "f2", kind: "user.add", args: { name: "Riley Walker", enabled: true, schedule_type: "always" }, status: "delivered" as const, created_at: at(9) },
+      { id: "f3", kind: "schedule.enable", args: { local_id: 2, enabled: true }, status: "applied" as const, created_at: at(300) },
+      { id: "f4", kind: "user.add", args: { name: "Pat Hall" }, status: "failed" as const, error: "that PIN is already in use", created_at: at(900) },
+    ],
+  };
+}

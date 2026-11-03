@@ -186,3 +186,38 @@ export async function getMirrorDetail(slug: string) {
   ]);
   return { site: { id: sid, slug: site.slug, name: site.name }, units, users, schedules, persons, access, access30, changes };
 }
+
+/**
+ * Mildura Phase 2 (4 Nov 2026): the portal → Pi command queue (gd_mirror_commands).
+ * The `sealed` column (RSA-OAEP ciphertext to the Pi's key) is written once here and NEVER
+ * selected back: none of the selects below name it, and the PIN itself never reaches this module.
+ */
+const COMMAND_COLUMNS = "id,seq,kind,args,status,actor_email,error,result,created_at,finished_at";
+
+export async function getMirrorUnit(siteId: string) {
+  if (!isUuid(siteId)) throw new OwnerSiteInputError("Unknown site.");
+  const rows = await rest<Array<{ id: string; command_pubkey: string | null }>>(`gd_units?site_id=eq.${siteId}&select=id,command_pubkey&order=name&limit=1`);
+  if (!rows.length) throw new OwnerSiteInputError("The Mildura Pi is not registered yet.");
+  return rows[0];
+}
+
+export async function listMirrorCommands(siteId: string) {
+  if (!isUuid(siteId)) throw new OwnerSiteInputError("Unknown site.");
+  return rest<Array<Record<string, unknown>>>(`gd_mirror_commands?site_id=eq.${siteId}&select=${COMMAND_COLUMNS}&order=created_at.desc&limit=50`);
+}
+
+export async function enqueueMirrorCommand(row: {
+  id: string; site_id: string; unit_id: string; client_key: string; kind: string;
+  args: Record<string, unknown>; sealed: string | null; actor_email: string;
+}) {
+  // Same click twice (or a retried request): return the first command instead of queueing again.
+  const seen = await rest<Array<Record<string, unknown>>>(`gd_mirror_commands?unit_id=eq.${row.unit_id}&client_key=eq.${row.client_key}&select=${COMMAND_COLUMNS}`);
+  if (seen.length) return { command: seen[0], duplicate: true };
+  const made = await rest<Array<Record<string, unknown>>>(`gd_mirror_commands?select=${COMMAND_COLUMNS}`, { method: "POST", body: JSON.stringify(row) });
+  return { command: made?.[0] ?? { id: row.id, kind: row.kind, status: "pending" }, duplicate: false };
+}
+
+/** Portal-side audit next to the Pi's changes_log mirror (negative local_id from the DB default). */
+export async function auditMirrorChange(siteId: string, entry: { action: string; detail: string; changed_by: string; occurred_at_local: string }) {
+  await rest("gd_mirror_changes", { method: "POST", body: JSON.stringify({ site_id: siteId, source: "portal", ...entry }) });
+}
