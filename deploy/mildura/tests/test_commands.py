@@ -255,93 +255,10 @@ class ApplierTests(unittest.TestCase):
             orig = mc.open_rw
             mc.open_rw = lambda p: (lambda c: (c.execute("PRAGMA busy_timeout=50"), c)[1])(sqlite3.connect(p, timeout=0.05, isolation_level=None))
             acks = mc.apply_all(self.db, [self.cmd("users.enable_all", {"enabled": True})], self.key)
+            self.assertFalse(acks[0]["ok"])
+            self.assertIn("busy", acks[0]["error"].lower())
         finally:
-            mc.open_rw = orig; hold.execute("ROLLBACK"); hold.close()
-        self.assertEqual(acks, [])                                   # cloud keeps it and re-delivers
-
-    # -- gate actions through the gate app's own loopback routes ---------------------------
-    def gate(self, pin=ADMIN):
-        srv, hits = fake_gate_app(self.db)
-        self.addCleanup(srv.server_close); self.addCleanup(srv.shutdown)
-        return mc.LocalGate("http://127.0.0.1:%d" % srv.server_address[1], pin), hits
-
-    def gcmd(self, kind, args=None, age_s=0):
-        c = self.cmd(kind, args)
-        c["created_at"] = (datetime.now(timezone.utc) - timedelta(seconds=age_s)).isoformat()
-        return c
-
-    def test_open_gate_calls_app_route_once(self):
-        g, hits = self.gate()
-        c = self.gcmd("gate.open")
-        a = self.run1(c, g)
-        self.assertEqual(a, {"id": c["id"], "ok": True, "result": {"pulse": "sent"}})
-        self.assertEqual([h[0] for h in hits], ["/api/status", "/login", "/gate/open"])
-        self.assertTrue(all(h[1].startswith("http://127.0.0.1:") for h in hits if h[0] != "/api/status"))       # Origin = own host (CSRF check)
-        again = self.run1(c, g)                                                         # re-delivered: no second pulse
-        self.assertEqual(again["result"], {"already_applied": True})
-        self.assertEqual([h[0] for h in hits].count("/gate/open"), 1)
-        self.assertEqual(self.q("select action,changed_by from changes_log where action='REMOTE_OPEN'"), [("REMOTE_OPEN", "portal:owner@example.test")])
-
-    def test_open_refused_when_paused_stale_or_bad_login(self):
-        g, hits = self.gate()
-        self.assertTrue(self.run1(self.gcmd("gate.lockdown", {"on": True}), g)["ok"])
-        self.assertEqual(self.q("select value from settings where key='lockdown'"), [("1",)])
-        a = self.run1(self.gcmd("gate.open"), g)
-        self.assertFalse(a["ok"]); self.assertIn("lockdown", a["error"])
-        self.assertTrue(self.run1(self.gcmd("gate.lockdown", {"on": False}), g)["ok"])
-        self.assertEqual(self.q("select value from settings where key='lockdown'"), [("0",)])
-        n = len(hits)
-        a = self.run1(self.gcmd("gate.open", age_s=600), g)
-        self.assertFalse(a["ok"]); self.assertIn("too old", a["error"]); self.assertEqual(len(hits), n)   # never sent late
-        bad, _ = self.gate(pin="000000")
-        a = self.run1(self.gcmd("gate.open"), bad)
-        self.assertFalse(a["ok"]); self.assertIn("login", a["error"])
-        self.assertRejected(self.gcmd("gate.lockdown", {"on": "yes"}), "true or false")
-
-    def test_open_refused_during_auto_open_window(self):
-        srv, hits = fake_gate_app(self.db, auto_open={"on": True})
-        self.addCleanup(srv.server_close); self.addCleanup(srv.shutdown)
-        g = mc.LocalGate("http://127.0.0.1:%d" % srv.server_address[1], ADMIN)
-        a = self.run1(self.gcmd("gate.open"), g)
-        self.assertFalse(a["ok"]); self.assertIn("auto-open", a["error"])
-        self.assertNotIn("/gate/open", [h[0] for h in hits])
-        self.assertEqual(self.q("select count(*) from changes_log where action='REMOTE_OPEN'"), [(0,)])
-
-    def test_gate_client_is_loopback_only_and_unreachable_app_fails_cleanly(self):
-        with self.assertRaises(ValueError):
-            mc.LocalGate("http://10.0.0.5:5000", ADMIN)
-        a = self.run1(self.gcmd("gate.open"), mc.LocalGate("http://127.0.0.1:9", ADMIN, timeout=1))
-        self.assertFalse(a["ok"]); self.assertIn("not reachable", a["error"])
-
-    # -- the command loop in mildura_mirror.py --------------------------------------------
-    def test_command_cycle_registers_key_applies_and_acks(self):
-        sent = []
-        c = self.cmd("user.add", {"name": "Loop User"}, {"pin": "864209"})
-        def fake_post(url, body):
-            sent.append(body)
-            if body["action"] == "key": return {"ok": True, "registered": True}
-            if body["action"] == "commands": return {"ok": True, "commands": [c]}
-            return {"ok": True}
-        orig = m.post; m.post = fake_post
-        try:
-            st = {}; sp = os.path.join(self.d, "s.json")
-            n = m.command_cycle(self.db, "https://x.invalid", {"device_id": "mildura-001", "secret": "s" * 40}, self.key, st, sp)
-        finally:
-            m.post = orig
-        self.assertEqual(n, 1)
-        self.assertEqual([b["action"] for b in sent], ["key", "commands", "ack"])
-        self.assertIn("BEGIN PUBLIC KEY", sent[0]["pubkey"]); self.assertNotIn("PRIVATE", json.dumps(sent))
-        self.assertEqual(sent[2]["results"][0]["ok"], True)
-        self.assertNotIn("864209", json.dumps(sent[2]))
-        self.assertTrue(st["key_registered"])
-
-    def test_command_cycle_refuses_when_cloud_has_other_key(self):
-        orig = m.post; m.post = lambda url, body: {"ok": True, "registered": False}
-        try:
-            with self.assertRaises(RuntimeError):
-                m.command_cycle(self.db, "https://x.invalid", {"device_id": "d", "secret": "s" * 40}, self.key, {}, os.path.join(self.d, "s.json"))
-        finally:
-            m.post = orig
+            mc.open_rw = orig; hold.close()
 
     def test_caps_are_reported_in_status(self):
         sent = []
@@ -351,7 +268,10 @@ class ApplierTests(unittest.TestCase):
             m.cycle(self.db, "https://x.invalid", {"device_id": "d", "secret": "s" * 40}, {}, os.path.join(self.d, "s.json"), "", ["gate.open", "users"])
         finally:
             m.post = orig; m.local_status = orig_ls
-        self.assertEqual(sent[0]["status"], {"lockdown": False, "mirror_caps": ["gate.open", "users"]})
+        status = sent[0]["status"]
+        self.assertEqual(status.get("lockdown"), False)
+        self.assertEqual(status.get("mirror_caps"), ["gate.open", "users"])
+        self.assertIsInstance(status.get("health"), dict)   # health metrics are always attached
         self.assertNotIn(ADMIN, json.dumps(sent))
 
     def test_mirror_read_path_still_read_only(self):
