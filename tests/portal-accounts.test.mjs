@@ -97,3 +97,35 @@ test("changing an account's role ends its sessions and duplicate emails are refu
   assert.equal(await auth.getSessionUser(asRequest(session)), null);
   await assert.rejects(auth.createPortalAccount({ email: "ROLE@example.test", displayName: "Duplicate", role: "viewer" }, "x"), /already exists/);
 });
+
+// Owner takeover guard (3 Nov 2026 audit). The owner is whoever signs in as an
+// administrator with PORTAL_OWNER_EMAIL, so a school administrator must never be able to
+// create, reset, demote or disable an account that carries that email.
+test("only the owner can create or manage an account that carries the owner's email", async (t) => {
+  await setup(t);
+  env.PORTAL_OWNER_EMAIL = "Owner@Example.test";
+  const input = { email: " owner@example.TEST ", displayName: "Not The Owner", role: "administrator" };
+
+  // A school administrator (not the owner) cannot claim the owner's email, whatever its case or spacing.
+  await assert.rejects(auth.createPortalAccount(input, "admin@example.test"), /owner/i);
+  await assert.rejects(auth.createPortalAccount(input, "admin@example.test", false), /owner/i);
+
+  // The owner can create their own per-person account.
+  const ownerAccount = await auth.createPortalAccount(input, "owner@example.test", true);
+  assert.ok(ownerAccount.id);
+
+  // A school administrator cannot reset it (that would hand out a setup link and take the account over),
+  // change its role, or disable it.
+  await assert.rejects(auth.resetPortalAccount(ownerAccount.id), /owner/i);
+  await assert.rejects(auth.updatePortalAccount(ownerAccount.id, { role: "viewer" }), /owner/i);
+  await assert.rejects(auth.updatePortalAccount(ownerAccount.id, { active: false }), /owner/i);
+
+  // The owner can manage it.
+  assert.ok((await auth.resetPortalAccount(ownerAccount.id, true)).token);
+  await auth.updatePortalAccount(ownerAccount.id, { active: true }, true);
+
+  // Ordinary accounts are unaffected, and so is a site with no owner configured.
+  assert.ok((await auth.createPortalAccount({ email: "staff@example.test", displayName: "Staff", role: "viewer" }, "admin@example.test")).id);
+  delete env.PORTAL_OWNER_EMAIL;
+  await assert.rejects(auth.createPortalAccount({ email: "staff@example.test", displayName: "Dup", role: "viewer" }, "x"), /already exists/);
+});

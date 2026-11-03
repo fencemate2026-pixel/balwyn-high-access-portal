@@ -214,9 +214,19 @@ function randomToken(): string {
 
 export class AccountError extends Error {}
 
+/** True when the email is the portal owner's (PORTAL_OWNER_EMAIL), compared case- and space-insensitively. */
+function isOwnerEmail(email: string): boolean {
+  const owner = String(env.PORTAL_OWNER_EMAIL ?? "").trim().toLowerCase();
+  return owner !== "" && email.trim().toLowerCase() === owner;
+}
+
+const OWNER_ACCOUNT_MESSAGE = "That email belongs to the portal owner. Only the owner can create or change that account.";
+
 /** Administrator creates an account. Returns a one-time setup token (shown once, never stored). */
-export async function createPortalAccount(input: { email: string; displayName: string; role: PortalUser["role"] }, createdBy: string) {
+export async function createPortalAccount(input: { email: string; displayName: string; role: PortalUser["role"] }, createdBy: string, actorIsOwner = false) {
   const email = input.email.trim().toLowerCase();
+  // The owner is whoever signs in as an administrator with the owner email, so nobody else may create that account.
+  if (isOwnerEmail(email) && !actorIsOwner) throw new AccountError(OWNER_ACCOUNT_MESSAGE);
   const displayName = input.displayName.trim();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254) throw new AccountError("Enter a valid email address.");
   if (!displayName || displayName.length > 120) throw new AccountError("Enter the person's name (up to 120 characters).");
@@ -231,8 +241,16 @@ export async function createPortalAccount(input: { email: string; displayName: s
   return { id: row?.id ?? "", token, expiresAt: expires };
 }
 
+/** Stops anyone but the owner resetting, demoting or disabling the owner's own account. */
+async function assertNotOwnerAccount(id: string, actorIsOwner: boolean): Promise<void> {
+  if (actorIsOwner) return;
+  const row = await getSql().prepare("SELECT email FROM portal_accounts WHERE id = ?").bind(id).first<{ email: string }>();
+  if (row && isOwnerEmail(row.email)) throw new AccountError(OWNER_ACCOUNT_MESSAGE);
+}
+
 /** New setup link: the old password stops working immediately and every session for the account ends. */
-export async function resetPortalAccount(id: string) {
+export async function resetPortalAccount(id: string, actorIsOwner = false) {
+  await assertNotOwnerAccount(id, actorIsOwner);
   const token = randomToken();
   const expires = new Date(Date.now() + SETUP_LINK_HOURS * 3600_000).toISOString();
   const row = await getSql().prepare(`UPDATE portal_accounts SET password_salt = NULL, password_hash = NULL,
@@ -243,7 +261,8 @@ export async function resetPortalAccount(id: string) {
 }
 
 /** Enable/disable an account or change its role. Any change ends that account's sessions. */
-export async function updatePortalAccount(id: string, change: { active?: boolean; role?: PortalUser["role"] }) {
+export async function updatePortalAccount(id: string, change: { active?: boolean; role?: PortalUser["role"] }, actorIsOwner = false) {
+  await assertNotOwnerAccount(id, actorIsOwner);
   if (change.role && !["viewer", "operator", "administrator"].includes(change.role)) throw new AccountError("Choose a role.");
   const row = await getSql().prepare(`UPDATE portal_accounts SET active = COALESCE(?, active), role = COALESCE(?, role),
     password_version = password_version + 1, updated_at = now() WHERE id = ? RETURNING id`)

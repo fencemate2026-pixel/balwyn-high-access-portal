@@ -63,12 +63,12 @@ export async function POST(request: Request) {
     if (body.action === "create") {
       const role = String(body.role ?? "");
       if (!ROLES.has(role)) throw new AccountError("Choose a role.");
-      const created = await createPortalAccount({ email: String(body.email ?? ""), displayName: String(body.displayName ?? ""), role: role as "viewer" }, auth.user.email);
+      const created = await createPortalAccount({ email: String(body.email ?? ""), displayName: String(body.displayName ?? ""), role: role as "viewer" }, auth.user.email, auth.user.isOwner === true);
       await recordActivity(auth.user, "Account created", `${String(body.email ?? "").trim().toLowerCase()} as ${role}`, "access");
       return Response.json({ id: created.id, setupLink: setupLink(request, created.token), expiresAt: created.expiresAt }, { headers });
     }
     if (body.action === "reset") {
-      const reset = await resetPortalAccount(String(body.id ?? ""));
+      const reset = await resetPortalAccount(String(body.id ?? ""), auth.user.isOwner === true);
       await recordActivity(auth.user, "Account setup link issued", `Account ${reset.id}; previous password and sessions revoked`, "access");
       return Response.json({ id: reset.id, setupLink: setupLink(request, reset.token), expiresAt: reset.expiresAt }, { headers });
     }
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       const role = body.role === undefined ? undefined : String(body.role);
       if (role !== undefined && !ROLES.has(role)) throw new AccountError("Choose a role.");
       const active = body.active === undefined ? undefined : Boolean(body.active);
-      await updatePortalAccount(String(body.id ?? ""), { active, role: role as "viewer" | undefined });
+      await updatePortalAccount(String(body.id ?? ""), { active, role: role as "viewer" | undefined }, auth.user.isOwner === true);
       await recordActivity(auth.user, "Account updated", `Account ${String(body.id ?? "")}${role ? ` role ${role}` : ""}${active === undefined ? "" : active ? " enabled" : " disabled"}`, "access");
       return Response.json({ ok: true }, { headers });
     }
