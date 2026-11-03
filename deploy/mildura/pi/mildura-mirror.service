@@ -1,5 +1,5 @@
 [Unit]
-Description=Mildura gate mirror (read-only, outbound HTTPS only)
+Description=Mildura gate mirror (outbound HTTPS only; optional portal commands)
 After=network-online.target
 Wants=network-online.target
 
@@ -12,14 +12,25 @@ RestartSec=30
 Nice=15
 IOSchedulingClass=idle
 MemoryMax=64M
-User=mildura-mirror
+# Runs as the gate database owner (the gate app's own user). No root, no GPIO group needed.
+User=rjlcommercial
 StateDirectory=mildura-mirror
+StateDirectoryMode=0700
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=read-only
+# Phase 2: the ONLY writable path outside the state dir is the gate app's data directory (SQLite
+# needs the directory for its journal). Only mildura_commands.py writes there, and only when
+# MIRROR_CONTROL=1. Phase 1 (control off) never opens the database for writing.
+ReadWritePaths=/home/rjlcommercial/boomgate
 PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-# The gate database is read-only to this unit; state lives in /var/lib/mildura-mirror only.
+CapabilityBoundingSet=
+SystemCallFilter=@system-service
 
 [Install]
 WantedBy=multi-user.target

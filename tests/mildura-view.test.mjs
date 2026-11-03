@@ -70,13 +70,19 @@ test("breakdown, 30-day usage and health tiles", () => {
   assert.equal(vm.gateStatus(null).label, "Not reported");
 });
 
-test("the view has no live controls and no PIN, and the preview is dev-flag only", () => {
+test("Phase 2: only the owner command route is written to, Open/Lockdown gated + confirmed, Hold Open disabled, no PIN shown, preview is dev-flag only", () => {
   const src = readFileSync(new URL("../app/mildura-site-view.tsx", import.meta.url), "utf8");
-  assert.ok(!/method:\s*"POST"/.test(src), "no writes from the Mildura view");
-  assert.ok(!/\bpin\b/i.test(src.replace(/PINs?/g, "")), "no PIN field");
-  assert.match(src, /\["Open Gate", "Hold Open", "Lockdown"\]\.map\([^)]*\) => <button[^>]*disabled>/, "gate controls are disabled");
-  assert.match(src, /disabled title=\{PHASE2\}>Add User/, "Add User is disabled");
-  assert.ok(!/onClick=\{[^}]*(fetch|api)\(/.test(src), "no button calls the API");
+  const ctl = readFileSync(new URL("../app/mildura-controls.tsx", import.meta.url), "utf8");
+  assert.ok(!/method:\s*"POST"/.test(src), "the view itself never writes; all writes go through mildura-controls");
+  assert.deepEqual([...ctl.matchAll(/fetch\("([^"]+)"/g)].map((m) => m[1]).sort(), ["/api/owner/mildura", "/api/owner/mildura"], "controls only talk to the owner command route");
+  assert.match(ctl, /disabled title=\{s\?\.gate\.holdNote\}>Hold Open</, "Hold Open stays disabled (retired in the gate app)");
+  assert.match(ctl, /disabled=\{!can \|\| !s\?\.gate\.open\}/, "Open Gate only when unlocked and advertised by the Pi");
+  assert.match(ctl, /kind: "gate\.open" \}, \{ title: "Open the Mildura boom gate\?"/, "Open Gate confirms");
+  assert.match(ctl, /title: "Lock down Mildura\?"/, "Lockdown confirms");
+  assert.ok(!/u\.pin|p\.pin|\.pin\b/.test(src), "no stored PIN is ever rendered");
+  assert.match(ctl, /type="password"[^>]*autoComplete="off"/, "PIN inputs are masked");
+  assert.match(ctl, /setPin\(""\); setPin2\(""\);/, "PIN cleared after send");
+  for (const t of ["Delete \\${u.name}\\?", "Disable ALL users\\?", "Enable ALL users\\?", "Delete \\${p.name}\\?"]) assert.match(src, new RegExp(t), `confirmation: ${t}`);
   assert.match(src, /Waiting for first sync from the Mildura Pi/);
   assert.match(readFileSync(new URL("../app/dev-preview/mildura/page.tsx", import.meta.url), "utf8"), /PORTAL_DEV_FIXTURES !== "1"\) notFound\(\)/);
 });
