@@ -2,7 +2,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const fs = require('fs');
 const vm = require('vm');
-const ts = require('typescript');
+// TypeScript 7 no longer ships the JS compiler API (transpileModule), so compile with esbuild.
+const esbuild = require('esbuild');
 const assert = require('node:assert/strict');
 
 // The guard only warms the voice list. It must never wrap speak() or cancel():
@@ -11,10 +12,11 @@ const assert = require('node:assert/strict');
 let voiceRequests = 0;
 const speak = () => {}, cancel = () => {};
 const synth = { speak, cancel, getVoices: () => { voiceRequests += 1; return []; } };
-const code = ts.transpileModule(fs.readFileSync('app/emergency-voice-guard.tsx', 'utf8'), {compilerOptions: {module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX}}).outputText;
-const sandbox = {exports: {}, window: {speechSynthesis: synth}, require: n => n === 'react' ? {useEffect: fn => { fn(); }} : {}};
+const code = esbuild.transformSync(fs.readFileSync('app/emergency-voice-guard.tsx', 'utf8'), {loader: 'tsx', format: 'cjs', jsx: 'automatic'}).code;
+const mod = {exports: {}};
+const sandbox = {module: mod, exports: mod.exports, window: {speechSynthesis: synth}, require: n => n === 'react' ? {useEffect: fn => { fn(); }} : {}};
 vm.runInNewContext(code, sandbox);
-sandbox.exports.default();
+mod.exports.default();
 assert.equal(synth.speak, speak, 'speak() must not be wrapped');
 assert.equal(synth.cancel, cancel, 'cancel() must not be wrapped');
 assert.equal(voiceRequests, 1, 'the voice list is requested once, early');

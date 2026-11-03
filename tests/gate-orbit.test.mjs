@@ -9,6 +9,8 @@ class CanvasEvents extends EventTarget {
   clientWidth = 600;
   clientHeight = 400;
   root = new EventTarget();
+  // three >= 0.186 OrbitControls registers pointermove/pointerup on domElement.ownerDocument.
+  ownerDocument = new EventTarget();
   attributes = {};
   getRootNode() { return this.root; }
   setPointerCapture() {}
@@ -18,7 +20,8 @@ class CanvasEvents extends EventTarget {
   emit(type, fields = {}) {
     const event = new Event(type, { cancelable: true });
     Object.assign(event, { pointerType: "mouse", pointerId: 1, button: 0, clientX: 100, clientY: 100, pageX: 100, pageY: 100, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...fields });
-    this.dispatchEvent(event);
+    // In a real DOM, pointermove/pointerup bubble from the canvas to the document that OrbitControls listens on.
+    (type === "pointermove" || type === "pointerup" ? this.ownerDocument : this).dispatchEvent(event);
   }
   drag(button, x) {
     this.emit("pointerdown", { button });
