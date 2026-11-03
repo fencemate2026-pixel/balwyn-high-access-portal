@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
-"""Mildura gate mirror: read-only, outbound-only sync from the gate app's SQLite file to the
+"""Mildura gate mirror: outbound-only sync from the gate app's SQLite file to the
 Magic Keys cloud (edge function `gd-mirror`).
+
+Phase 2 (MIRROR_CONTROL=1, off by default): the same service also polls gd-mirror for portal
+commands over outbound HTTPS and applies them through mildura_commands.py, the ONLY code that
+writes to the gate database. The mirror read path below stays read-only. Phase 1 behaviour is
+unchanged when MIRROR_CONTROL is unset.
 
 Safety contract (every point is enforced in code and covered by tests/test_mirror.py):
   * The gate database is opened read-only (SQLite URI mode=ro + PRAGMA query_only). This
@@ -24,7 +29,8 @@ import time
 import urllib.error
 import urllib.request
 
-VERSION = "1.0.0"
+VERSION = "2.2.0"
+COMMAND_INTERVAL_S = 10       # Phase 2 command poll (tiny request)
 INTERVAL_S = 60                # normal cycle
 BACKOFF_MAX_S = 900            # cap when the cloud is unreachable
 HTTP_TIMEOUT_S = 20
@@ -129,7 +135,10 @@ def local_status(url):
     try:
         with urllib.request.urlopen(url, timeout=STATUS_TIMEOUT_S) as r:   # nosec B310 loopback
             data = json.loads(r.read(65536))
-        keep = ("lockdown", "software_access_paused", "control_mode", "gpio", "gate_position")
+        # Live Pi app: auto_open/auto_name/hold/signal_on/manual_hold/lockdown/gpio; older builds also
+        # control_mode/software_access_paused/gate_position. Booleans and short labels only.
+        keep = ("lockdown", "software_access_paused", "control_mode", "gpio", "gate_position",
+                "auto_open", "auto_name", "hold", "signal_on", "manual_hold")
         return {k: data.get(k) for k in keep if k in data}
     except Exception:
         return None
@@ -143,10 +152,13 @@ def post(url, body):
         return json.loads(r.read(1 << 20))
 
 
-def build_payload(con, state, creds, status_url):
+def build_payload(con, state, creds, status_url, caps=()):
     """Return (payload, commit) where commit(state) advances the marks after the cloud acks."""
+    status = local_status(status_url)
+    if caps:                            # what this Pi will accept from the portal (Phase 2)
+        status = dict(status or {}, mirror_caps=sorted(caps))
     payload = {"device_id": creds["device_id"], "secret": creds["secret"], "action": "push",
-               "fw_version": "mirror-" + VERSION, "status": local_status(status_url), "snapshots": {}, "streams": {}}
+               "fw_version": "mirror-" + VERSION, "status": status, "snapshots": {}, "streams": {}}
     snap_marks, stream_marks = {}, {}
     for t in SNAPSHOT_TABLES:
         rows = read_snapshot(con, t)
@@ -167,11 +179,11 @@ def build_payload(con, state, creds, status_url):
     return payload, commit, bool(stream_marks) and any(len(payload["streams"][t]) >= BATCH_ROWS for t in payload["streams"])
 
 
-def cycle(db_path, url, creds, state, state_path, status_url):
+def cycle(db_path, url, creds, state, state_path, status_url, caps=()):
     """One sync pass. Returns True if more backlog remains (caller loops immediately)."""
     con = open_ro(db_path)
     try:
-        payload, commit, more = build_payload(con, state, creds, status_url)
+        payload, commit, more = build_payload(con, state, creds, status_url, caps)
     finally:
         con.close()
     resp = post(url, payload)
@@ -187,6 +199,32 @@ def read_creds(path):
     with open(path) as fh:
         cfg = dict(l.strip().split("=", 1) for l in fh if "=" in l and not l.lstrip().startswith("#"))
     return cfg
+
+
+def command_cycle(db_path, url, creds, key_path, state, state_path, cfg=None, gate=None):
+    """Phase 2: register the public key once, fetch queued commands, apply, ack. Returns #acked."""
+    import mildura_commands as mc
+    base = {"device_id": creds["device_id"], "secret": creds["secret"]}
+    if not state.get("key_registered"):
+        resp = post(url, dict(base, action="key", pubkey=mc.public_key_pem(key_path)))
+        if not resp.get("ok") or not resp.get("registered"):
+            raise RuntimeError("cloud holds a different command key for this unit; refusing to apply commands")
+        state["key_registered"] = True
+        save_state(state_path, state)
+    resp = post(url, dict(base, action="commands"))
+    if not resp.get("ok"):
+        raise RuntimeError("cloud refused: %s" % resp.get("error", "unknown"))
+    cmds = resp.get("commands") or []
+    if not isinstance(cmds, list) or not cmds:
+        return 0
+    acks = mc.apply_all(db_path, cmds[:20], key_path, cfg=cfg, gate=gate)
+    for a in acks:
+        log("command %s %s%s" % (a["id"][:8], "applied" if a["ok"] else "rejected", "" if a["ok"] else ": " + a.get("error", "")))
+    if acks:
+        r = post(url, dict(base, action="ack", results=acks))
+        if not r.get("ok"):
+            raise RuntimeError("ack refused")
+    return len(acks)
 
 
 def main():
@@ -206,17 +244,51 @@ def main():
     if not os.path.exists(db_path):
         log("gate database not found at configured path; refusing to start")
         return 2
+    control = cfg.get("MIRROR_CONTROL", "0") == "1"
+    key_path = cfg.get("MIRROR_COMMAND_KEY", "/var/lib/mildura-mirror/command_key.pem")
+    if control and not os.path.exists(key_path):
+        log("MIRROR_CONTROL=1 but no command key at %s; commands disabled" % key_path)
+        control = False
+    ccfg = {"admin_pin": cfg.get("GATE_ADMIN_PIN", "") or None}
+    gate, caps = None, []
+    if control:
+        caps = ["users", "schedules", "persons"]
+        if cfg.get("MIRROR_GATE_ACTIONS", "0") == "1" and ccfg["admin_pin"]:
+            import mildura_commands as mc
+            try:
+                gate = mc.LocalGate(cfg.get("GATE_URL", "http://127.0.0.1:5000"), ccfg["admin_pin"])
+                caps += ["gate.open", "gate.lockdown"]
+            except ValueError:
+                log("GATE_URL must be loopback; gate actions disabled")
     state = load_state(state_path)
-    delay = INTERVAL_S
-    log("started v%s" % VERSION)
+    delay, cdelay = INTERVAL_S, COMMAND_INTERVAL_S
+    next_sync = next_cmd = time.monotonic()
+    log("started v%s (control %s, gate actions %s)" % (VERSION, "on" if control else "off", "on" if gate else "off"))
     while True:
-        try:
-            more = cycle(db_path, url, creds, state, state_path, status_url)
-            delay = 1 if more else INTERVAL_S
-        except (urllib.error.URLError, OSError, RuntimeError, ValueError, sqlite3.Error) as e:
-            delay = min(BACKOFF_MAX_S, max(delay, INTERVAL_S) * 2)
-            log("sync failed (%s); retry in %ds" % (type(e).__name__, delay))
-        time.sleep(delay)
+        now = time.monotonic()
+        if now >= next_sync:
+            try:
+                more = cycle(db_path, url, creds, state, state_path, status_url, caps)
+                delay = 1 if more else INTERVAL_S
+            except (urllib.error.URLError, OSError, RuntimeError, ValueError, sqlite3.Error) as e:
+                delay = min(BACKOFF_MAX_S, max(delay, INTERVAL_S) * 2)
+                log("sync failed (%s); retry in %ds" % (type(e).__name__, delay))
+            next_sync = time.monotonic() + delay
+        if control and now >= next_cmd:
+            try:
+                if command_cycle(db_path, url, creds, key_path, state, state_path, ccfg, gate):
+                    next_sync = time.monotonic()          # show the change in the portal straight away
+                cdelay = COMMAND_INTERVAL_S
+            except (urllib.error.URLError, OSError, RuntimeError, ValueError, sqlite3.Error, subprocess_error()) as e:
+                cdelay = min(300, cdelay * 2)
+                log("commands failed (%s); retry in %ds" % (type(e).__name__, cdelay))
+            next_cmd = time.monotonic() + cdelay
+        time.sleep(max(0.5, min(next_sync, next_cmd if control else next_sync) - time.monotonic()))
+
+
+def subprocess_error():
+    import subprocess
+    return subprocess.SubprocessError
 
 
 if __name__ == "__main__":

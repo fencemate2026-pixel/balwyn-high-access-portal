@@ -6,5 +6,5 @@ systemctl disable --now mildura-mirror.service 2>/dev/null || true
 rm -f /etc/systemd/system/mildura-mirror.service /etc/mildura-mirror.env
 rm -rf /opt/mildura-mirror /var/lib/mildura-mirror
 systemctl daemon-reload
-userdel mildura-mirror 2>/dev/null || true
+# the service user is the gate app user (rjlcommercial); it is NOT removed
 echo "removed"

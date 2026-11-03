@@ -1,7 +1,13 @@
-// gd-mirror v1 (STAGED, NOT DEPLOYED). Receives the Mildura Pi's read-only mirror.
-// Same auth as gd-device: body.device_id + body.secret; only sha256(secret) is stored (gd_units.secret_hash).
-// One action: "push" = heartbeat + idempotent upserts. It never returns config and never writes
-// anything the Pi could act on: this is a one-way mirror (Phase 1).
+// gd-mirror v2 (STAGED, NOT DEPLOYED; v1 is live). Receives the Mildura Pi's mirror and, from v2,
+// hands it portal commands. Same auth as gd-device: body.device_id + body.secret; only sha256(secret)
+// is stored (gd_units.secret_hash). Actions:
+//   push     heartbeat + idempotent upserts (unchanged from v1)
+//   key      the Pi registers its RSA-OAEP PUBLIC key once (first write wins)
+//   commands the Pi polls for queued commands (outbound HTTPS only; nothing listens on the Pi).
+//            created_at is sent so the Pi refuses an Open Gate that is older than 90 s.
+//   ack      the Pi reports results; ciphertext is wiped on every finished row
+// The function never sees a PIN: PIN-bearing commands carry only `sealed` ciphertext that only the
+// Pi's private key can open. Requires 002_mildura_control.sql.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
@@ -30,8 +36,11 @@ Deno.serve(async (req) => {
   if (!deviceId || secret.length < 32) return json(401, { error: "auth" });
   const { data: unit } = await db.from("gd_units").select("*").eq("device_id", deviceId).maybeSingle();
   if (!unit || !unit.secret_hash || !safeEq(await sha256hex(secret), unit.secret_hash)) { await sleep(400); return json(401, { error: "auth" }); }
-  if (b.action !== "push") return json(400, { error: "action" });
   const site = unit.site_id;
+  if (b.action === "key") return registerKey(unit, b.pubkey);
+  if (b.action === "commands") return nextCommands(unit);
+  if (b.action === "ack") return ackCommands(unit, b.results);
+  if (b.action !== "push") return json(400, { error: "action" });
 
   // Heartbeat first so last_seen is fresh even if a table write fails below.
   const status = b.status && typeof b.status === "object" ? b.status : null;
@@ -62,3 +71,49 @@ Deno.serve(async (req) => {
   // Ack only when every write succeeded so the Pi keeps its marks and retries.
   return errs.length ? json(500, { ok: false, error: "store" }) : json(200, { ok: true });
 });
+
+// ---- Phase 2: command queue -------------------------------------------------------------
+const PEM = /^-----BEGIN PUBLIC KEY-----\n[A-Za-z0-9+/=\n]{300,1200}\n-----END PUBLIC KEY-----\n?$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+async function registerKey(unit: any, pubkey: unknown) {
+  const pem = typeof pubkey === "string" ? pubkey.replace(/\r/g, "") : "";
+  if (!PEM.test(pem)) return json(400, { error: "pubkey" });
+  if (unit.command_pubkey) return json(200, { ok: true, registered: unit.command_pubkey.trim() === pem.trim() });
+  // First write wins, guarded so two racing calls cannot both set it.
+  const { error } = await db.from("gd_units").update({ command_pubkey: pem, command_pubkey_at: new Date().toISOString() })
+    .eq("id", unit.id).is("command_pubkey", null);
+  return error ? json(500, { ok: false, error: "store" }) : json(200, { ok: true, registered: true });
+}
+
+async function nextCommands(unit: any) {
+  const now = new Date().toISOString();
+  // Lazy expiry + housekeeping. Finished rows never keep ciphertext (DB trigger + constraint enforce it too).
+  await db.from("gd_mirror_commands").update({ status: "expired", sealed: null, finished_at: now, error: "expired before the Pi applied it" })
+    .eq("unit_id", unit.id).in("status", ["pending", "delivered"]).lt("expires_at", now);
+  await db.from("gd_mirror_commands").delete().eq("unit_id", unit.id).lt("created_at", new Date(Date.now() - 30 * 86400_000).toISOString());
+  const { data, error } = await db.from("gd_mirror_commands")
+    .select("id,seq,kind,args,sealed,actor_email,attempts,created_at").eq("unit_id", unit.id).in("status", ["pending", "delivered"])
+    .order("seq").limit(20);
+  if (error) return json(500, { ok: false, error: "store" });
+  // "delivered" ones are re-sent until acked (a lost response must not lose a command); the Pi is idempotent.
+  for (const c of data ?? []) {
+    await db.from("gd_mirror_commands").update({ status: "delivered", delivered_at: now, attempts: (c.attempts ?? 0) + 1 }).eq("id", c.id).in("status", ["pending", "delivered"]);
+  }
+  return json(200, { ok: true, commands: (data ?? []).map(({ attempts: _a, ...c }) => c) });
+}
+
+async function ackCommands(unit: any, results: unknown) {
+  const rows = Array.isArray(results) ? results.slice(0, 50) : [];
+  for (const r of rows as any[]) {
+    if (!r || typeof r.id !== "string" || !UUID.test(r.id)) continue;
+    const ok = r.ok === true;
+    const rj = r.result && typeof r.result === "object" ? JSON.stringify(r.result) : "";
+    const result = rj && rj.length <= 2000 ? JSON.parse(rj) : null;
+    await db.from("gd_mirror_commands").update({
+      status: ok ? "applied" : "failed", sealed: null, finished_at: new Date().toISOString(),
+      error: ok ? null : str(r.error, 300) ?? "rejected by the Pi", result,
+    }).eq("id", r.id).eq("unit_id", unit.id).in("status", ["pending", "delivered"]);
+  }
+  return json(200, { ok: true });
+}

@@ -60,6 +60,8 @@ export function gateStatus(status: MirrorStatus) {
   const s = (status ?? {}) as Record<string, unknown>;
   if (s.lockdown === true) return { label: "Lockdown", tone: "bad" as const };
   if (s.software_access_paused === true) return { label: "Access paused", tone: "warn" as const };
+  if (s.auto_open === true) return { label: typeof s.auto_name === "string" && s.auto_name ? `Auto-open: ${s.auto_name}` : "Auto-open window", tone: "warn" as const };
+  if (s.manual_hold === true) return { label: "Manual hold on", tone: "warn" as const };
   const pos = typeof s.gate_position === "string" ? s.gate_position : null;
   if (pos) return { label: pos.charAt(0).toUpperCase() + pos.slice(1).replace(/_/g, " "), tone: /open/i.test(pos) ? "warn" as const : "ok" as const };
   return { label: "Not reported", tone: "mute" as const };
