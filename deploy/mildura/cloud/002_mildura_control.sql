@@ -20,7 +20,8 @@ create table if not exists public.gd_mirror_commands (
   client_key uuid not null,                       -- double-click / retry guard from the browser
   kind text not null check (kind in (
     'user.add','user.update','user.delete','user.enable','users.enable_all',
-    'schedule.add','schedule.enable','schedule.delete','person.add','person.delete')),
+    'schedule.add','schedule.enable','schedule.delete','person.add','person.delete',
+    'gate.open','gate.lockdown')),                 -- Hold Open is retired in the gate app (time clock owns it)
   args jsonb not null default '{}'::jsonb,
   sealed text,                                    -- base64 RSA-OAEP ciphertext of {"pin","phone","cmd"}; never plaintext
   status text not null default 'pending' check (status in ('pending','delivered','applied','failed','expired')),

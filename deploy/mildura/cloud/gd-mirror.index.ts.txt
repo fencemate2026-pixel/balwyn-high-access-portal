@@ -3,7 +3,8 @@
 // is stored (gd_units.secret_hash). Actions:
 //   push     heartbeat + idempotent upserts (unchanged from v1)
 //   key      the Pi registers its RSA-OAEP PUBLIC key once (first write wins)
-//   commands the Pi polls for queued commands (outbound HTTPS only; nothing listens on the Pi)
+//   commands the Pi polls for queued commands (outbound HTTPS only; nothing listens on the Pi).
+//            created_at is sent so the Pi refuses an Open Gate that is older than 90 s.
 //   ack      the Pi reports results; ciphertext is wiped on every finished row
 // The function never sees a PIN: PIN-bearing commands carry only `sealed` ciphertext that only the
 // Pi's private key can open. Requires 002_mildura_control.sql.
@@ -92,7 +93,7 @@ async function nextCommands(unit: any) {
     .eq("unit_id", unit.id).in("status", ["pending", "delivered"]).lt("expires_at", now);
   await db.from("gd_mirror_commands").delete().eq("unit_id", unit.id).lt("created_at", new Date(Date.now() - 30 * 86400_000).toISOString());
   const { data, error } = await db.from("gd_mirror_commands")
-    .select("id,seq,kind,args,sealed,actor_email,attempts").eq("unit_id", unit.id).in("status", ["pending", "delivered"])
+    .select("id,seq,kind,args,sealed,actor_email,attempts,created_at").eq("unit_id", unit.id).in("status", ["pending", "delivered"])
     .order("seq").limit(20);
   if (error) return json(500, { ok: false, error: "store" });
   // "delivered" ones are re-sent until acked (a lost response must not lose a command); the Pi is idempotent.

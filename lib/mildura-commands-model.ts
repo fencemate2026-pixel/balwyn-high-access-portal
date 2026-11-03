@@ -11,11 +11,17 @@ import { OwnerSiteInputError } from "@/lib/owner-sites-model";
 export const MIRROR_KINDS = [
   "user.add", "user.update", "user.delete", "user.enable", "users.enable_all",
   "schedule.add", "schedule.enable", "schedule.delete", "person.add", "person.delete",
+  "gate.open", "gate.lockdown",
 ] as const;
 export type MirrorKind = typeof MIRROR_KINDS[number];
-/** Gate actuation is blocked until we have the gate app's source / local control API. */
-export const GATE_KINDS = ["gate.open", "gate.hold", "gate.lockdown"] as const;
-export const GATE_BLOCKED_NOTE = "Open Gate, Hold Open and Lockdown are not wired yet: the Mildura gate app exposes only /api/status, and this service never drives GPIO directly.";
+/** Open Gate / Lockdown run through the gate app's own loopback admin routes on the Pi, only when the
+ *  Pi reports them in last_status.mirror_caps. Hold Open is retired in the gate app (external time clock). */
+export const GATE_KINDS = ["gate.open", "gate.lockdown"] as const;
+export const RETIRED_KINDS = ["gate.hold"] as const;
+export const HOLD_RETIRED_NOTE = "Hold Open is retired in the Mildura gate app: the on-site time clock controls opening hours and hold.";
+export const GATE_OFF_NOTE = "Gate actions are not enabled on the Mildura Pi (MIRROR_GATE_ACTIONS=1 and the local admin PIN are needed).";
+/** An Open Gate that the Pi has not picked up within this time is dropped, never fired late. */
+export const GATE_OPEN_TTL_S = 90;
 
 export type MirrorSecrets = { pin?: string; phone?: string };
 export type MirrorCommandInput = { kind: MirrorKind; args: Record<string, unknown>; secrets: MirrorSecrets | null; clientKey: string; summary: string };
@@ -35,27 +41,31 @@ function name(v: unknown, field = "Name") {
 }
 const localId = (v: unknown) => (Number.isSafeInteger(v) && (v as number) > 0 ? v as number : bad("Unknown entry."));
 const flag = (v: unknown) => (typeof v === "boolean" ? v : bad("Enabled must be on or off."));
-export function pinInput(v: unknown) { return typeof v === "string" && PIN.test(v) ? v : bad("PIN must be 4 to 6 digits."); }
+export function pinInput(v: unknown) {
+  if (typeof v !== "string" || !PIN.test(v)) bad("PIN must be 4 to 6 digits.");
+  if ((v as string).startsWith("0")) bad("PIN cannot start with 0 (keypad limitation).");
+  return v as string;
+}
 function time(v: unknown, f: string) { return typeof v === "string" && TIME.test(v) ? v : bad(`${f} must be HH:MM (24 hour).`); }
 function days(v: unknown) {
   const d = Array.isArray(v) ? v : [];
   if (!d.length || d.length > 7 || d.some((x) => !Number.isInteger(x) || x < 0 || x > 6) || new Set(d).size !== d.length) bad("Pick at least one day.");
   return [...d as number[]].sort((a, b) => a - b);
 }
+/** The gate app's two formats exactly: 'always' (no data) or 'time_range' {"days","start","end"}. */
 function userSchedule(body: Record<string, unknown>) {
   const t = body.schedule_type ?? "always";
   if (t === "always") return { schedule_type: "always", schedule_data: null };
-  if (typeof t !== "string" || !/^[a-z_]{1,40}$/.test(t)) bad("Schedule type is not valid.");
-  const d = body.schedule_data;
-  if (typeof d !== "string" || d.length > 2000) bad("Schedule details are missing.");
-  try { JSON.parse(d as string); } catch { bad("Schedule details are not valid."); }
-  return { schedule_type: t as string, schedule_data: d as string };
+  if (t !== "time_range") bad("Schedule must be Always or Set hours.");
+  const start = time(body.schedule_start, "Start"), end = time(body.schedule_end, "End");
+  if (start === end) bad("Start and end cannot be the same.");
+  return { schedule_type: "time_range", schedule_data: JSON.stringify({ days: days(body.schedule_days), start, end }) };
 }
 
 /** Validate a browser request into a queueable command. Secrets are separated from args. */
 export function mirrorCommandInput(body: Record<string, unknown>): MirrorCommandInput {
   const kind = body.kind;
-  if ((GATE_KINDS as readonly unknown[]).includes(kind)) bad(GATE_BLOCKED_NOTE);
+  if ((RETIRED_KINDS as readonly unknown[]).includes(kind)) bad(HOLD_RETIRED_NOTE);
   if (!(MIRROR_KINDS as readonly unknown[]).includes(kind)) bad("Unknown action.");
   const clientKey = typeof body.clientKey === "string" && UUID.test(body.clientKey) ? body.clientKey : bad("Reload the page and try again.");
   const k = kind as MirrorKind;
@@ -93,6 +103,8 @@ export function mirrorCommandInput(body: Record<string, unknown>): MirrorCommand
       secrets = Object.keys(s).length ? s : null; summary = `Add authorised person ${args.name}`; break;
     }
     case "person.delete": args = { local_id: localId(body.local_id) }; summary = `Delete authorised person #${args.local_id}`; break;
+    case "gate.open": args = {}; summary = "Open Gate (one pulse)"; break;
+    case "gate.lockdown": args = { on: flag(body.on) }; summary = args.on ? "Lockdown ON (pause software access)" : "Lockdown OFF (resume software access)"; break;
   }
   return { kind: k, args, secrets, clientKey, summary };
 }

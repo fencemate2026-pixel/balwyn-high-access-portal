@@ -9,7 +9,7 @@ import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
 import AdminSettingsUnlock from "./admin-settings-unlock";
 
 export type MirrorCommand = { id: string; seq?: number; kind: string; args?: Record<string, unknown>; status: "pending" | "delivered" | "applied" | "failed" | "expired"; actor_email?: string; error?: string | null; created_at?: string; finished_at?: string | null };
-export type ControlState = { commands: MirrorCommand[]; keyFingerprint: string | null; keyRegistered: boolean; unlocked: boolean; unlockExpiresAt: number | null; gate: { wired: boolean; note: string } };
+export type ControlState = { commands: MirrorCommand[]; keyFingerprint: string | null; keyRegistered: boolean; unlocked: boolean; unlockExpiresAt: number | null; gate: { open: boolean; lockdown: boolean; lockdownOn: boolean; hold: false; holdNote: string; offNote: string } };
 type Send = (body: Record<string, unknown>, confirm?: ConfirmSpec) => Promise<boolean>;
 type ConfirmSpec = { title: string; body: string; action: string };
 type Ctx = { state: ControlState | null; send: Send; busy: boolean; openFor: (kind: string, localId?: number) => MirrorCommand | null; preview: boolean };
@@ -104,10 +104,17 @@ export function ControlBar() {
   const [showUnlock, setShowUnlock] = useState(false);
   if (!ctx) return null;
   const s = ctx.state;
+  const can = !!s?.unlocked && !ctx.busy;
   return <div className="mt-4 grid gap-3">
     <div className="flex flex-wrap items-center gap-2">
-      {["Open Gate", "Hold Open", "Lockdown"].map((l) => <button key={l} type="button" className={glassButton()} disabled title={s?.gate.note}>{l}</button>)}
-      <small className={`${MUTED} max-w-xl`}>Gate actuation not wired: the Pi&apos;s gate app exposes only <code>/api/status</code>. Needs the gate app source.</small>
+      <button type="button" className={glassButton("orange")} disabled={!can || !s?.gate.open} title={s?.gate.open ? undefined : s?.gate.offNote}
+        onClick={() => ctx.send({ kind: "gate.open" }, { title: "Open the Mildura boom gate?", body: "The Pi sends ONE opening pulse through the gate app (same as its dashboard's Open Gate). It is dropped if the Pi does not pick it up within 90 seconds.", action: "Open gate" })}>Open Gate</button>
+      <button type="button" className={glassButton()} disabled title={s?.gate.holdNote}>Hold Open</button>
+      <button type="button" className={glassButton()} disabled={!can || !s?.gate.lockdown} title={s?.gate.lockdown ? undefined : s?.gate.offNote}
+        onClick={() => ctx.send({ kind: "gate.lockdown", on: !s?.gate.lockdownOn }, s?.gate.lockdownOn
+          ? { title: "End lockdown?", body: "Keypad and web PINs will open the gate again.", action: "Resume access" }
+          : { title: "Lock down Mildura?", body: "No PIN (keypad or web) and no remote Open will work until lockdown is ended. It does not close the boom or override the time clock.", action: "Lock down" })}>{s?.gate.lockdownOn ? "End Lockdown" : "Lockdown"}</button>
+      <small className={`${MUTED} max-w-xl`}>{s?.gate.open ? "Hold Open is retired: the on-site time clock controls hold." : s?.gate.offNote}</small>
     </div>
     <div className={`${GLASS_TILE} flex flex-wrap items-center justify-between gap-3 p-3 text-sm`}>
       <span className="flex items-center gap-2"><KeyRound className="size-4 text-[#5CC8FF]" />
@@ -149,23 +156,24 @@ export function DayPicker({ value, onChange }: { value: number[]; onChange: (d: 
 
 export type UserLite = { local_id: number; name: string; schedule_type: string | null; schedule_data: unknown };
 /** Add or edit a user. PIN only ever travels in the POST body; it is wiped from state right after. */
-export function UserForm({ user, users, onDone }: { user?: UserLite; users: UserLite[]; onDone: () => void }) {
+export function UserForm({ user, onDone }: { user?: UserLite; users?: UserLite[]; onDone: () => void }) {
   const ctx = useMilduraControl();
   const [name, setName] = useState(user?.name ?? "");
   const [pin, setPin] = useState(""); const [pin2, setPin2] = useState("");
-  const types = useMemo(() => [...new Set(["always", ...users.map((u) => u.schedule_type ?? "always")])], [users]);
-  const [stype, setStype] = useState(user?.schedule_type ?? "always");
-  const example = (t: string) => { const u = users.find((x) => x.schedule_type === t && x.schedule_data); return u ? String(u.schedule_data) : ""; };
-  const [sdata, setSdata] = useState(user?.schedule_data ? String(user.schedule_data) : "");
+  const cur = useMemo(() => { try { return JSON.parse(String(user?.schedule_data ?? "")) as { days?: number[]; start?: string; end?: string }; } catch { return {}; } }, [user]);
+  const [stype, setStype] = useState(user?.schedule_type === "time_range" ? "time_range" : "always");
+  const [sdays, setSdays] = useState<number[]>(cur.days ?? [0, 1, 2, 3, 4]);
+  const [start, setStart] = useState(cur.start ?? "08:00"); const [end, setEnd] = useState(cur.end ?? "17:00");
   const [err, setErr] = useState("");
   if (!ctx) return null;
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setErr("");
-    if (!user || pin) { if (!/^\d{4,6}$/.test(pin)) return setErr("PIN must be 4 to 6 digits."); if (pin !== pin2) return setErr("The two PINs do not match."); }
+    if (!user || pin) { if (!/^[1-9]\d{3,5}$/.test(pin)) return setErr("PIN must be 4 to 6 digits and cannot start with 0."); if (pin !== pin2) return setErr("The two PINs do not match."); }
     const body: Record<string, unknown> = user ? { kind: "user.update", local_id: user.local_id } : { kind: "user.add" };
     if (!user || name !== user.name) body.name = name;
     if (pin) body.pin = pin;
-    if (!user || stype !== (user.schedule_type ?? "always") || (stype !== "always" && sdata !== String(user.schedule_data ?? ""))) { body.schedule_type = stype; if (stype !== "always") body.schedule_data = sdata; }
+    const changed = !user || stype !== (user.schedule_type ?? "always") || (stype === "time_range" && (JSON.stringify(sdays) !== JSON.stringify(cur.days) || start !== cur.start || end !== cur.end));
+    if (changed) { body.schedule_type = stype; if (stype === "time_range") Object.assign(body, { schedule_days: sdays, schedule_start: start, schedule_end: end }); }
     setPin(""); setPin2("");                                        // never keep the PIN around
     if (await ctx.send(body)) onDone();
   };
@@ -177,10 +185,13 @@ export function UserForm({ user, users, onDone }: { user?: UserLite; users: User
       <label className="grid gap-1 text-xs"><span className={MUTED}>Repeat PIN</span><input style={FIELD_STYLE} className={INPUT} type="password" inputMode="numeric" autoComplete="off" value={pin2} maxLength={6} onChange={(e) => setPin2(e.target.value.replace(/\D/g, ""))} required={!user || !!pin} disabled={!ctx.state?.keyRegistered} /></label>
     </div>
     <label className="grid gap-1 text-xs"><span className={MUTED}>Schedule</span>
-      <select style={FIELD_STYLE} className={INPUT} value={stype} onChange={(e) => { setStype(e.target.value); if (e.target.value !== "always" && !sdata) setSdata(example(e.target.value)); }}>
-        {types.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}</select></label>
-    {stype !== "always" ? <label className="grid gap-1 text-xs"><span className={MUTED}>Schedule details (gate app format, copied from an existing user)</span>
-      <textarea style={FIELD_STYLE} className={`${INPUT} h-16 py-1 font-mono text-xs`} value={sdata} onChange={(e) => setSdata(e.target.value)} /></label> : <span className={`self-end text-xs ${MUTED}`}>PINs are encrypted to the Mildura Pi and never stored in the cloud.</span>}
+      <select style={FIELD_STYLE} className={INPUT} value={stype} onChange={(e) => setStype(e.target.value)}>
+        <option value="always">Always</option><option value="time_range">Set hours</option></select></label>
+    {stype === "time_range" ? <div className="grid gap-2 text-xs"><span className={MUTED}>Allowed days and hours (end before start = overnight)</span>
+      <DayPicker value={sdays} onChange={setSdays} />
+      <div className="grid grid-cols-2 gap-2"><input style={FIELD_STYLE} className={INPUT} type="time" aria-label="Start" value={start} onChange={(e) => setStart(e.target.value)} />
+        <input style={FIELD_STYLE} className={INPUT} type="time" aria-label="End" value={end} onChange={(e) => setEnd(e.target.value)} /></div></div>
+      : <span className={`self-end text-xs ${MUTED}`}>PINs are encrypted to the Mildura Pi and never stored in the cloud.</span>}
     {err && <p role="alert" className="m-0 text-sm text-[#ff6b6b] md:col-span-2">{err}</p>}
     <div className="flex gap-2 md:col-span-2"><button type="submit" className={glassButton("orange")} disabled={disabled}>{user ? "Save changes" : "Add user"}</button><button type="button" className={glassButton()} onClick={onDone}>Cancel</button></div>
   </form>;

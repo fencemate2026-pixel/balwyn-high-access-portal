@@ -181,6 +181,7 @@ function MilduraBody({ data }: { data: MirrorDetail }) {
       {/* 6. Auto-open schedules */}
       <Section n={6} icon={CalendarClock} title="Auto-open schedules" right={<button type="button" className={glassButton("orange")} disabled={!can} title={lock} onClick={() => setForm("schedule")}><Plus className="size-4" /> Add schedule</button>}>
         {form === "schedule" && <ScheduleForm onDone={() => setForm(null)} />}
+        <p className={`m-0 mb-3 text-xs ${MUTED}`}>Note: in the gate app source (Sep 2026) the on-site time clock owns opening hours and the app ignores these schedules; they take effect only if the Pi&apos;s newer build uses them again.</p>
         {data.schedules.length ? <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{data.schedules.map((s) =>
           <div key={s.local_id} className={`${GLASS_TILE} p-3 ${s.enabled ? "border-[#FF7A00] bg-[#FF7A00]/[0.12]" : ""}`}>
             <div className="flex items-center justify-between gap-2"><strong className="text-sm">{s.name}</strong><Pill tone={s.enabled ? "ok" : "mute"} caps>{s.enabled ? "Active" : "Off"}</Pill></div>

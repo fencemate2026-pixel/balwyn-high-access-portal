@@ -33,14 +33,14 @@ writeFileSync(PRIV, pem(await crypto.subtle.exportKey("pkcs8", kp.privateKey), "
 const piDecrypt = (b64) => JSON.parse(execFileSync("openssl", ["pkeyutl", "-decrypt", "-inkey", PRIV, "-pkeyopt", "rsa_padding_mode:oaep",
   "-pkeyopt", "rsa_oaep_md:sha256", "-pkeyopt", "rsa_mgf1_md:sha256"], { input: Buffer.from(b64, "base64") }).toString());
 
-function fake({ pubkey = PUB, existing = [] } = {}) {
+function fake({ pubkey = PUB, existing = [], caps = ["users", "schedules", "persons"] } = {}) {
   const calls = [];
   env.fetchDatabase = async (path, init = {}) => {
     const u = new URL(String(path), "https://example.supabase.co");
     calls.push({ method: init.method ?? "GET", path: u.pathname, search: decodeURIComponent(u.search), body: init.body ? String(init.body) : "" });
     const j = (v) => new Response(JSON.stringify(v), { status: 200, headers: { "content-type": "application/json" } });
     if (u.pathname.endsWith("/gd_sites")) return j([SITE]);
-    if (u.pathname.endsWith("/gd_units")) return j([{ id: UNIT, command_pubkey: pubkey }]);
+    if (u.pathname.endsWith("/gd_units")) return j([{ id: UNIT, command_pubkey: pubkey, last_status: { lockdown: false, mirror_caps: caps } }]);
     if (u.pathname.endsWith("/gd_mirror_commands") && (init.method ?? "GET") === "GET") return j(u.search.includes("client_key") ? existing : [{ id: "c1", kind: "user.add", status: "applied" }]);
     if (u.pathname.endsWith("/gd_mirror_commands")) { const b = JSON.parse(init.body); return j([{ id: b.id, kind: b.kind, status: "pending" }]); }
     return j([]);
@@ -113,7 +113,7 @@ test("GET lists commands without ciphertext and reports the key fingerprint and 
   assert.equal(body.unlocked, true);
   assert.equal(body.keyRegistered, true);
   assert.match(body.keyFingerprint, /^[0-9a-f]{64}$/);
-  assert.equal(body.gate.wired, false);
+  assert.deepEqual(body.gate, { ...body.gate, open: false, lockdown: false, lockdownOn: false, hold: false });
   assert.ok(calls.filter((c) => c.path.endsWith("/gd_mirror_commands")).every((c) => !c.search.includes("sealed")));
   assert.ok(calls.every((c) => c.method === "GET"));
 });
@@ -121,7 +121,8 @@ test("GET lists commands without ciphertext and reports the key fingerprint and 
 test("every non-secret kind queues with plain args and no ciphertext", async () => {
   const cases = [
     [{ kind: "user.update", local_id: 4, name: "New Name" }, { local_id: 4, name: "New Name" }],
-    [{ kind: "user.update", local_id: 4, schedule_type: "business_hours", schedule_data: '{"days":[1],"start":"08:00","end":"17:00"}' }, { local_id: 4, schedule_type: "business_hours", schedule_data: '{"days":[1],"start":"08:00","end":"17:00"}' }],
+    [{ kind: "user.update", local_id: 4, schedule_type: "time_range", schedule_days: [4, 1], schedule_start: "18:00", schedule_end: "01:00" }, { local_id: 4, schedule_type: "time_range", schedule_data: '{"days":[1,4],"start":"18:00","end":"01:00"}' }],
+    [{ kind: "user.update", local_id: 4, schedule_type: "always" }, { local_id: 4, schedule_type: "always", schedule_data: null }],
     [{ kind: "user.delete", local_id: 4 }, { local_id: 4 }],
     [{ kind: "user.enable", local_id: 4, enabled: false }, { local_id: 4, enabled: false }],
     [{ kind: "users.enable_all", enabled: true }, { enabled: true }],
@@ -161,7 +162,10 @@ test("bad commands are rejected with no write", async () => {
     { kind: "schedule.add", name: "S", days: [9], open_time: "09:00", close_time: "10:00" }, { kind: "schedule.add", name: "S", days: [1], open_time: "9am", close_time: "10:00" },
     { kind: "schedule.add", name: "S", days: [1], open_time: "10:00", close_time: "10:00" }, { kind: "person.add", name: "P", phone: "call me" },
     { kind: "user.add", name: "X", pin: "1234", schedule_type: "Bad Type" }, { kind: "drop.tables" },
-    { kind: "gate.open" }, { kind: "gate.hold" }, { kind: "gate.lockdown" },
+    { kind: "user.add", name: "X", pin: "0123" }, { kind: "user.add", name: "X", pin: "1234", schedule_type: "business_hours" },
+    { kind: "user.update", local_id: 4, schedule_type: "time_range", schedule_days: [1], schedule_start: "08:00", schedule_end: "08:00" },
+    { kind: "user.update", local_id: 4, schedule_type: "time_range", schedule_days: [], schedule_start: "08:00", schedule_end: "09:00" },
+    { kind: "gate.hold" }, { kind: "gate.lockdown", on: "yes" },
   ];
   for (const b of bad) {
     const { post, calls } = await as("owner@example.test");
@@ -196,4 +200,36 @@ test("model: secrets are split out of args", () => {
   assert.deepEqual(c.args, { name: "A", role: "" });
   assert.deepEqual(c.secrets, { phone: "0400 111 222", pin: "4321" });
   assert.ok(!JSON.stringify([c.args, c.summary]).includes("4321"));
+});
+
+test("Open Gate / Lockdown are refused unless the Pi advertises them", async () => {
+  for (const b of [{ kind: "gate.open" }, { kind: "gate.lockdown", on: true }]) {
+    const { post, calls } = await as("owner@example.test");
+    const r = await post({ ...b, clientKey: key() });
+    assert.equal(r.status, 400);
+    assert.match((await r.json()).error, /not enabled on the Mildura Pi/);
+    assert.equal(writes(calls).length, 0);
+  }
+});
+
+test("Open Gate queues one short-lived command; Lockdown carries on/off; both audited", async () => {
+  const caps = ["users", "gate.open", "gate.lockdown"];
+  let s = await as("owner@example.test", { caps });
+  const t0 = Date.now();
+  assert.equal((await s.post({ kind: "gate.open", clientKey: key() })).status, 200);
+  const row = JSON.parse(s.calls.find((c) => c.method === "POST" && c.path.endsWith("/gd_mirror_commands")).body);
+  assert.deepEqual(row.args, {});
+  assert.equal(row.sealed, null);
+  const ttl = Date.parse(row.expires_at) - t0;
+  assert.ok(ttl > 60_000 && ttl <= 91_000, `open expires in ~90 s (got ${ttl})`);
+  assert.equal(JSON.parse(s.calls.find((c) => c.path.endsWith("/gd_mirror_changes")).body).action, "portal.gate.open");
+  s = await as("owner@example.test", { caps });
+  assert.equal((await s.post({ kind: "gate.lockdown", on: true, clientKey: key() })).status, 200);
+  const lrow = JSON.parse(s.calls.find((c) => c.method === "POST" && c.path.endsWith("/gd_mirror_commands")).body);
+  assert.deepEqual(lrow.args, { on: true });
+  assert.equal(lrow.expires_at, undefined, "lockdown uses the normal 15 min expiry");
+  const g = await (await s.get()).json();
+  assert.equal(g.gate.open, true); assert.equal(g.gate.lockdown, true); assert.equal(g.gate.hold, false);
+  s = await as("owner@example.test", { caps, unlocked: false });
+  assert.equal((await s.post({ kind: "gate.open", clientKey: key() })).status, 403, "admin unlock still required");
 });

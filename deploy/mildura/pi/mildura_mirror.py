@@ -29,7 +29,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 COMMAND_INTERVAL_S = 10       # Phase 2 command poll (tiny request)
 INTERVAL_S = 60                # normal cycle
 BACKOFF_MAX_S = 900            # cap when the cloud is unreachable
@@ -149,10 +149,13 @@ def post(url, body):
         return json.loads(r.read(1 << 20))
 
 
-def build_payload(con, state, creds, status_url):
+def build_payload(con, state, creds, status_url, caps=()):
     """Return (payload, commit) where commit(state) advances the marks after the cloud acks."""
+    status = local_status(status_url)
+    if caps:                            # what this Pi will accept from the portal (Phase 2)
+        status = dict(status or {}, mirror_caps=sorted(caps))
     payload = {"device_id": creds["device_id"], "secret": creds["secret"], "action": "push",
-               "fw_version": "mirror-" + VERSION, "status": local_status(status_url), "snapshots": {}, "streams": {}}
+               "fw_version": "mirror-" + VERSION, "status": status, "snapshots": {}, "streams": {}}
     snap_marks, stream_marks = {}, {}
     for t in SNAPSHOT_TABLES:
         rows = read_snapshot(con, t)
@@ -173,11 +176,11 @@ def build_payload(con, state, creds, status_url):
     return payload, commit, bool(stream_marks) and any(len(payload["streams"][t]) >= BATCH_ROWS for t in payload["streams"])
 
 
-def cycle(db_path, url, creds, state, state_path, status_url):
+def cycle(db_path, url, creds, state, state_path, status_url, caps=()):
     """One sync pass. Returns True if more backlog remains (caller loops immediately)."""
     con = open_ro(db_path)
     try:
-        payload, commit, more = build_payload(con, state, creds, status_url)
+        payload, commit, more = build_payload(con, state, creds, status_url, caps)
     finally:
         con.close()
     resp = post(url, payload)
@@ -195,7 +198,7 @@ def read_creds(path):
     return cfg
 
 
-def command_cycle(db_path, url, creds, key_path, state, state_path):
+def command_cycle(db_path, url, creds, key_path, state, state_path, cfg=None, gate=None):
     """Phase 2: register the public key once, fetch queued commands, apply, ack. Returns #acked."""
     import mildura_commands as mc
     base = {"device_id": creds["device_id"], "secret": creds["secret"]}
@@ -211,7 +214,7 @@ def command_cycle(db_path, url, creds, key_path, state, state_path):
     cmds = resp.get("commands") or []
     if not isinstance(cmds, list) or not cmds:
         return 0
-    acks = mc.apply_all(db_path, cmds[:20], key_path)
+    acks = mc.apply_all(db_path, cmds[:20], key_path, cfg=cfg, gate=gate)
     for a in acks:
         log("command %s %s%s" % (a["id"][:8], "applied" if a["ok"] else "rejected", "" if a["ok"] else ": " + a.get("error", "")))
     if acks:
@@ -243,15 +246,26 @@ def main():
     if control and not os.path.exists(key_path):
         log("MIRROR_CONTROL=1 but no command key at %s; commands disabled" % key_path)
         control = False
+    ccfg = {"admin_pin": cfg.get("GATE_ADMIN_PIN", "") or None}
+    gate, caps = None, []
+    if control:
+        caps = ["users", "schedules", "persons"]
+        if cfg.get("MIRROR_GATE_ACTIONS", "0") == "1" and ccfg["admin_pin"]:
+            import mildura_commands as mc
+            try:
+                gate = mc.LocalGate(cfg.get("GATE_URL", "http://127.0.0.1:5000"), ccfg["admin_pin"])
+                caps += ["gate.open", "gate.lockdown"]
+            except ValueError:
+                log("GATE_URL must be loopback; gate actions disabled")
     state = load_state(state_path)
     delay, cdelay = INTERVAL_S, COMMAND_INTERVAL_S
     next_sync = next_cmd = time.monotonic()
-    log("started v%s (control %s)" % (VERSION, "on" if control else "off"))
+    log("started v%s (control %s, gate actions %s)" % (VERSION, "on" if control else "off", "on" if gate else "off"))
     while True:
         now = time.monotonic()
         if now >= next_sync:
             try:
-                more = cycle(db_path, url, creds, state, state_path, status_url)
+                more = cycle(db_path, url, creds, state, state_path, status_url, caps)
                 delay = 1 if more else INTERVAL_S
             except (urllib.error.URLError, OSError, RuntimeError, ValueError, sqlite3.Error) as e:
                 delay = min(BACKOFF_MAX_S, max(delay, INTERVAL_S) * 2)
@@ -259,7 +273,7 @@ def main():
             next_sync = time.monotonic() + delay
         if control and now >= next_cmd:
             try:
-                if command_cycle(db_path, url, creds, key_path, state, state_path):
+                if command_cycle(db_path, url, creds, key_path, state, state_path, ccfg, gate):
                     next_sync = time.monotonic()          # show the change in the portal straight away
                 cdelay = COMMAND_INTERVAL_S
             except (urllib.error.URLError, OSError, RuntimeError, ValueError, sqlite3.Error, subprocess_error()) as e:

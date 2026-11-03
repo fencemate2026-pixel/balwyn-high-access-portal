@@ -70,12 +70,15 @@ test("breakdown, 30-day usage and health tiles", () => {
   assert.equal(vm.gateStatus(null).label, "Not reported");
 });
 
-test("Phase 2: only the owner command route is written to, gate actuation stays disabled, no PIN shown, preview is dev-flag only", () => {
+test("Phase 2: only the owner command route is written to, Open/Lockdown gated + confirmed, Hold Open disabled, no PIN shown, preview is dev-flag only", () => {
   const src = readFileSync(new URL("../app/mildura-site-view.tsx", import.meta.url), "utf8");
   const ctl = readFileSync(new URL("../app/mildura-controls.tsx", import.meta.url), "utf8");
   assert.ok(!/method:\s*"POST"/.test(src), "the view itself never writes; all writes go through mildura-controls");
   assert.deepEqual([...ctl.matchAll(/fetch\("([^"]+)"/g)].map((m) => m[1]).sort(), ["/api/owner/mildura", "/api/owner/mildura"], "controls only talk to the owner command route");
-  assert.match(ctl, /\["Open Gate", "Hold Open", "Lockdown"\]\.map\([^)]*\) => <button[^>]*disabled /, "gate actuation stays disabled");
+  assert.match(ctl, /disabled title=\{s\?\.gate\.holdNote\}>Hold Open</, "Hold Open stays disabled (retired in the gate app)");
+  assert.match(ctl, /disabled=\{!can \|\| !s\?\.gate\.open\}/, "Open Gate only when unlocked and advertised by the Pi");
+  assert.match(ctl, /kind: "gate\.open" \}, \{ title: "Open the Mildura boom gate\?"/, "Open Gate confirms");
+  assert.match(ctl, /title: "Lock down Mildura\?"/, "Lockdown confirms");
   assert.ok(!/u\.pin|p\.pin|\.pin\b/.test(src), "no stored PIN is ever rendered");
   assert.match(ctl, /type="password"[^>]*autoComplete="off"/, "PIN inputs are masked");
   assert.match(ctl, /setPin\(""\); setPin2\(""\);/, "PIN cleared after send");

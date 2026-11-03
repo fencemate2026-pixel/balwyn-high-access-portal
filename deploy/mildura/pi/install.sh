@@ -3,6 +3,10 @@
 # NetworkManager, Tailscale, sshd, the watchdog, or GPIO. Does not reboot.
 # Needs: MIRROR_URL, MIRROR_DB. Optional: MIRROR_SECRET (generated if absent; an upgrade keeps the existing one),
 # MIRROR_CONTROL=1 to enable Phase 2 portal commands (writes to the gate database).
+# MIRROR_GATE_ACTIONS=1 (with MIRROR_CONTROL=1) lets the portal's Open Gate / Lockdown call the gate app's
+# OWN loopback routes. Needs the gate app's admin PIN, read here ON THE PI from (first found): GATE_ADMIN_PIN,
+# the existing /etc/mildura-mirror.env, <db dir>/admin_pin.txt, boomgate.service ADMIN_PIN. Never printed,
+# never uploaded; stored only in /etc/mildura-mirror.env (root:rjlcommercial 0640).
 set -eu
 [ "$(id -u)" = 0 ] || { echo "run with sudo"; exit 1; }
 : "${MIRROR_DB:?set MIRROR_DB (path to the gate sqlite file)}"
@@ -12,6 +16,18 @@ if [ -z "${MIRROR_SECRET:-}" ] && [ -r "$OLD_ENV" ]; then MIRROR_SECRET="$(sed -
 # The device secret is generated ON the Pi and never leaves it. Only its sha256 is shown, for registration.
 MIRROR_SECRET="${MIRROR_SECRET:-$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')}"
 MIRROR_CONTROL="${MIRROR_CONTROL:-0}"
+MIRROR_GATE_ACTIONS="${MIRROR_GATE_ACTIONS:-0}"
+GATE_URL="${GATE_URL:-http://127.0.0.1:5000}"
+if [ "$MIRROR_GATE_ACTIONS" = 1 ]; then
+  [ -z "${GATE_ADMIN_PIN:-}" ] && [ -r "$OLD_ENV" ] && GATE_ADMIN_PIN="$(sed -n 's/^GATE_ADMIN_PIN=//p' "$OLD_ENV")"
+  [ -z "${GATE_ADMIN_PIN:-}" ] && [ -r "$(dirname "$MIRROR_DB")/admin_pin.txt" ] && GATE_ADMIN_PIN="$(tr -d ' \r\n' < "$(dirname "$MIRROR_DB")/admin_pin.txt")"
+  [ -z "${GATE_ADMIN_PIN:-}" ] && GATE_ADMIN_PIN="$(systemctl show boomgate.service -p Environment --value 2>/dev/null | tr ' ' '\n' | sed -n 's/^ADMIN_PIN=//p' | head -n1)"
+  if [ -z "${GATE_ADMIN_PIN:-}" ]; then echo "gate admin PIN not found on this Pi; gate actions stay OFF"; MIRROR_GATE_ACTIONS=0; fi
+  # The gate app must answer on loopback (it will not if it was re-bound to the Tailscale IP only).
+  if [ "$MIRROR_GATE_ACTIONS" = 1 ] && ! python3 -c "import urllib.request,sys; urllib.request.urlopen(sys.argv[1]+'/login', timeout=5)" "$GATE_URL" 2>/dev/null; then
+    echo "gate app not reachable at $GATE_URL/login; gate actions stay OFF"; MIRROR_GATE_ACTIONS=0
+  fi
+fi
 [ "${#MIRROR_SECRET}" -ge 32 ] || { echo "secret too short"; exit 1; }
 [ -r "$MIRROR_DB" ] || { echo "cannot read $MIRROR_DB"; exit 1; }
 SRC="$(cd "$(dirname "$0")" && pwd)"
@@ -39,6 +55,9 @@ MIRROR_SECRET=$MIRROR_SECRET
 MIRROR_DB=$MIRROR_DB
 MIRROR_CONTROL=$MIRROR_CONTROL
 MIRROR_COMMAND_KEY=$KEY
+MIRROR_GATE_ACTIONS=$MIRROR_GATE_ACTIONS
+GATE_URL=$GATE_URL
+GATE_ADMIN_PIN=${GATE_ADMIN_PIN:-}
 EOT
 chown "root:$RUN_AS" /etc/mildura-mirror.env; chmod 640 /etc/mildura-mirror.env
 install -m 644 "$SRC/mildura-mirror.service" /etc/systemd/system/mildura-mirror.service
@@ -47,5 +66,6 @@ systemctl daemon-reload
 systemctl enable mildura-mirror.service
 systemctl restart mildura-mirror.service
 echo "device secret hash (register in gd_units.secret_hash if new; not secret): $(printf %s "$MIRROR_SECRET" | sha256sum | cut -d' ' -f1)"
+echo "control: $MIRROR_CONTROL  gate actions: $MIRROR_GATE_ACTIONS"
 [ "$MIRROR_CONTROL" = 1 ] && echo "command key fingerprint (compare with the portal): $(openssl pkey -in "$KEY" -pubout | openssl dgst -sha256 | cut -d' ' -f2)"
 echo "installed. disable commands: set MIRROR_CONTROL=0 in /etc/mildura-mirror.env and restart; full rollback: sudo sh uninstall.sh"

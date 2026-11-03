@@ -1,12 +1,13 @@
 // Mildura Phase 2 (4 Nov 2026, Jarrod): owner-only control of the Mildura Pi through a command
-// queue the Pi polls over outbound HTTPS (gd-mirror). Same gate as /api/owner/sites (owner session,
+// queue the Pi polls over outbound HTTPS (gd-mirror). Open Gate / Lockdown are applied by the Pi via the
+// gate app's own loopback admin routes, never GPIO, and only when the Pi advertises them. Same gate as /api/owner/sites (owner session,
 // else 404) PLUS exact same-origin and the 10-minute administrator unlock for every change.
 // PINs: validated here, sealed to the Pi's public key, never stored, logged or echoed in plaintext.
 import { getSql } from "@/db";
 import { assertSameOrigin, getAdminSettingsAccess, requireOperator } from "@/lib/portal-auth";
 import { readBoundedText } from "@/lib/request-body";
 import { OwnerSiteInputError } from "@/lib/owner-sites-model";
-import { GATE_BLOCKED_NOTE, keyFingerprint, melbourneNow, mirrorCommandInput, sealSecrets } from "@/lib/mildura-commands-model";
+import { GATE_KINDS, GATE_OFF_NOTE, GATE_OPEN_TTL_S, HOLD_RETIRED_NOTE, keyFingerprint, melbourneNow, mirrorCommandInput, sealSecrets } from "@/lib/mildura-commands-model";
 import {
   OwnerSitesUnavailableError, auditMirrorChange, enqueueMirrorCommand, getMirrorUnit, getSiteBySlug, listMirrorCommands,
 } from "@/lib/owner-sites-store";
@@ -17,6 +18,12 @@ const SLUG = "mildura";
 const headers = { "Cache-Control": "no-store" };
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers });
 const notFound = () => json({ error: "Not found." }, 404);
+
+/** What the Pi says it will accept (it reports this in every heartbeat; it re-checks on apply). */
+function caps(unit: { last_status: Record<string, unknown> | null }) {
+  const c = unit.last_status?.mirror_caps;
+  return Array.isArray(c) ? c.filter((x): x is string => typeof x === "string") : [];
+}
 
 async function owner(request: Request): Promise<PortalUser | null> {
   const auth = await requireOperator(request, "administrator");
@@ -38,7 +45,9 @@ export async function GET(request: Request) {
     const [unit, commands, access] = await Promise.all([getMirrorUnit(sid), listMirrorCommands(sid), getAdminSettingsAccess(request)]);
     return json({
       commands, keyFingerprint: await keyFingerprint(unit.command_pubkey), keyRegistered: Boolean(unit.command_pubkey),
-      unlocked: Boolean(access), unlockExpiresAt: access?.expiresAt ?? null, gate: { wired: false, note: GATE_BLOCKED_NOTE },
+      unlocked: Boolean(access), unlockExpiresAt: access?.expiresAt ?? null,
+      gate: { open: caps(unit).includes("gate.open"), lockdown: caps(unit).includes("gate.lockdown"), lockdownOn: unit.last_status?.lockdown === true,
+        hold: false, holdNote: HOLD_RETIRED_NOTE, offNote: GATE_OFF_NOTE },
       serverTime: new Date().toISOString(),
     });
   } catch (error) { return failure(error); }
@@ -62,6 +71,7 @@ export async function POST(request: Request) {
     const site = await getSiteBySlug(SLUG);
     const sid = String(site.id);
     const unit = await getMirrorUnit(sid);
+    if ((GATE_KINDS as readonly string[]).includes(input.kind) && !caps(unit).includes(input.kind)) throw new OwnerSiteInputError(GATE_OFF_NOTE);
     const id = crypto.randomUUID();
     let sealed: string | null = null;
     if (input.secrets) {
@@ -70,6 +80,7 @@ export async function POST(request: Request) {
     }
     const { command, duplicate } = await enqueueMirrorCommand({
       id, site_id: sid, unit_id: unit.id, client_key: input.clientKey, kind: input.kind, args: input.args, sealed, actor_email: user.email,
+      ...(input.kind === "gate.open" ? { expires_at: new Date(Date.now() + GATE_OPEN_TTL_S * 1000).toISOString() } : {}),
     });
     if (!duplicate) {
       const changed_by = `portal:${user.email}`;

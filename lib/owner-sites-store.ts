@@ -196,7 +196,7 @@ const COMMAND_COLUMNS = "id,seq,kind,args,status,actor_email,error,result,create
 
 export async function getMirrorUnit(siteId: string) {
   if (!isUuid(siteId)) throw new OwnerSiteInputError("Unknown site.");
-  const rows = await rest<Array<{ id: string; command_pubkey: string | null }>>(`gd_units?site_id=eq.${siteId}&select=id,command_pubkey&order=name&limit=1`);
+  const rows = await rest<Array<{ id: string; command_pubkey: string | null; last_status: Record<string, unknown> | null }>>(`gd_units?site_id=eq.${siteId}&select=id,command_pubkey,last_status&order=name&limit=1`);
   if (!rows.length) throw new OwnerSiteInputError("The Mildura Pi is not registered yet.");
   return rows[0];
 }
@@ -208,7 +208,7 @@ export async function listMirrorCommands(siteId: string) {
 
 export async function enqueueMirrorCommand(row: {
   id: string; site_id: string; unit_id: string; client_key: string; kind: string;
-  args: Record<string, unknown>; sealed: string | null; actor_email: string;
+  args: Record<string, unknown>; sealed: string | null; actor_email: string; expires_at?: string;
 }) {
   // Same click twice (or a retried request): return the first command instead of queueing again.
   const seen = await rest<Array<Record<string, unknown>>>(`gd_mirror_commands?unit_id=eq.${row.unit_id}&client_key=eq.${row.client_key}&select=${COMMAND_COLUMNS}`);
