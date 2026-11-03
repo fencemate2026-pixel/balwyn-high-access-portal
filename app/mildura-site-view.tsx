@@ -6,10 +6,13 @@
 // Phase 2: changes are queued through /api/owner/mildura (mildura-controls.tsx) and
 // applied by the Pi; Open/Hold/Lockdown stay disabled until the gate app is understood.
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Power, Trash2 } from "lucide-react";
+import { Download, Pencil, Plus, Power, Trash2 } from "lucide-react";
 import { CommandList, CommandPill, ControlBar, MilduraControlProvider, PersonForm, ScheduleForm, UserForm, useMilduraControl, type ControlState } from "./mildura-controls";
 import { Activity, CalendarClock, ClipboardList, Cpu, Gauge, HardDrive, LoaderCircle, MapPin, MemoryStick, PieChart, Search, ShieldCheck, Thermometer, Timer, UserCheck, Users } from "lucide-react";
 import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
+import { MUTED, Navy, Pill, Section, TD, TH, Td, downloadCsv, stampDay } from "./site-section-ui";
+import { FIELD_STYLE, INPUT } from "./mildura-controls";
+import { toCsv } from "@/lib/owner-csv";
 import { UNIT_ONLINE_SECONDS } from "@/lib/owner-sites-model";
 import { MILDURA_ADDRESS, accessBreakdown, gateStatus, healthTiles, usageByDay, type MirrorAccess, type MirrorStatus } from "@/lib/mildura-view-model";
 
@@ -38,37 +41,6 @@ const days = (d: unknown) => {
   return list.map((x) => typeof x === "number" ? DAYN[x] ?? String(x) : String(x)).join(" ") || "—";
 };
 
-// Magic Keys theme (4 Nov 2026): the same building blocks the main dashboard uses —
-// GLASS_PANEL navy gradient cards, the white "Active gate controls" header strip
-// (.gate-condition) with an orange title, orange gate-ordinal badges, metric-block
-// strips, telemetry-badge / connection-pill pills. Utility classes only, no new CSS.
-const MUTED = "text-[#B9CFE2]";
-type Tone = "ok" | "bad" | "warn" | "mute";
-const TONE: Record<Tone, string> = { ok: "text-[#34d399]", bad: "text-[#ff6b6b]", warn: "text-[#fbbf24]", mute: "text-[#B9CFE2]" };
-const Pill = ({ tone, children, caps = false }: { tone: Tone; children: React.ReactNode; caps?: boolean }) =>
-  <em className={`telemetry-badge not-italic ${TONE[tone]} ${caps ? "text-[10px] font-bold tracking-[.08em] uppercase" : ""}`}><i className="signal-dot" />{children}</em>;
-const TH = `px-3 py-2 text-left text-[11px] font-semibold tracking-[.08em] uppercase ${MUTED} border-b border-white/[0.14]`;
-const TD = "px-3 py-2 border-b border-white/[0.08] text-sm";
-// Cell text sits in a <span> so the dashboard's navy-panel text rule (.campus-context .mk-navy span) colours it.
-const Td = ({ children, className = "", colSpan }: { children: React.ReactNode; className?: string; colSpan?: number }) =>
-  <td className={`${TD} ${className}`} colSpan={colSpan}><span>{children}</span></td>;
-/** The dashboard styles its navy panels inside .campus-context (Gate Schedules / Local weather);
- *  wrapping each panel the same way reuses those exact rules. Inline style only drops its grid layout. */
-const NAVY_SCOPE: React.CSSProperties = { display: "block", padding: 0, background: "transparent", maxWidth: "none" };
-const Navy = ({ children, className = "" }: { children: React.ReactNode; className?: string }) =>
-  <div className="campus-context" style={NAVY_SCOPE}><div className={`${GLASS_PANEL} p-4 ${className}`}>{children}</div></div>;
-
-/** Section = white header strip with orange title + icon (as "Active gate controls"), then a navy glass card. */
-function Section({ n, icon: Icon, title, right, children, label }: { n: number; icon: typeof Activity; title: string; right?: React.ReactNode; children: React.ReactNode; label?: string }) {
-  return <section className="gate-condition mb-4" aria-label={label ?? title}>
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-      <div className="flex items-center gap-3"><span className="gate-ordinal grid size-7 place-items-center rounded-none border border-[#FF7A00] bg-[#FF7A00] text-[11px] font-bold text-white" aria-hidden="true">{String(n).padStart(2, "0")}</span>
-        <h2 className="m-0 flex items-center gap-2 text-lg"><Icon className="size-4 text-[#FF7A00]" aria-hidden="true" /> {title}</h2></div>
-      {right}
-    </div>
-    <Navy>{children}</Navy>
-  </section>;
-}
 const Empty = ({ text = "Waiting for first sync from the Mildura Pi." }: { text?: string }) => <p className={`m-0 text-sm ${MUTED}`}>{text}</p>;
 
 export default function MilduraSiteView({ fixture, controlFixture }: { fixture?: MirrorDetail; controlFixture?: ControlState } = {}) {
@@ -109,13 +81,20 @@ function MilduraBody({ data }: { data: MirrorDetail }) {
   const breakdown = useMemo(() => accessBreakdown(data.access30), [data.access30]);
   const [tab, setTab] = useState<"access" | "changes">("access");
   const [q, setQ] = useState("");
-  const users = data.users.filter((u) => u.name.toLowerCase().includes(q.trim().toLowerCase()));
+  const [ustatus, setUstatus] = useState<"all" | "on" | "off">("all");
+  const [usort, setUsort] = useState<"name" | "added" | "status">("name");
+  const users = data.users
+    .filter((u) => u.name.toLowerCase().includes(q.trim().toLowerCase()) && (ustatus === "all" || (ustatus === "on") === u.enabled))
+    .sort((a, b) => usort === "added" ? String(b.created_at_local ?? "").localeCompare(String(a.created_at_local ?? ""))
+      : usort === "status" ? Number(b.enabled) - Number(a.enabled) || a.name.localeCompare(b.name) : a.name.localeCompare(b.name));
+  const [aq, setAq] = useState(""); const [ares, setAres] = useState<"all" | "granted" | "denied">("all");
+  const access = data.access.filter((a) => (ares === "all" || (ares === "granted") === !!a.success) && (a.user_name ?? "Unknown").toLowerCase().includes(aq.trim().toLowerCase()));
   const lastSeen = ago(unit?.last_seen ?? null, now);
   const ctl = useMilduraControl();
   const can = !!ctl?.state?.unlocked && !ctl.busy;
   const [form, setForm] = useState<null | "user" | "schedule" | "person" | { edit: number }>(null);
   const editing = form && typeof form === "object" ? data.users.find((u) => u.local_id === form.edit) : undefined;
-  const lock = can ? undefined : "Unlock changes first";
+  const lock = can ? undefined : (ctl?.busy ? "Working…" : "Not available right now");
 
   return (
     <div className="mildura-view">
@@ -205,9 +184,14 @@ function MilduraBody({ data }: { data: MirrorDetail }) {
         <span className="connection-pill"><i /> {data.users.length} users</span>
         <label className={`${GLASS_PANEL} flex h-9 items-center gap-2 px-3`}><Search className="size-4 text-[#5CC8FF]" aria-hidden="true" />
           <input className="w-44 bg-transparent text-sm text-[#F5FBFF] outline-none placeholder:text-[#B9CFE2]" placeholder="Search users" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search users" /></label>
+        <select style={FIELD_STYLE} className={`${INPUT} !w-auto`} aria-label="Filter by status" value={ustatus} onChange={(e) => setUstatus(e.target.value as typeof ustatus)}>
+          <option value="all">All statuses</option><option value="on">Enabled only</option><option value="off">Disabled only</option></select>
+        <select style={FIELD_STYLE} className={`${INPUT} !w-auto`} aria-label="Sort users" value={usort} onChange={(e) => setUsort(e.target.value as typeof usort)}>
+          <option value="name">Sort: name</option><option value="added">Sort: newest</option><option value="status">Sort: status</option></select>
+        <button type="button" className={glassButton()} title="Names, status and schedule only. PINs are never in the cloud." onClick={() => downloadCsv(`mildura-users-${stampDay()}.csv`, toCsv(["Name", "Status", "Schedule", "Added"], users.map((u) => [u.name, u.enabled ? "Enabled" : "Disabled", u.schedule_type ? u.schedule_type.replace(/_/g, " ") : "always", u.created_at_local ?? ""])))}><Download className="size-4" /> Export</button>
         <button type="button" className={glassButton()} disabled={!can} title={lock} onClick={() => ctl?.send({ kind: "users.enable_all", enabled: true }, { title: "Enable ALL users?", body: `Every one of the ${data.users.length} users' PINs will open the gate again.`, action: "Enable all" })}>Enable all</button>
         <button type="button" className={glassButton()} disabled={!can} title={lock} onClick={() => ctl?.send({ kind: "users.enable_all", enabled: false }, { title: "Disable ALL users?", body: `No user PIN will open the Mildura gate until re-enabled (${data.users.length} users).`, action: "Disable all" })}>Disable all</button>
-        <button type="button" className={glassButton("orange")} disabled={!can || !ctl?.state?.keyRegistered} title={lock ?? (ctl?.state?.keyRegistered ? undefined : "Pi command key not registered")} onClick={() => setForm("user")}><Plus className="size-4" /> Add User</button>
+        <button type="button" className={glassButton("orange")} disabled={!can || !ctl?.state?.keyRegistered} title={lock ?? (ctl?.state?.keyRegistered ? undefined : "The Pi has not registered its command key yet")} onClick={() => setForm("user")}><Plus className="size-4" /> Add User</button>
       </div>}>
         {(form === "user" || editing) && <UserForm key={editing?.local_id ?? "new"} user={editing} users={data.users} onDone={() => setForm(null)} />}
         <div className="max-h-[440px] overflow-auto"><table className="w-full border-collapse">
@@ -232,14 +216,22 @@ function MilduraBody({ data }: { data: MirrorDetail }) {
       </Section>
 
       {/* 10. Access log / Changes log */}
-      <Section n={10} icon={ClipboardList} title={tab === "access" ? "Access log" : "Changes log"} label="Logs" right={<div className="flex gap-2" role="tablist">
+      <Section n={10} icon={ClipboardList} title={tab === "access" ? "Access log" : "Changes log"} label="Logs" right={<div className="flex flex-wrap items-center gap-2" role="tablist">
+        {tab === "access" && <>
+          <label className={`${GLASS_PANEL} flex h-9 items-center gap-2 px-3`}><Search className="size-4 text-[#5CC8FF]" aria-hidden="true" />
+            <input className="w-36 bg-transparent text-sm text-[#F5FBFF] outline-none placeholder:text-[#B9CFE2]" placeholder="Search user" value={aq} onChange={(e) => setAq(e.target.value)} aria-label="Search access log by user" /></label>
+          <select style={FIELD_STYLE} className={`${INPUT} !w-auto`} aria-label="Filter by result" value={ares} onChange={(e) => setAres(e.target.value as typeof ares)}>
+            <option value="all">All results</option><option value="granted">Granted</option><option value="denied">Denied</option></select></>}
+        <button type="button" className={glassButton()} onClick={() => downloadCsv(`mildura-${tab}-log-${stampDay()}.csv`, tab === "access"
+          ? toCsv(["Time (site)", "User", "Method", "Result"], access.map((a) => [a.occurred_at_local ?? "", a.user_name ?? "Unknown", a.method ?? "", a.success ? "Granted" : "Denied"]))
+          : toCsv(["Time (site)", "Action", "Detail", "By"], data.changes.map((c) => [c.occurred_at_local, c.action, c.detail ?? "", c.changed_by ?? ""])))}><Download className="size-4" /> Export</button>
         {([["access", "Access log"], ["changes", "Changes log"]] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={glassButton(tab === k ? "orange" : "glass")} onClick={() => setTab(k)}>{l}</button>)}
       </div>}>
         <div className="max-h-[520px] overflow-auto">{tab === "access" ? <table className="w-full border-collapse">
           <thead><tr><th className={TH}>Time (site)</th><th className={TH}>User</th><th className={TH}>Method</th><th className={TH}>Result</th></tr></thead>
-          <tbody>{data.access.length ? data.access.map((a, i) => <tr key={a.local_id ?? i}><Td className="tabular-nums">{local(a.occurred_at_local)}</Td><Td>{a.user_name ?? "Unknown"}</Td><Td className={MUTED}>{a.method ?? ""}</Td>
+          <tbody>{access.length ? access.map((a, i) => <tr key={a.local_id ?? i}><Td className="tabular-nums">{local(a.occurred_at_local)}</Td><Td>{a.user_name ?? "Unknown"}</Td><Td className={MUTED}>{a.method ?? ""}</Td>
             <Td><Pill tone={a.success ? "ok" : "bad"} caps>{a.success ? "Granted" : "Denied"}</Pill></Td></tr>)
-            : <tr><Td colSpan={4}><Empty /></Td></tr>}</tbody></table>
+            : <tr><Td colSpan={4}><Empty text={data.access.length ? "No entries match those filters." : undefined} /></Td></tr>}</tbody></table>
         : <table className="w-full border-collapse">
           <thead><tr><th className={TH}>Time (site)</th><th className={TH}>Action</th><th className={TH}>Detail</th><th className={TH}>By</th></tr></thead>
           <tbody>{data.changes.length ? data.changes.map((c) => <tr key={c.local_id}><Td className="tabular-nums">{local(c.occurred_at_local)}</Td><Td>{c.action}</Td><Td>{c.detail ?? ""}</Td><Td className={MUTED}>{c.changed_by ?? ""}</Td></tr>)

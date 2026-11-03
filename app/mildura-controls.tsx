@@ -4,14 +4,13 @@
 // Applied / Failed. Changes need the 10-minute administrator unlock; destructive ones confirm first.
 // PIN fields are cleared from memory as soon as the request is sent and are never shown again.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, KeyRound, LoaderCircle, LockKeyhole, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, KeyRound, LoaderCircle, XCircle } from "lucide-react";
 import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
-import AdminSettingsUnlock from "./admin-settings-unlock";
 
 export type MirrorCommand = { id: string; seq?: number; kind: string; args?: Record<string, unknown>; status: "pending" | "delivered" | "applied" | "failed" | "expired"; actor_email?: string; error?: string | null; created_at?: string; finished_at?: string | null };
 export type ControlState = { commands: MirrorCommand[]; keyFingerprint: string | null; keyRegistered: boolean; unlocked: boolean; unlockExpiresAt: number | null; gate: { open: boolean; lockdown: boolean; lockdownOn: boolean; hold: false; holdNote: string; offNote: string } };
 type Send = (body: Record<string, unknown>, confirm?: ConfirmSpec) => Promise<boolean>;
-type ConfirmSpec = { title: string; body: string; action: string };
+export type ConfirmSpec = { title: string; body: string; action: string };
 type Ctx = { state: ControlState | null; send: Send; busy: boolean; openFor: (kind: string, localId?: number) => MirrorCommand | null; preview: boolean; refresh: () => Promise<void> };
 
 const MUTED = "text-[#B9CFE2]";
@@ -73,7 +72,7 @@ export function MilduraControlProvider({ children, fixture }: { children: ReactN
   </ControlCtx.Provider>;
 }
 
-function ConfirmDialog({ spec, onClose }: { spec: ConfirmSpec; onClose: (ok: boolean) => void }) {
+export function ConfirmDialog({ spec, onClose }: { spec: ConfirmSpec; onClose: (ok: boolean) => void }) {
   const ok = useRef<HTMLButtonElement>(null);
   useEffect(() => { ok.current?.focus(); const k = (e: KeyboardEvent) => e.key === "Escape" && onClose(false); window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
   return <div className="fixed inset-0 z-50 grid place-items-center bg-[#020c18]/70 p-4" role="alertdialog" aria-modal="true" aria-labelledby="mk-confirm-title">
@@ -98,10 +97,9 @@ export function CommandPill({ c }: { c: MirrorCommand | null }) {
   return <em className={`telemetry-badge not-italic text-[10px] font-bold uppercase tracking-[.08em] ${tone}`} title={c.error ?? undefined}><Icon className={`size-3 ${c.status === "delivered" ? "animate-spin" : ""}`} />{label}</em>;
 }
 
-/** Header strip of Section 1: unlock, key fingerprint, gate buttons (blocked). */
+/** Header strip of Section 1: gate buttons and the Pi command key. No separate unlock step (4 Nov 2026, Jarrod). */
 export function ControlBar() {
   const ctx = useMilduraControl();
-  const [showUnlock, setShowUnlock] = useState(false);
   if (!ctx) return null;
   const s = ctx.state;
   const can = !!s?.unlocked && !ctx.busy;
@@ -118,12 +116,9 @@ export function ControlBar() {
     </div>
     <div className={`${GLASS_TILE} flex flex-wrap items-center justify-between gap-3 p-3 text-sm`}>
       <span className="flex items-center gap-2"><KeyRound className="size-4 text-[#5CC8FF]" />
-        {s?.keyRegistered ? <>Pi command key <code className={MUTED} title={s.keyFingerprint ?? ""}>{s.keyFingerprint?.slice(0, 16)}…</code></> : <span className="text-[#fbbf24]">Pi has not registered its command key — PIN changes are unavailable</span>}</span>
-      {s?.unlocked
-        ? <em className="telemetry-badge not-italic text-[#34d399]"><i className="signal-dot" />Changes unlocked{s.unlockExpiresAt ? ` until ${new Date(s.unlockExpiresAt).toLocaleTimeString("en-AU", { timeZone: "Australia/Melbourne", hour: "2-digit", minute: "2-digit" })}` : ""}</em>
-        : <button type="button" className={glassButton("orange")} onClick={() => setShowUnlock((v) => !v)}><LockKeyhole className="size-4" /> Unlock changes</button>}
+        {s?.keyRegistered ? <>Pi command key <code className={MUTED} title={s.keyFingerprint ?? ""}>{s.keyFingerprint?.slice(0, 16)}…</code></> : <span className="text-[#fbbf24]">Pi has not registered its command key — keypad codes cannot be sent to it yet</span>}</span>
+      <em className="telemetry-badge not-italic text-[#34d399]"><i className="signal-dot" />Signed in as owner</em>
     </div>
-    {!s?.unlocked && showUnlock && !ctx.preview && <div className={`${GLASS_TILE} p-3`}><AdminSettingsUnlock onUnlocked={() => { setShowUnlock(false); void ctx.refresh(); }} /></div>}
   </div>;
 }
 

@@ -1,10 +1,10 @@
 // Mildura Phase 2 (4 Nov 2026, Jarrod): owner-only control of the Mildura Pi through a command
 // queue the Pi polls over outbound HTTPS (gd-mirror). Open Gate / Lockdown are applied by the Pi via the
 // gate app's own loopback admin routes, never GPIO, and only when the Pi advertises them. Same gate as /api/owner/sites (owner session,
-// else 404) PLUS exact same-origin and the 10-minute administrator unlock for every change.
+// else 404) PLUS exact same-origin for every change. 4 Nov 2026 (Jarrod): no separate administrator unlock or PIN step to add or delete people.
 // PINs: validated here, sealed to the Pi's public key, never stored, logged or echoed in plaintext.
 import { getSql } from "@/db";
-import { assertSameOrigin, getAdminSettingsAccess, requireOperator } from "@/lib/portal-auth";
+import { assertSameOrigin, requireOperator } from "@/lib/portal-auth";
 import { readBoundedText } from "@/lib/request-body";
 import { OwnerSiteInputError } from "@/lib/owner-sites-model";
 import { GATE_KINDS, GATE_OFF_NOTE, GATE_OPEN_TTL_S, HOLD_RETIRED_NOTE, keyFingerprint, melbourneNow, mirrorCommandInput, sealSecrets } from "@/lib/mildura-commands-model";
@@ -42,10 +42,10 @@ export async function GET(request: Request) {
   try {
     const site = await getSiteBySlug(SLUG);
     const sid = String(site.id);
-    const [unit, commands, access] = await Promise.all([getMirrorUnit(sid), listMirrorCommands(sid), getAdminSettingsAccess(request)]);
+    const [unit, commands] = await Promise.all([getMirrorUnit(sid), listMirrorCommands(sid)]);
     return json({
       commands, keyFingerprint: await keyFingerprint(unit.command_pubkey), keyRegistered: Boolean(unit.command_pubkey),
-      unlocked: Boolean(access), unlockExpiresAt: access?.expiresAt ?? null,
+      unlocked: true, unlockExpiresAt: null,
       gate: { open: caps(unit).includes("gate.open"), lockdown: caps(unit).includes("gate.lockdown"), lockdownOn: unit.last_status?.lockdown === true,
         hold: false, holdNote: HOLD_RETIRED_NOTE, offNote: GATE_OFF_NOTE },
       serverTime: new Date().toISOString(),
@@ -57,7 +57,6 @@ export async function POST(request: Request) {
   if (!assertSameOrigin(request)) return json({ error: "Request rejected." }, 403);
   const user = await owner(request);
   if (!user) return notFound();
-  if (!await getAdminSettingsAccess(request)) return json({ error: "Unlock administrator settings before changing the Mildura gate.", code: "admin_password_required" }, 403);
   let body: Record<string, unknown>;
   try {
     const raw = await readBoundedText(request, 4096);

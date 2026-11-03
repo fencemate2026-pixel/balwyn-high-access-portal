@@ -153,3 +153,67 @@ test("sidebar health dot: red if any unit is silent, amber if behind or locked d
   assert.equal(model.siteHealth({ config_version: 7, gd_units: [unit({ lockdown: true })] }, now), "warn");
   assert.equal(model.siteHealth({ config_version: 8, gd_units: [unit({ last_seen: stale })] }, now), "bad", "silent outranks behind");
 });
+
+test("whitelist import: validated per row, repeats dropped, numbers already on the list skipped, one stamped insert", async (t) => {
+  const { post, calls } = await setup(t);
+  const rows = [{ name: "Ann", phone: "0411 222 333", unitLabel: "Unit 1" }, { name: "Ann again", phone: "0411222333" }, { name: "Bob", phone: "0422 333 444" }];
+  const res = await post({ action: "whitelist.import", site: "thomastown", authorisedBy: "OC Manager", rows });
+  assert.equal(res.status, 200);
+  assert.deepEqual((await res.json()).imported, { added: 2, skipped: 0 });
+  const insert = calls.find((c) => c.method === "POST" && c.path.endsWith("/gd_whitelist"));
+  assert.equal(insert.body.length, 2);
+  assert.deepEqual(insert.body.map((r) => r.phone_e164), ["+61411222333", "+61422333444"]);
+  assert.ok(insert.body.every((r) => r.site_id === SITE.id && r.last_actor === "owner@example.test" && r.last_authorised_by === "OC Manager"));
+  const bad = await post({ action: "whitelist.import", site: "thomastown", rows: [{ name: "Ok", phone: "0411 222 333" }, { name: "Bad", phone: "123" }] });
+  assert.equal(bad.status, 400);
+  assert.match((await bad.json()).error, /^Row 2:.*Australian/);
+  assert.equal((await post({ action: "whitelist.import", site: "thomastown", rows: [] })).status, 400);
+  const many = Array.from({ length: model.WHITELIST_IMPORT_MAX + 1 }, (_, i) => ({ name: `P${i}`, phone: `04${String(10000000 + i)}` }));
+  assert.equal((await post({ action: "whitelist.import", site: "thomastown", rows: many })).status, 400);
+});
+
+test("whitelist import never overwrites a number that is already on the site's list", async (t) => {
+  const { post, calls } = await setup(t);
+  const base = env.fetchDatabase;
+  env.fetchDatabase = async (path, init = {}) => {
+    const u = new URL(String(path), "https://example.supabase.co");
+    if (u.pathname.endsWith("/gd_whitelist") && (init.method ?? "GET") === "GET") return new Response(JSON.stringify([{ phone_e164: "+61411222333" }]), { status: 200, headers: { "content-type": "application/json" } });
+    return base(path, init);
+  };
+  const res = await post({ action: "whitelist.import", site: "thomastown", rows: [{ name: "Ann", phone: "0411222333" }, { name: "Bob", phone: "0422333444" }] });
+  assert.deepEqual((await res.json()).imported, { added: 1, skipped: 1 });
+  assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/gd_whitelist")).body.map((r) => r.phone_e164), ["+61422333444"]);
+});
+
+test("enable-all / disable-all touch only this site's rows that need to change, stamped with who did it", async (t) => {
+  const { post, calls } = await setup(t);
+  assert.equal((await post({ action: "whitelist.enableAll", site: "thomastown", enabled: false, authorisedBy: "OC Manager" })).status, 200);
+  const patch = calls.find((c) => c.method === "PATCH" && c.path.endsWith("/gd_whitelist"));
+  assert.match(patch.search, new RegExp(`site_id=eq\\.${SITE.id}`));
+  assert.match(patch.search, /enabled=eq\.true/, "disable-all only touches rows that are currently enabled");
+  assert.equal(patch.body.enabled, false);
+  assert.equal(patch.body.last_actor, "owner@example.test");
+});
+
+test("authorised persons can be edited, scoped to the site", async (t) => {
+  const { post, calls } = await setup(t);
+  const id = "33333333-3333-4333-8333-333333333333";
+  assert.equal((await post({ action: "person.update", site: "thomastown", id, name: "Sam", role: "OC manager" })).status, 200);
+  const patch = calls.find((c) => c.method === "PATCH" && c.path.endsWith("/gd_auth_persons"));
+  assert.match(patch.search, new RegExp(`id=eq\\.${id}`)); assert.match(patch.search, new RegExp(`site_id=eq\\.${SITE.id}`));
+  assert.equal(patch.body.name, "Sam");
+  assert.equal((await post({ action: "person.update", site: "thomastown", id: "not-a-uuid", name: "Sam" })).status, 400);
+  assert.equal((await post({ action: "person.update", site: "thomastown", id, name: "" })).status, 400);
+});
+
+test("the Workshop bench is hidden from the owner's site list but its data is kept", async (t) => {
+  const { get } = await setup(t);
+  const base = env.fetchDatabase;
+  env.fetchDatabase = async (path, init = {}) => {
+    const u = new URL(String(path), "https://example.supabase.co");
+    if (u.pathname.endsWith("/gd_sites") && !u.search.includes("slug=eq.")) return new Response(JSON.stringify([{ ...SITE, gd_units: [] }, { id: "x", slug: "rjl-bench", name: "RJL Workshop Bench", config_version: 8, gd_units: [] }]), { status: 200, headers: { "content-type": "application/json" } });
+    return base(path, init);
+  };
+  const listed = await (await get()).json();
+  assert.deepEqual(listed.sites.map((s) => s.slug), ["thomastown"]);
+});

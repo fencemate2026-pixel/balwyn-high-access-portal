@@ -7,12 +7,12 @@
 import { assertSameOrigin, requireOperator } from "@/lib/portal-auth";
 import { readBoundedText } from "@/lib/request-body";
 import {
-  OwnerSiteInputError, authorisedBy, personInput, scheduleInput, unitInput, whitelistInput,
+  OwnerSiteInputError, authorisedBy, personInput, scheduleInput, unitInput, whitelistImportInput, whitelistInput,
 } from "@/lib/owner-sites-model";
 import {
   OwnerSitesUnavailableError, acknowledgeShrink, addPerson, addWhitelist, deletePerson, deleteSchedule,
-  deleteWhitelist, getMirrorDetail, getSiteBySlug, getSiteDetail, listCalls, listChanges, listSites, saveSchedule,
-  updateUnit, updateWhitelist,
+  deleteWhitelist, getMirrorDetail, getSiteBySlug, getSiteDetail, importWhitelist, listCalls, listChanges, listSites, saveSchedule,
+  setAllWhitelistEnabled, updatePerson, updateUnit, updateWhitelist,
 } from "@/lib/owner-sites-store";
 import type { PortalUser } from "@/lib/portal-model";
 import { OWNER_SITE_LINKS } from "@/lib/owner-sites-links";
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
   if (!user) return notFound();
   let body: Record<string, unknown>;
   try {
-    const raw = await readBoundedText(request, 8192);
+    const raw = await readBoundedText(request, 16384);
     if (raw === null) return Response.json({ error: "Invalid request." }, { status: 413, headers });
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
@@ -75,19 +75,23 @@ export async function POST(request: Request) {
     const site = await getSiteBySlug(String(body.site ?? ""));
     const sid = String(site.id);
     const stamp = { last_actor: user.email, last_authorised_by: authorisedBy(body, user.displayName) };
+    let imported: { added: number; skipped: number } | undefined;
     switch (body.action) {
       case "whitelist.add": await addWhitelist(sid, whitelistInput(body), stamp); break;
       case "whitelist.update": await updateWhitelist(sid, body.id, whitelistInput(body), stamp); break;
       case "whitelist.toggle": await updateWhitelist(sid, body.id, { enabled: body.enabled === true }, stamp); break;
+      case "whitelist.enableAll": await setAllWhitelistEnabled(sid, body.enabled === true, stamp); break;
+      case "whitelist.import": imported = await importWhitelist(sid, whitelistImportInput(body), stamp); break;
       case "whitelist.delete": await deleteWhitelist(sid, body.id, stamp); break;
       case "schedule.save": await saveSchedule(sid, body.unitId, body.id, scheduleInput(body), stamp); break;
       case "schedule.delete": await deleteSchedule(sid, body.unitId, body.id, stamp); break;
       case "unit.update": await updateUnit(sid, body.unitId, unitInput(body), stamp); break;
       case "person.add": await addPerson(sid, personInput(body), stamp); break;
+      case "person.update": await updatePerson(sid, body.id, personInput(body), stamp); break;
       case "person.delete": await deletePerson(sid, body.id, stamp); break;
       case "site.ackShrink": await acknowledgeShrink(sid, body.seenVersion); break;
       default: return Response.json({ error: "Unknown action." }, { status: 400, headers });
     }
-    return Response.json({ ok: true, ...(await getSiteDetail(String(site.slug))), serverTime: new Date().toISOString() }, { headers });
+    return Response.json({ ok: true, ...(imported ? { imported } : {}), ...(await getSiteDetail(String(site.slug))), serverTime: new Date().toISOString() }, { headers });
   } catch (error) { return failure(error); }
 }

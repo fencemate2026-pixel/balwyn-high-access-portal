@@ -72,15 +72,16 @@ test("non-owners get 404 and touch nothing", async () => {
   assert.equal(calls.length, 0);
 });
 
-test("cross-origin and locked-settings requests are refused before any write", async () => {
+test("cross-origin requests and non-owners are refused before any write; no separate unlock step is needed (4 Nov 2026)", async () => {
   let s = await as("owner@example.test");
   assert.equal((await s.post({ kind: "user.delete", local_id: 3, clientKey: key() }, { Origin: "https://evil.example", "Sec-Fetch-Site": "cross-site" })).status, 403);
   assert.equal(s.calls.length, 0);
-  s = await as("owner@example.test", { unlocked: false });
-  const r = await s.post({ kind: "user.delete", local_id: 3, clientKey: key() });
-  assert.equal(r.status, 403);
-  assert.equal((await r.json()).code, "admin_password_required");
+  s = await as("staff@example.test");
+  assert.equal((await s.post({ kind: "user.delete", local_id: 3, clientKey: key() })).status, 404, "an administrator who is not the owner learns nothing");
   assert.equal(writes(s.calls).length, 0);
+  s = await as("owner@example.test", { unlocked: false });
+  assert.equal((await s.post({ kind: "user.delete", local_id: 3, clientKey: key() })).status, 200, "the owner session alone is enough");
+  assert.equal((await (await s.get()).json()).unlocked, true);
 });
 
 test("adding a user: PIN is sealed to the Pi key, bound to the command, and never stored or echoed in plaintext", async () => {
@@ -231,7 +232,7 @@ test("Open Gate queues one short-lived command; Lockdown carries on/off; both au
   const g = await (await s.get()).json();
   assert.equal(g.gate.open, true); assert.equal(g.gate.lockdown, true); assert.equal(g.gate.hold, false);
   s = await as("owner@example.test", { caps, unlocked: false });
-  assert.equal((await s.post({ kind: "gate.open", clientKey: key() })).status, 403, "admin unlock still required");
+  assert.equal((await s.post({ kind: "gate.open", clientKey: key() })).status, 200, "no administrator unlock step any more");
 });
 
 test("PIN rules match the live gate app: leading zero allowed, 4-6 digits", () => {

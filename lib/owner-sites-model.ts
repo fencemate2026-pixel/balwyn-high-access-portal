@@ -11,7 +11,8 @@
 export type OwnerSiteAction =
   | "whitelist.add" | "whitelist.update" | "whitelist.delete"
   | "schedule.save" | "schedule.delete"
-  | "unit.update" | "person.add" | "person.delete" | "site.ackShrink";
+  | "unit.update" | "person.add" | "person.update" | "person.delete" | "site.ackShrink"
+  | "whitelist.enableAll" | "whitelist.import";
 
 export const RESULT_LABELS: Record<string, string> = {
   opened: "Opened",
@@ -103,6 +104,31 @@ export function unitInput(body: Record<string, unknown>) {
     out.secret_hash = fp;
   }
   if (!Object.keys(out).length) throw new OwnerSiteInputError("Nothing to change.");
+  return out;
+}
+
+/** Most numbers accepted by one whitelist.import request (the request body is capped). */
+export const WHITELIST_IMPORT_MAX = 40;
+
+/**
+ * A batch of numbers to add in one request. Every row goes through whitelistInput, so a bad
+ * row rejects the whole batch with the row number; repeats inside the batch are dropped.
+ */
+export function whitelistImportInput(body: Record<string, unknown>) {
+  const rows = body.rows;
+  if (!Array.isArray(rows) || !rows.length) throw new OwnerSiteInputError("There are no numbers to import.");
+  if (rows.length > WHITELIST_IMPORT_MAX) throw new OwnerSiteInputError(`Import at most ${WHITELIST_IMPORT_MAX} numbers at a time.`);
+  const seen = new Set<string>();
+  const out: ReturnType<typeof whitelistInput>[] = [];
+  rows.forEach((raw, i) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new OwnerSiteInputError(`Row ${i + 1} is not valid.`);
+    let row: ReturnType<typeof whitelistInput>;
+    try { row = whitelistInput(raw as Record<string, unknown>); }
+    catch (e) { throw new OwnerSiteInputError(`Row ${i + 1}: ${e instanceof Error ? e.message : "not valid."}`); }
+    if (seen.has(row.phone_e164)) return;
+    seen.add(row.phone_e164);
+    out.push(row);
+  });
   return out;
 }
 

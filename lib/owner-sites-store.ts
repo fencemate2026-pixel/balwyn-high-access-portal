@@ -50,10 +50,16 @@ function publicUnit(u: Record<string, unknown>) {
   return { ...rest, has_device_key: typeof secret_hash === "string" && secret_hash.length === 64 };
 }
 
+/**
+ * Sites hidden from the owner's list (4 Nov 2026, Jarrod: "remove the rjl workshop").
+ * The database rows, units and changes log are kept, so this is reversible by removing the slug.
+ */
+const HIDDEN_SITE_SLUGS: readonly string[] = ["rjl-bench"];
+
 export async function listSites() {
   const sites = await rest<Array<Record<string, unknown>>>(
     "gd_sites?select=id,slug,name,address,config_version,gd_units(id,last_seen,applied_version,enabled,lockdown)&order=name");
-  return sites;
+  return sites.filter((s) => !HIDDEN_SITE_SLUGS.includes(String(s.slug)));
 }
 
 export async function getSiteBySlug(slug: string) {
@@ -111,6 +117,23 @@ export async function addWhitelist(siteId: string, row: Record<string, unknown>,
   return rest("gd_whitelist", { method: "POST", body: JSON.stringify({ ...row, site_id: siteId, ...stamp }) });
 }
 
+/**
+ * Add many numbers in one go. Numbers already on this site's list are skipped (never overwritten),
+ * so importing the same file twice is harmless. Returns how many were added and skipped.
+ */
+export async function importWhitelist(siteId: string, rows: Array<Record<string, unknown>>, stamp: Stamp) {
+  const existing = await rest<Array<{ phone_e164: string }>>(`gd_whitelist?site_id=eq.${siteId}&select=phone_e164`);
+  const have = new Set((existing ?? []).map((r) => r.phone_e164));
+  const fresh = rows.filter((r) => !have.has(String(r.phone_e164)));
+  if (fresh.length) await rest("gd_whitelist", { method: "POST", body: JSON.stringify(fresh.map((r) => ({ ...r, site_id: siteId, ...stamp }))) });
+  return { added: fresh.length, skipped: rows.length - fresh.length };
+}
+
+/** Enable or disable every number on the site. Only rows that need to change are touched. */
+export async function setAllWhitelistEnabled(siteId: string, enabled: boolean, stamp: Stamp) {
+  await rest(`gd_whitelist?site_id=eq.${siteId}&enabled=eq.${!enabled}`, { method: "PATCH", body: JSON.stringify({ enabled, ...stamp }) });
+}
+
 export async function updateWhitelist(siteId: string, id: unknown, change: Record<string, unknown>, stamp: Stamp) {
   if (!isUuid(id)) throw new OwnerSiteInputError("Unknown entry.");
   const rows = await rest<unknown[]>(`gd_whitelist?id=eq.${id}&site_id=eq.${siteId}`, { method: "PATCH", body: JSON.stringify({ ...change, ...stamp }) });
@@ -145,6 +168,12 @@ export async function updateUnit(siteId: string, unitId: unknown, change: Record
 
 export async function addPerson(siteId: string, row: Record<string, unknown>, stamp: Stamp) {
   return rest("gd_auth_persons", { method: "POST", body: JSON.stringify({ ...row, site_id: siteId, ...stamp }) });
+}
+
+export async function updatePerson(siteId: string, id: unknown, row: Record<string, unknown>, stamp: Stamp) {
+  if (!isUuid(id)) throw new OwnerSiteInputError("Unknown person.");
+  const rows = await rest<unknown[]>(`gd_auth_persons?id=eq.${id}&site_id=eq.${siteId}`, { method: "PATCH", body: JSON.stringify({ ...row, ...stamp }) });
+  if (!rows?.length) throw new OwnerSiteInputError("That person no longer exists.");
 }
 
 export async function deletePerson(siteId: string, id: unknown, stamp: Stamp) {
