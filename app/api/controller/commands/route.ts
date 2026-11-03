@@ -1,11 +1,13 @@
 import { controllerTokenValid, getNextControllerCommand, getOrCreateScheduledControllerCommand, noteScheduleControlOff, recordHeartbeat } from "@/lib/portal-store";
 import { GATES, type ReportedPosition } from "@/lib/portal-model";
-import { readControllerRequest } from "@/lib/controller-request";
+import { controllerAuthFailed, controllerFailureBlock, readControllerRequest } from "@/lib/controller-request";
 
 export async function POST(request: Request) {
   try {
     const read = await readControllerRequest(request);
     if (!read.ok) return read.response;
+    const blocked = await controllerFailureBlock(request);
+    if (blocked) return blocked;
     const body = read.body as {
       gateId?: string;
       position?: ReportedPosition;
@@ -18,7 +20,7 @@ export async function POST(request: Request) {
     const gateId = String(body.gateId ?? "");
     const token = read.token;
     if (!GATES.some((gate) => gate.id === gateId) || !(await controllerTokenValid(gateId, token))) {
-      return Response.json({ error: "Controller authentication failed." }, { status: 401 });
+      return controllerAuthFailed(request);
     }
     const position = String(body.position ?? "unknown") as ReportedPosition;
     if (!new Set(["open", "closed", "moving", "unknown"]).has(position) || typeof body.safetyOk !== "boolean") {

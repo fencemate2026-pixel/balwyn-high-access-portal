@@ -7,6 +7,9 @@
  *  - the body must be a JSON object.
  * The token itself is still verified per gate by controllerTokenValid().
  */
+import { getSql } from "@/db";
+import { takeActionSlot, personKey } from "@/lib/action-rate-limit";
+import { clientAddress } from "@/lib/client-address";
 import { readBoundedText } from "@/lib/request-body";
 
 const MAX_BODY = 8192;
@@ -30,4 +33,35 @@ export async function readControllerRequest(request: Request): Promise<Controlle
   } catch {
     return refuse("Invalid controller message.", 400);
   }
+}
+
+/**
+ * Failed-token limit for the controller endpoints (4 Nov 2026 audit).
+ *
+ * A real controller never fails authentication, so only FAILED attempts are counted, per
+ * client address (the platform-set address from client-address.ts, not a browser header).
+ * At CONTROLLER_FAIL_MAX failures inside CONTROLLER_FAIL_WINDOW_MS the address is refused with
+ * 429 for every request until the oldest failure ages out, which stops token guessing.
+ * TRADEOFF: a controller on a shared carrier address (SIM) could be refused if someone else
+ * on that same address fails 20 times in 10 minutes; its own heartbeats then resume by themselves.
+ * Throws if the database is unreachable (the routes' existing catch returns 503: fail closed).
+ */
+export const CONTROLLER_FAIL_MAX = 20;
+export const CONTROLLER_FAIL_WINDOW_MS = 10 * 60 * 1000;
+
+const failureKey = (request: Request) => personKey("ctrl-fail:addr", clientAddress(request));
+
+/** Returns a 429 response when this address has used up its failed attempts, otherwise null. */
+export async function controllerFailureBlock(request: Request): Promise<Response | null> {
+  const key = await failureKey(request);
+  const cutoff = new Date(Date.now() - CONTROLLER_FAIL_WINDOW_MS).toISOString();
+  const row = await getSql().prepare("SELECT COUNT(*) AS n FROM auth_attempts WHERE fingerprint = ? AND created_at > ?").bind(key, cutoff).first<{ n: number }>();
+  if (Number(row?.n ?? 0) < CONTROLLER_FAIL_MAX) return null;
+  return Response.json({ error: "Too many failed attempts. Try again later." }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": String(CONTROLLER_FAIL_WINDOW_MS / 1000) } });
+}
+
+/** Records one failed attempt and returns the standard 401. */
+export async function controllerAuthFailed(request: Request): Promise<Response> {
+  await takeActionSlot(await failureKey(request), CONTROLLER_FAIL_MAX, CONTROLLER_FAIL_WINDOW_MS);
+  return Response.json({ error: "Controller authentication failed." }, { status: 401, headers: { "Cache-Control": "no-store" } });
 }
