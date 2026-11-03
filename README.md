@@ -4,6 +4,17 @@ This branch migrates the working Balwyn portal to Next.js on Render with a separ
 
 Build: `npm ci && npm run build:render`. Test: `npm test`.
 
+## Mildura user management
+
+The owner can open **RJL portals → Mildura → Unlock changes**, verify the
+administrator settings password, then add, edit, enable, disable or delete users
+under **Authorised users**. Commands show **Pending → Applied / Failed** as the Pi
+processes them. The administrator unlock lasts 10 minutes.
+
+Unlocking refreshes the Mildura control state in place. Do not reload the page in
+the unlock callback: the portal's existing `SessionExitGuard` signs operators out
+on `pagehide`, including a reload. This portal fix requires no Pi update.
+
 The deployment remains staged until the original masked login secrets and profile image are transferred. The previous GitHub-only implementation is preserved under `archive/github-legacy/` and in Git history.
 
 ---
@@ -126,3 +137,4 @@ the command is released, so the local trigger period must also be verified.
 | `app/api/doors/open/route.ts` | Sites session/role and emergency-priority enforcement |
 | `app/compass-wiring-reference.tsx` | Existing board and corrected installation notes |
 | `AI_REFERENCE_MASTER.md` | Scope and limitations for future development |
+
