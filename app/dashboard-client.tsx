@@ -55,12 +55,12 @@ import {
   Wifi,
   Workflow,
   Zap,
-  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import RemoteOpenPanel from "./remote-open-panel";
 import CompassWiringReference from "./compass-wiring-reference";
 import OwnerSitesPanel from "./owner-sites-panel";
+import OwnerPortalsNav, { type OwnerPortalChoice } from "./owner-portals-nav";
 
 import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -167,7 +167,7 @@ const viewMeta: Record<ViewKey, { label: string; description: string }> = {
   activity: { label: "Activity log", description: "Review the permanent operator and controller audit trail" },
   settings: { label: "System settings", description: "Configure monitoring, alerts and operating behaviour" },
   // 30 Oct 2026 (Jarrod): owner-only console for every RJL GSM gate dialler site (Thomastown first).
-  sites: { label: "My sites", description: "RJL owner console · every RJL site in one list" },
+  sites: { label: "RJL portals", description: "Owner console · every RJL portal, one login" },
 };
 
 const cctvCameras = [
@@ -299,6 +299,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const isOwner = isAdministrator && user.isOwner === true;
   const roleLabel = isAdministrator ? "System administrator" : canOperate ? "Authorised operator" : "View-only operator";
   const [activeView, setActiveView] = useState<ViewKey>("dashboard");
+  // Owner only: which portal the sidebar list has selected (null = this portal's own dashboard).
+  const [ownerChoice, setOwnerChoice] = useState<OwnerPortalChoice | null>(null);
   const [currentTime, setCurrentTime] = useState(() => Date.parse(initialData.serverTime));
   const [adminAccessUntil, setAdminAccessUntil] = useState(0);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -924,7 +926,13 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
           <SidebarGroup><SidebarGroupLabel>Operations</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("dashboard", LayoutDashboard)}{navItem("schedule", CalendarClock)}{navItem("hire", CalendarDays)}{navItem("cctv", Camera)}{navItem("guidance", MapPin)}{navItem("automation", Workflow, String(automations.filter((rule) => rule.enabled).length))}{navItem("safety", ShieldCheck)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
           <SidebarGroup><SidebarGroupLabel>Administration</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("access", Users)}{navItem("activity", ClipboardList, activity.length ? String(activity.length) : undefined)}{navItem("settings", Settings2)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
           {/* Owner only (server-verified PORTAL_OWNER_EMAIL); /api/owner/sites re-checks it on every request. */}
-          {isOwner && <SidebarGroup><SidebarGroupLabel>RJL owner</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("sites", Building2)}</SidebarMenu></SidebarGroupContent></SidebarGroup>}
+          {isOwner && <SidebarGroup><SidebarGroupLabel>RJL portals</SidebarGroupLabel><SidebarGroupContent>
+            <OwnerPortalsNav choice={activeView === "sites" ? ownerChoice : null} onChoose={(next) => {
+              setOwnerChoice(next);
+              setActiveView(next.kind === "balwyn" ? "dashboard" : "sites");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }} />
+          </SidebarGroupContent></SidebarGroup>}
           <div className="sidebar-system-card"><span><Wifi /> System connection</span><strong className={connectionLost ? "is-connection-lost" : undefined}><i /> {connectionLost ? "Connection to portal lost" : "Portal online"}</strong><small>{activeGates.length} active · {gates.length - activeGates.length} inactive</small><small>{onlineCount} of {activeGates.length} active gate controllers online</small><small>{commissionedCount} commissioned · {credentialCount} credentials issued</small><small className="voice-status"><Volume2 /> Gate voice · {voiceAnnouncements ? "On" : "Off"}</small></div><div className="sidebar-rjl-brand"><img src="/rjl-commercial-logo-2026.png" alt="RJL Commercial Fencing and Gates" /></div>
         </SidebarContent>
         <SidebarSeparator />
@@ -1169,7 +1177,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             <section className="controller-commissioning"><div className="view-panel-heading"><div><h2>Separate controller commissioning</h2><small>Sensor-equipped controller path · separate from the ACB-004 open-only trigger</small></div><Badge variant="outline"><Network /> {commissionedCount} commissioned · {credentialCount} issued</Badge></div>{controllerCredential && <div className="credential-issued" role="status"><ShieldCheck /><span><strong>{controllerCredential.gateId} interface credential ready</strong><small>Transfer it once to the approved Compass interface gateway. It will be removed from this screen after download.</small></span><Button onClick={downloadControllerCredential}><Download /> Download setup file</Button><Button variant="ghost" onClick={() => setControllerCredential(null)}>Close</Button></div>}<div className="controller-list">{activeGates.map((gate) => { const runtime = runtimeFor(gate); return <article key={gate.id}><span className={`controller-state-dot is-${runtime?.controllerState ?? "uncommissioned"}`} /><span><strong>{gate.name}</strong><small>{gate.id} · {runtime?.commissioned ? runtime.controllerState : runtime?.credentialIssued ? "interface credential issued · awaiting verified Compass output and position feedback" : "Compass relay output not mapped"}{runtime?.lastSeen ? ` · last contact ${activityTime(runtime.lastSeen)}` : ""}</small></span><span className="controller-safety">{runtime?.controllerState === "online" && runtime.safetyOk === true ? <><ShieldCheck /> Current safety healthy</> : runtime?.safetyOk === false ? <><AlertTriangle /> Safety fault</> : <><Radio /> No current safety feedback</>}</span><Button variant="outline" disabled={!isAdministrator || busyAction === `provision-${gate.id}`} onClick={() => provisionController(gate.id)}>{busyAction === `provision-${gate.id}` ? "Issuing…" : runtime?.credentialIssued ? "Rotate credential" : "Issue credential"}</Button></article>; })}</div><p className="module-disclaimer">The existing Compass ACB-004 open-only trigger is configured separately and supplies no sensor feedback. This controller list is for the Pi gate controller (one relay contact plus reed switches and a safety input); it must not be used to infer ACB-004 position or commissioning status.</p></section>
           </>}
 
-          {activeView === "sites" && isOwner && <OwnerSitesPanel onOpenPortal={() => { setActiveView("dashboard"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}
+          {activeView === "sites" && isOwner && <OwnerSitesPanel key={ownerChoice?.kind === "site" ? ownerChoice.id : "default"} selectedId={ownerChoice?.kind === "site" ? ownerChoice.id : undefined} hideList onOpenPortal={() => { setOwnerChoice({ kind: "balwyn" }); setActiveView("dashboard"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}
           {activeView === "activity" && <section className="activity-panel"><div className="view-panel-heading"><div><h2>Permanent activity record</h2><small>Operator requests, settings and controller acknowledgements</small></div><div className="activity-heading-actions"><Badge variant="outline"><UserRound /> {user.displayName}</Badge><Button variant="outline" disabled={!activity.length} onClick={exportActivity}><Download /> Export CSV</Button></div></div>{activity.length === 0 ? <div className="activity-empty"><Activity /><h3>No activity recorded yet</h3><p>Authorised commands, controller acknowledgements, automation changes and schedule saves will appear here.</p></div> : <div className="activity-list">{activity.map((record) => <article key={record.id}><span className="activity-record-icon"><Activity /></span><div><strong>{record.action}</strong><p>{record.detail}</p><small>{record.actorName} · {record.category}</small></div><time>{activityTime(record.createdAt)}</time></article>)}</div>}</section>}
 
           {activeView === "guidance" && adminUnlocked && advancedFeaturesEnabled && <section className="dynamic-guidance-workspace">
