@@ -6,14 +6,24 @@ Build: `npm ci && npm run build:render`. Test: `npm test`.
 
 ## Mildura user management
 
-The owner can open **RJL portals → Mildura → Unlock changes**, verify the
-administrator settings password, then add, edit, enable, disable or delete users
-under **Authorised users**. Commands show **Pending → Applied / Failed** as the Pi
-processes them. The administrator unlock lasts 10 minutes.
+The signed-in owner can open **RJL portals → Mildura** and add, edit, enable,
+disable or delete users under **Authorised users**, without a separate unlock.
+Commands show **Pending → Applied / Failed / Expired**. Queued is not confirmation:
+wait for **Applied** to confirm a change reached the Pi. User changes expire after
+15 minutes if the Pi does not collect them.
 
-Unlocking refreshes the Mildura control state in place. Do not reload the page in
-the unlock callback: the portal's existing `SessionExitGuard` signs operators out
-on `pagehide`, including a reload. This portal fix requires no Pi update.
+Mirror 2.2.1 polls for commands every five seconds after the preceding request
+finishes and also retries failed polls and uploads after five seconds. Retries
+continue throughout an outage; there is no five-/15-minute backoff. A recovered
+command connection immediately schedules a fresh snapshot, even with no queued
+commands. An in-flight HTTPS request can still take its existing 20-second
+timeout; the service serializes database access and command application.
+
+This Pi update does not modify Wi-Fi, NetworkManager, routes, DNS, Tailscale,
+credentials, the gate app or GPIO. Use the version-checked installer in
+`deploy/mildura/pi/upgrade_reconnect.py`; it backs up and replaces only the mirror
+Python file, then restarts only `mildura-mirror`. See
+[Mildura deployment notes](deploy/mildura/PHASE2.md#continuous-reconnection-update-221).
 
 The deployment remains staged until the original masked login secrets and profile image are transferred. The previous GitHub-only implementation is preserved under `archive/github-legacy/` and in Git history.
 
@@ -137,4 +147,5 @@ the command is released, so the local trigger period must also be verified.
 | `app/api/doors/open/route.ts` | Sites session/role and emergency-priority enforcement |
 | `app/compass-wiring-reference.tsx` | Existing board and corrected installation notes |
 | `AI_REFERENCE_MASTER.md` | Scope and limitations for future development |
+
 

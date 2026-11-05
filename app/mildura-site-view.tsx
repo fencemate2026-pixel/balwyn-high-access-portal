@@ -116,6 +116,7 @@ function MilduraBody({ data }: { data: MirrorDetail }) {
             </div>
           </div>
           <ControlBar />
+          {!on && !empty && <p role="status" className="mt-3 text-sm text-[#fbbf24]">The Mildura Pi is unreachable. Changes stay queued until it reconnects and expire after 15 minutes. Check that each change shows Applied.</p>}
           {empty && <div className={`${GLASS_TILE} mt-4 p-3 text-sm`}><strong className="text-[#FF7A00]">Waiting for first sync from the Mildura Pi.</strong> <span className={MUTED}>Nothing has been received yet.</span></div>}
         </Navy>
       </section>
@@ -256,3 +257,4 @@ function Donut({ parts }: { parts: [string, number, string][] }) {
     </div>
   );
 }
+

@@ -1,5 +1,44 @@
 # Mildura Phase 2 — portal control (STAGED, NOT LIVE)
 
+## Continuous reconnection update (2.2.1)
+
+6 Nov 2026: the supplied Pi log shows continuous URL errors while Wi-Fi could
+not associate. Cloud records show commands were never delivered and expired
+after 15 minutes. Mirror 2.2.1 continues polling/retrying after five seconds
+instead of increasing command retries to five minutes and upload retries to
+15 minutes. Recovery triggers an immediate snapshot refresh. Existing HTTPS
+timeouts still apply; requests and database writes remain serialized.
+
+The portal displays an explicit warning when the last Pi heartbeat is stale,
+and its queue toast asks the owner to wait for Applied. A GitHub update alone
+does not update the running Pi or deploy the portal.
+
+### Install on the Pi without changing its network
+
+Transfer `pi/upgrade_reconnect.py` to the Pi and run:
+
+```sh
+sudo python3 ~/upgrade_reconnect.py
+```
+
+The installer contains the tested mirror source and verifies its checksum. It
+only accepts the exact repository 2.2.0 source (or the already-updated source),
+backs up `/opt/mildura-mirror/mildura_mirror.py`, validates Python syntax and
+atomically replaces that one file. It restarts **only** `mildura-mirror.service`,
+waits briefly, and checks the service. If startup fails it restores the backup
+and restarts only that service. It reports the backup path for manual rollback.
+Wi-Fi profiles, network services, routes, DNS, Tailscale, the gate application,
+credentials, state, keys and GPIO are not edited or restarted.
+
+Requests cannot cross a Wi-Fi outage; frequent retries resume sync after the
+existing connection returns. Previously expired commands are not replayed.
+Re-enter a wanted change and confirm its Applied result.
+
+Validation: `python3 -m unittest discover -s deploy/mildura/tests -v`.
+Includes a virtual-clock outage lasting over six minutes, five-second retry
+cadence, recovery snapshot, independent failures of each sync path, readonly
+mode, PIN exclusion, idempotent application and busy-database redelivery.
+
 Flow: owner (unlocked) → `/api/owner/mildura` validates, seals PIN/phone to the Pi's RSA-OAEP public key,
 inserts `gd_mirror_commands` + audit row in `gd_mirror_changes` → Pi polls `gd-mirror` (`action:"commands"`,
 every 10 s, outbound HTTPS) → `mildura_commands.py` validates + applies in one SQLite transaction with a
@@ -26,3 +65,4 @@ Pi runs a newer, unpublished build — verify before go-live):
    `sudo MIRROR_CONTROL=1 MIRROR_GATE_ACTIONS=1 MIRROR_DB=/home/rjlcommercial/boomgate/boom_gate.db MIRROR_URL=https://aevsfrxqyvtuycufffxk.supabase.co/functions/v1/gd-mirror sh ./install.sh`
    (keeps the existing device secret from /etc/mildura-mirror.env). Compare the printed key fingerprint with the portal.
 5. Kill switches: `MIRROR_GATE_ACTIONS=0` (buttons only) or `MIRROR_CONTROL=0` in /etc/mildura-mirror.env + `sudo systemctl restart mildura-mirror`.
+

@@ -14,7 +14,7 @@ Safety contract (every point is enforced in code and covered by tests/test_mirro
     and every other column not on the list are never selected. Free text is scrubbed of
     4-8 digit runs before upload.
   * Outbound HTTPS only. No listening socket. No network, Tailscale, sshd or WiFi changes.
-  * Any failure is logged and retried with back-off. Nothing here can raise into, block or
+  * Any failure is logged and retried continuously. Nothing here can raise into, block or
     slow the gate: this is a separate systemd unit with low priority.
   * Progress marks live in this service's own state file, not in the gate database.
 Standard library only (no pip installs on the Pi).
@@ -29,10 +29,10 @@ import time
 import urllib.error
 import urllib.request
 
-VERSION = "2.2.0"
-COMMAND_INTERVAL_S = 10       # Phase 2 command poll (tiny request)
+VERSION = "2.2.1"
+COMMAND_INTERVAL_S = 5        # Phase 2 command poll; keep checking during outages
 INTERVAL_S = 60                # normal cycle
-BACKOFF_MAX_S = 900            # cap when the cloud is unreachable
+RETRY_INTERVAL_S = 5           # seconds after a failed request; never back off for minutes
 HTTP_TIMEOUT_S = 20
 BATCH_ROWS = 200
 STATUS_URL_DEFAULT = "http://127.0.0.1:5000/api/status"
@@ -293,6 +293,7 @@ def main():
                 log("GATE_URL must be loopback; gate actions disabled")
     state = load_state(state_path)
     delay, cdelay = INTERVAL_S, COMMAND_INTERVAL_S
+    commands_failed = sync_failed = False
     next_sync = next_cmd = time.monotonic()
     log("started v%s (control %s, gate actions %s)" % (VERSION, "on" if control else "off", "on" if gate else "off"))
     while True:
@@ -300,18 +301,27 @@ def main():
         if now >= next_sync:
             try:
                 more = cycle(db_path, url, creds, state, state_path, status_url, caps)
+                if sync_failed:
+                    log("sync connection restored")
+                sync_failed = False
                 delay = 1 if more else INTERVAL_S
             except (urllib.error.URLError, OSError, RuntimeError, ValueError, sqlite3.Error) as e:
-                delay = min(BACKOFF_MAX_S, max(delay, INTERVAL_S) * 2)
+                sync_failed = True
+                delay = RETRY_INTERVAL_S
                 log("sync failed (%s); retry in %ds" % (type(e).__name__, delay))
             next_sync = time.monotonic() + delay
-        if control and now >= next_cmd:
+        if control and time.monotonic() >= next_cmd:
             try:
-                if command_cycle(db_path, url, creds, key_path, state, state_path, ccfg, gate):
-                    next_sync = time.monotonic()          # show the change in the portal straight away
+                applied = command_cycle(db_path, url, creds, key_path, state, state_path, ccfg, gate)
+                if applied or commands_failed:
+                    next_sync = time.monotonic()          # refresh mirror immediately after recovery too
+                if commands_failed:
+                    log("command connection restored")
+                commands_failed = False
                 cdelay = COMMAND_INTERVAL_S
             except (urllib.error.URLError, OSError, RuntimeError, ValueError, sqlite3.Error, subprocess_error()) as e:
-                cdelay = min(300, cdelay * 2)
+                commands_failed = True
+                cdelay = RETRY_INTERVAL_S
                 log("commands failed (%s); retry in %ds" % (type(e).__name__, cdelay))
             next_cmd = time.monotonic() + cdelay
         time.sleep(max(0.5, min(next_sync, next_cmd if control else next_sync) - time.monotonic()))
@@ -324,3 +334,4 @@ def subprocess_error():
 
 if __name__ == "__main__":
     sys.exit(main())
+

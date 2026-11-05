@@ -250,15 +250,17 @@ class ApplierTests(unittest.TestCase):
         self.assertEqual(self.q("select distinct enabled from users"), [(1,)])
 
     def test_busy_database_is_not_acked(self):
+        command = self.cmd("users.enable_all", {"enabled": True})
         hold = sqlite3.connect(self.db, isolation_level=None); hold.execute("BEGIN EXCLUSIVE")
         try:
             orig = mc.open_rw
             mc.open_rw = lambda p: (lambda c: (c.execute("PRAGMA busy_timeout=50"), c)[1])(sqlite3.connect(p, timeout=0.05, isolation_level=None))
-            acks = mc.apply_all(self.db, [self.cmd("users.enable_all", {"enabled": True})], self.key)
-            self.assertFalse(acks[0]["ok"])
-            self.assertIn("busy", acks[0]["error"].lower())
+            acks = mc.apply_all(self.db, [command], self.key)
+            self.assertEqual(acks, [])   # leave the command queued for another poll
         finally:
             mc.open_rw = orig; hold.close()
+        self.assertTrue(self.run1(command)["ok"])
+        self.assertEqual(self.q("select distinct enabled from users"), [(1,)])
 
     def test_caps_are_reported_in_status(self):
         sent = []
@@ -283,3 +285,4 @@ class ApplierTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
