@@ -1,0 +1,37 @@
+name: Inspect existing Azure portal resources
+on:
+  push:
+    branches: [inspect/azure-portal-resources]
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Read existing resources without changing configuration
+        env:
+          AZURE_RG: ${{ vars.AZURE_RG }}
+          AZURE_APP: ${{ vars.AZURE_APP }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "EXISTING_RESOURCE_GROUP"
+          az resource list --resource-group "$AZURE_RG" --query "[].{name:name,type:type,location:location,kind:kind}" -o json
+          echo "EXISTING_WEB_APP"
+          az webapp show --name "$AZURE_APP" --resource-group "$AZURE_RG" --query "{name:name,state:state,kind:kind,plan:serverFarmId,host:defaultHostName,identity:identity.type}" -o json
+          echo "EXISTING_PLANS"
+          az appservice plan list --resource-group "$AZURE_RG" --query "[].{name:name,sku:sku.name,tier:sku.tier,instances:sku.capacity}" -o json
+          echo "SETTING_NAMES_ONLY"
+          az webapp config appsettings list --name "$AZURE_APP" --resource-group "$AZURE_RG" --query "[].name" -o json
+          echo "CONNECTION_NAMES_AND_TYPES_ONLY"
+          az webapp config connection-string list --name "$AZURE_APP" --resource-group "$AZURE_RG" --query "[].{name:name,type:type}" -o json
+          echo "AVAILABLE_DATABASE_RESOURCES"
+          az resource list --query "[?type=='Microsoft.Sql/servers/databases' || type=='Microsoft.DBforPostgreSQL/flexibleServers' || type=='Microsoft.DocumentDB/databaseAccounts' || type=='Microsoft.Storage/storageAccounts'].{name:name,type:type,group:resourceGroup,location:location}" -o json || echo "Subscription-wide inventory is not permitted by this deployment identity"
