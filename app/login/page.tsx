@@ -3,9 +3,9 @@ import DemoLogin from "../demo-login";
 
 export const metadata: Metadata = {
   title: "Operator Sign In | Magic Keys",
-  description: "Sign in to the Magic Keys Balwyn High School portal with an approved Google, Microsoft or operator email account.",
+  description: "Sign in to your Magic Keys workspace with an approved Google, Microsoft or assigned email account.",
 };
 
 export default function LoginPage() {
-  return <DemoLogin />;
+  return <DemoLogin generalClient />;
 }

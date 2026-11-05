@@ -85,3 +85,6 @@
   }
   .access-login-school-blue .access-login-panel { min-height: auto !important; }
 }
+
+/* Shared portal sign-in retains the AI artwork without a school watermark. */
+.access-login-general .magic-wide-artwork::after { display: none !important; }

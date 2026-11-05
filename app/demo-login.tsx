@@ -286,7 +286,7 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
   );
 
   return (
-    <main className="access-login access-login-split access-login-school-blue min-h-svh antialiased">
+    <main className={`access-login access-login-split access-login-school-blue${generalClient ? " access-login-general" : ""} min-h-svh antialiased`}>
       <div className="access-login-shell">
         <header className="access-login-header flex items-center justify-between gap-6">
           <Link href="/" className="access-login-brand" aria-label="Magic Keys home"><BrandLogo /></Link>

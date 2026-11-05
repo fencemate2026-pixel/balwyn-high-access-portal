@@ -1,6 +1,6 @@
 # Balwyn High School Gate Operations
 
-This branch migrates the working Balwyn portal to Next.js on Render with a separate Supabase database schema and private image storage. See [the migration and cutover instructions](RENDER_MIGRATION.md) for deployment status, configuration and verification.
+The portal runs on Azure App Service. Supabase currently still stores the portal database, assigned accounts, linked-site data and private images. Azure hosting is not a completed database or identity migration. Historical Render instructions remain in [RENDER_MIGRATION.md](RENDER_MIGRATION.md).
 
 Build: `npm ci && npm run build:render`. Test: `npm test`.
 
@@ -173,3 +173,30 @@ the command is released, so the local trigger period must also be verified.
 | `AI_REFERENCE_MASTER.md` | Scope and limitations for future development |
 
 
+
+## Azure login entry and migration status — 6 November 2026
+
+The home page and /login use the general Magic Keys client sign-in screen:
+AI face artwork, Google sign-in, and email/password for assigned accounts.
+The school watermark is omitted on this shared login screen. No public
+registration is enabled. Existing server-side session, role and owner checks
+continue to protect portal APIs.
+
+Azure App Service Authentication must use **Application handles sign-in** so
+that the custom login page can load and assigned password accounts can use the
+portal's session cookie. Keep the provider platform enabled and HTTPS enforced.
+The Google provider client ID and GOOGLE_OAUTH_CLIENT_ID must refer to the same
+Google client. GOOGLE_PROVIDER_AUTHENTICATION_SECRET is that Google's client
+secret; SUPABASE_SERVICE_ROLE_KEY is a separate database service credential.
+Never commit credential values.
+
+The Supabase Edge Functions quota incident is separate from the Azure entry
+configuration. A verified database migration and login test are still required;
+changing Google credentials does not remove the existing database dependency.
+Inventory found three active per-person portal accounts and three distinct
+legacy Supabase Auth accounts. Do not infer portal access from the legacy
+accounts or reset existing passwords during migration. Preserve current roles,
+account status, password hashes, salts and versions, and test owner, operator,
+viewer and rejected-account access before cutover. Move Pi/cloud data paths and
+storage before retiring the Supabase project. No Pi networking changes are part
+of this work.
