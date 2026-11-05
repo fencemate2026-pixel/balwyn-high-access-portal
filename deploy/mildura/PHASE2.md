@@ -22,7 +22,10 @@ sudo python3 ~/upgrade_reconnect.py
 ```
 
 The installer contains the tested mirror source and verifies its checksum. It
-only accepts the exact repository 2.2.0 source (or the already-updated source),
+accepts the repository 2.2.0 source, the installed variant reviewed on 6 Nov,
+or the already-updated source. The reviewed variant differs only in health
+reporting; line endings and trailing blank lines are normalised for that check.
+Other source changes are refused. The installer
 backs up `/opt/mildura-mirror/mildura_mirror.py`, validates Python syntax and
 atomically replaces that one file. It restarts **only** `mildura-mirror.service`,
 waits briefly, and checks the service. If startup fails it restores the backup

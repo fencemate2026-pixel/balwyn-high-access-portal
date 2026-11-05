@@ -13,6 +13,29 @@ import upgrade_reconnect as upgrade
 
 
 class UpgradeTests(unittest.TestCase):
+    def test_reviewed_installed_source_and_terminal_line_endings_are_accepted(self):
+        source = (Path(__file__).parent / 'fixtures' / 'mirror_2_2_0_installed.py').read_bytes()
+        for previous in (source, source.replace(b'\n', b'\r\n') + b'\r\n'):
+            with tempfile.TemporaryDirectory() as folder:
+                target = Path(folder) / 'mildura_mirror.py'
+                target.write_bytes(previous)
+                with patch.object(upgrade, 'TARGET', target), patch.object(upgrade.os, 'geteuid', return_value=0), patch.object(upgrade.time, 'sleep'), patch.object(upgrade.subprocess, 'run') as run:
+                    upgrade.main()
+                self.assertEqual(target.read_bytes(), upgrade.SOURCE.encode())
+                self.assertEqual(run.call_args_list[0].args[0], ['systemctl', 'restart', 'mildura-mirror.service'])
+
+    def test_changed_executable_field_source_still_refuses_upgrade(self):
+        source = (Path(__file__).parent / 'fixtures' / 'mirror_2_2_0_installed.py').read_bytes()
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / 'mildura_mirror.py'
+            changed = source.replace(b'HTTP_TIMEOUT_S = 20', b'HTTP_TIMEOUT_S = 25')
+            target.write_bytes(changed)
+            with patch.object(upgrade, 'TARGET', target), patch.object(upgrade.os, 'geteuid', return_value=0), patch.object(upgrade.subprocess, 'run') as run:
+                with self.assertRaises(SystemExit):
+                    upgrade.main()
+            self.assertEqual(target.read_bytes(), changed)
+            run.assert_not_called()
+
     def test_unknown_source_is_never_overwritten_or_restarted(self):
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder) / 'mildura_mirror.py'
