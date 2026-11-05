@@ -1,4 +1,4 @@
-// gd-mirror v2 (STAGED, NOT DEPLOYED; v1 is live). Receives the Mildura Pi's mirror and, from v2,
+// gd-mirror v3: owner-requested access-event PINs, 6 Nov 2026. Receives the Pi's mirror and
 // hands it portal commands. Same auth as gd-device: body.device_id + body.secret; only sha256(secret)
 // is stored (gd_units.secret_hash). Actions:
 //   push     heartbeat + idempotent upserts (unchanged from v1)
@@ -6,8 +6,8 @@
 //   commands the Pi polls for queued commands (outbound HTTPS only; nothing listens on the Pi).
 //            created_at is sent so the Pi refuses an Open Gate that is older than 90 s.
 //   ack      the Pi reports results; ciphertext is wiped on every finished row
-// The function never sees a PIN: PIN-bearing commands carry only `sealed` ciphertext that only the
-// Pi's private key can open. Requires 002_mildura_control.sql.
+// Command PINs still carry only Pi-sealed ciphertext. At the owner's request, actual recorded
+// access-event PINs go only to the separate server-only table. Requires 002 + 003 SQL.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
@@ -59,6 +59,14 @@ Deno.serve(async (req) => {
     up("gd_mirror_access", arr(st.access_log).map((r: any) => ({ site_id: site, local_id: r.id, occurred_at_local: str(r.timestamp, 40), user_name: str(r.user_name, 200), method: str(r.method, 40), success: bool(r.success) }))),
     up("gd_mirror_changes", arr(st.changes_log).map((r: any) => ({ site_id: site, local_id: r.id, occurred_at_local: str(r.timestamp, 40), action: str(r.action, 80), detail: str(r.detail, 500), changed_by: str(r.changed_by, 120) }))),
   ])).filter(Boolean);
+  // Only the actual recorded attempt is accepted. Do not put PINs in the gd_admin-readable
+  // access table. Write after the access-event upsert so the composite foreign key exists.
+  if (!errs.length) {
+    const pins = arr(st.access_log).filter((r: any) => typeof r.attempted_pin === "string" && /^[0-9]{1,16}$/.test(r.attempted_pin))
+      .map((r: any) => ({ site_id: site, local_id: r.id, attempted_pin: r.attempted_pin }));
+    const pinError = await up("gd_mirror_access_pins", pins);
+    if (pinError) errs.push("access_pin_store"); // never return or log database details with PIN values
+  }
   // Snapshot tables are full copies: drop rows the Pi no longer has so deletions mirror too.
   for (const [t, key, ids] of [["gd_mirror_users", "users", arr(sn.users)], ["gd_mirror_schedules", "auto_schedules", arr(sn.auto_schedules)], ["gd_mirror_persons", "auth_persons", arr(sn.auth_persons)]] as const) {
     if (sn[key] !== undefined && Array.isArray(sn[key]) && sn[key].length < MAX_ROWS) {

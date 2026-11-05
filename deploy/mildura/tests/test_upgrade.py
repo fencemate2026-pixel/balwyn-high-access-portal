@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pi"))
-import upgrade_reconnect as upgrade
+import upgrade_access_log as upgrade
 
 
 class UpgradeTests(unittest.TestCase):

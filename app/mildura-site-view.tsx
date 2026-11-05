@@ -229,10 +229,10 @@ function MilduraBody({ data }: { data: MirrorDetail }) {
         {([["access", "Access log"], ["changes", "Changes log"]] as const).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={glassButton(tab === k ? "orange" : "glass")} onClick={() => setTab(k)}>{l}</button>)}
       </div>}>
         <div className="max-h-[520px] overflow-auto">{tab === "access" ? <table className="w-full border-collapse">
-          <thead><tr><th className={TH}>Time (site)</th><th className={TH}>User</th><th className={TH}>Method</th><th className={TH}>Result</th></tr></thead>
-          <tbody>{access.length ? access.map((a, i) => <tr key={a.local_id ?? i}><Td className="tabular-nums">{local(a.occurred_at_local)}</Td><Td>{a.user_name ?? "Unknown"}</Td><Td className={MUTED}>{a.method ?? ""}</Td>
+          <thead><tr><th className={TH}>Time (site)</th><th className={TH}>User</th><th className={TH}>Entered PIN</th><th className={TH}>Method</th><th className={TH}>Result</th></tr></thead>
+          <tbody>{access.length ? access.map((a, i) => <tr key={a.local_id ?? i}><Td className="tabular-nums">{local(a.occurred_at_local)}</Td><Td>{a.user_name ?? "Unknown"}</Td><Td className="font-mono tabular-nums">{a.entered_pin ?? "Not recorded"}</Td><Td className={MUTED}>{a.method ?? ""}</Td>
             <Td><Pill tone={a.success ? "ok" : "bad"} caps>{a.success ? "Granted" : "Denied"}</Pill></Td></tr>)
-            : <tr><Td colSpan={4}><Empty text={data.access.length ? "No entries match those filters." : undefined} /></Td></tr>}</tbody></table>
+            : <tr><Td colSpan={5}><Empty text={data.access.length ? "No entries match those filters." : undefined} /></Td></tr>}</tbody></table>
         : <table className="w-full border-collapse">
           <thead><tr><th className={TH}>Time (site)</th><th className={TH}>Action</th><th className={TH}>Detail</th><th className={TH}>By</th></tr></thead>
           <tbody>{data.changes.length ? data.changes.map((c) => <tr key={c.local_id}><Td className="tabular-nums">{local(c.occurred_at_local)}</Td><Td>{c.action}</Td><Td>{c.detail ?? ""}</Td><Td className={MUTED}>{c.changed_by ?? ""}</Td></tr>)

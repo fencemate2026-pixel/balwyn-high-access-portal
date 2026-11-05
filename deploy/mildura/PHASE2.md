@@ -1,4 +1,24 @@
-# Mildura Phase 2 — portal control (STAGED, NOT LIVE)
+# Mildura portal control and access log
+
+## Entered access PINs (2.3.0, 6 Nov 2026)
+
+Owner-requested actual event codes are displayed under **Entered PIN** in the
+Mildura Working Men's Club access log. User/admin credential tables are never
+read for this value. Existing events without a saved PIN remain Not recorded.
+
+`cloud/003_mildura_access_pins.sql` and gd-mirror v3 were applied on 6 Nov 2026.
+The separate PIN table denies anon/authenticated access. The owner-only portal
+joins by site and visible event ID. Deploy the portal change, transfer
+`pi/upgrade_access_log.py` to the Pi and run `sudo python3 ~/upgrade_access_log.py`.
+This upgrades mirror 2.2.1 to 2.3.0 and resends saved event history once, committing
+progress only after the cloud acknowledges it. It preserves five-second retries
+and changes no network settings or gate application.
+
+Successful PIN capture requires the separate gate-app logging patch; older app
+versions deliberately saved null on a successful attempt. The on-site app is
+newer than GitHub, so inspect it before applying that patch. Never infer an event
+PIN from a user's current credential. The existing Steve email trigger is a
+separate deployment and has not been verified/changed by this feature.
 
 ## Continuous reconnection update (2.2.1)
 

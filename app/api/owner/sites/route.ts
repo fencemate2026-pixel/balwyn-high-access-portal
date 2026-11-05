@@ -47,7 +47,7 @@ export async function GET(request: Request) {
         unitId: url.searchParams.get("unit") ?? undefined, result: url.searchParams.get("result") ?? undefined,
       }) }, { headers });
     }
-    // Mildura: read-only mirror of the Pi's own data (no PINs in the cloud, no controls).
+    // Mildura mirror, including recorded access PINs. Owner check above runs before any reads.
     if (view === "mirror") return Response.json({ ...(await getMirrorDetail(slug)), serverTime: new Date().toISOString() }, { headers });
     if (view === "changes") {
       const site = await getSiteBySlug(slug);

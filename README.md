@@ -6,6 +6,30 @@ Build: `npm ci && npm run build:render`. Test: `npm test`.
 
 ## Mildura user management
 
+### Entered PIN in the Mildura Working Men's Club access log
+
+The access log has an **Entered PIN** column containing the actual value saved
+with that event, including denied attempts and leading zeros. Missing historical
+values show **Not recorded**; they are never reconstructed from a user's current PIN.
+Recorded event PINs live in `gd_mirror_access_pins`, a separate RLS-protected table
+with no anon/authenticated privileges. Only the existing owner-gated server route
+joins them to the visible 300 events. Charts, user/person credential lists and CSV
+exports do not include PINs.
+
+Deployment order: apply `deploy/mildura/cloud/003_mildura_access_pins.sql`, deploy
+the updated `gd-mirror` function, deploy the portal, then install mirror 2.3.0 with
+`sudo python3 ~/upgrade_access_log.py`. The standalone installer updates only
+the mirror program and restarts only `mildura-mirror`, with backup and rollback.
+It accepts the reviewed 2.2.0 variants and the exact installed 2.2.1 program.
+Five-second reconnection retries are retained. The mirror replays recorded access
+history once to backfill available PINs; ordinary credential tables stay excluded.
+
+The club gate-app repository previously saved `attempted_pin` only for denied
+attempts. Its separate logging-only patch retains the entered value for granted
+attempts too. Verify the installed gate app before updating it; the mirror installer
+does not edit/restart that app. This feature does not assert that Steve's separate
+email alert is active or alter its existing threshold.
+
 The signed-in owner can open **RJL portals → Mildura** and add, edit, enable,
 disable or delete users under **Authorised users**, without a separate unlock.
 Commands show **Pending → Applied / Failed / Expired**. Queued is not confirmation:
