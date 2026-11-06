@@ -205,3 +205,9 @@ test("oversize bodies are refused before any parsing", async (t) => {
   await fixture(t);
   assert.equal((await deviceRoute.POST(new Request(`${origin}/api/device/thomastown-swing`, { method: "POST", body: "x".repeat(300_000) }))).status, 413);
 });
+
+test("dial-in number: swing gate shows its own number, sliding shows none, no secrets involved", () => {
+  assert.equal(model.gdDialIn("thomastown-swing"), "0475184833");
+  assert.equal(model.gdDialIn("thomastown-sliding"), null);
+  assert.equal(model.displayPhone(model.gdDialIn("thomastown-swing")), "0475 184 833");
+});
