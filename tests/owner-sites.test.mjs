@@ -218,3 +218,21 @@ test("the Workshop bench is hidden from the owner's site list but its data is ke
   const listed = await (await get()).json();
   assert.deepEqual(listed.sites.map((s) => s.slug), ["thomastown"]);
 });
+
+test("when the Supabase site list is down the owner still gets the Azure portal links", async (t) => {
+  const { get } = await setup(t);
+  env.fetchDatabase = async () => new Response("payment required", { status: 402 });
+  const res = await get();
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.deepEqual(body.sites, []);
+  assert.equal(body.sitesUnavailable, true);
+  assert.ok(body.links.some((l) => l.id === "thomastown-swing"));
+  assert.ok(body.links.some((l) => l.id === "balwyn"));
+});
+
+test("a healthy site list is reported as available", async (t) => {
+  const { get } = await setup(t);
+  const body = await (await get()).json();
+  assert.equal(body.sitesUnavailable, false);
+});

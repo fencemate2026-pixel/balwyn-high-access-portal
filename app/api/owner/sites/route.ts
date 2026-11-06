@@ -40,7 +40,18 @@ export async function GET(request: Request) {
   const view = url.searchParams.get("view") ?? "detail";
   try {
     // links: the owner's non-dialler sites (Balwyn, Mildura), owner-only like everything here.
-    if (!slug) return Response.json({ sites: await listSites(), links: OWNER_SITE_LINKS, serverTime: new Date().toISOString() }, { headers });
+    if (!slug) {
+      // The Azure-backed sites (Balwyn, Thomastown) are in `links` and do not depend on the Supabase
+      // gd_sites list. If that list is down, still return the links so the sidebar keeps those portals,
+      // and say so with sitesUnavailable instead of failing the whole response (7 Nov 2026).
+      let sites: Awaited<ReturnType<typeof listSites>> = [];
+      let sitesUnavailable = false;
+      try { sites = await listSites(); } catch (error) {
+        if (error instanceof OwnerSiteInputError) throw error;
+        sitesUnavailable = true; console.warn("owner_sites_list_unavailable");
+      }
+      return Response.json({ sites, links: OWNER_SITE_LINKS, sitesUnavailable, serverTime: new Date().toISOString() }, { headers });
+    }
     if (view === "calls") {
       const site = await getSiteBySlug(slug);
       return Response.json({ calls: await listCalls(String(site.id), {
