@@ -77,7 +77,11 @@ az postgres flexible-server firewall-rule create -g "$RG" -s "$SERVER" --name cl
   --start-ip-address "$MY_IP" --end-ip-address "$MY_IP" >/dev/null
 
 say "3/7 Database and schema"
-az postgres flexible-server db create -g "$RG" -s "$SERVER" -d "$DB_NAME" >/dev/null 2>&1 || true
+PSQL_MAINT="host=$HOST port=5432 dbname=postgres user=$ADMIN_USER password=$ADMIN_PASS sslmode=require"
+for n in 1 2 3 4 5 6; do psql "$PSQL_MAINT" -qAtc 'select 1' >/dev/null 2>&1 && break; echo "waiting for the server..."; sleep 10; done
+if [ "$(psql "$PSQL_MAINT" -qAtc "select count(*) from pg_database where datname='$DB_NAME'")" = "0" ]; then
+  psql "$PSQL_MAINT" -v ON_ERROR_STOP=1 -qc "CREATE DATABASE \"$DB_NAME\""
+fi
 for n in 1 2 3 4 5 6; do psql "$PSQL_TARGET" -qAtc 'select 1' >/dev/null 2>&1 && break; echo "waiting for the server..."; sleep 10; done
 psql "$PSQL_TARGET" -qAtc 'select 1' >/dev/null || die "Cannot connect to the new database."
 if [ "$(psql "$PSQL_TARGET" -qAtc "select to_regclass('balwyn_portal.portal_accounts') is not null")" = "t" ]; then
