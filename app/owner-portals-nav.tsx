@@ -43,6 +43,7 @@ export default function OwnerPortalsNav({ choice, onChoose }: { choice: OwnerPor
     return () => { cancelled = true; clearTimeout(kick); clearInterval(timer); };
   }, []);
 
+  const views = links.filter((l): l is Extract<OwnerSiteLink, { kind: "view" }> => l.kind === "view");
   const externals = links.filter((l): l is Extract<OwnerSiteLink, { kind: "external" }> => l.kind === "external");
   const dotClass = (state: string) => `owner-portal-dot${state ? ` is-${state}` : ""}`;
 
@@ -58,6 +59,13 @@ export default function OwnerPortalsNav({ choice, onChoose }: { choice: OwnerPor
         <SidebarMenuItem key={site.id}>
           <SidebarMenuButton className="portal-nav-button" isActive={choice?.kind === "site" && choice.id === site.slug} tooltip={site.name} onClick={() => onChoose({ kind: "site", id: site.slug })}>
             <span className={dotClass(siteHealth(site, now))} aria-hidden="true" /><span>{site.name}</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      ))}
+      {views.map((link) => (
+        <SidebarMenuItem key={link.id}>
+          <SidebarMenuButton className="portal-nav-button" isActive={choice?.kind === "site" && choice.id === link.id} tooltip={link.name} onClick={() => onChoose({ kind: "site", id: link.id })}>
+            <span className={dotClass("")} aria-hidden="true" /><span>{link.name}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       ))}

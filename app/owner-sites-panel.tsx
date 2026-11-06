@@ -12,6 +12,7 @@ import type { OwnerSiteLink } from "@/lib/owner-sites-links";
 import { toast } from "sonner";
 import { OWNER_SITES_CSS } from "./owner-sites-css";
 import MilduraSiteView from "./mildura-site-view";
+import ThomastownSwingView from "./thomastown-swing-view";
 import { ConfirmDialog, FIELD_STYLE, INPUT, type ConfirmSpec } from "./mildura-controls";
 import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
 import { Empty, MUTED, Navy, Pill, Section, TD, TH, Td, downloadCsv, stampDay } from "./site-section-ui";
@@ -76,7 +77,8 @@ export default function OwnerSitesPanel({ onOpenPortal, selectedId, hideList = f
   // The chosen site: the sidebar's choice when it supplies one, otherwise the panel's own.
   const picked = selectedId ?? slugState;
   const linked = links.find((l): l is Extract<OwnerSiteLink, { kind: "external" }> => l.id === picked && l.kind === "external") ?? null;
-  const slug = linked ? null : picked;
+  const swing = picked === "thomastown-swing";       // Azure-backed view, not a Supabase gd_* site
+  const slug = linked || swing ? null : picked;
 
   const ask: Ask = useCallback((spec) => new Promise<boolean>((resolve) => setConfirm({ ...spec, resolve })), []);
 
@@ -170,7 +172,11 @@ export default function OwnerSitesPanel({ onOpenPortal, selectedId, hideList = f
           </button>
         ))}
         {links.length > 0 && <h4 className="os-gap">Other sites</h4>}
-        {links.map((l) => l.kind === "portal"
+        {links.map((l) => l.kind === "view"
+          ? <button key={l.id} type="button" className={`os-site ${picked === l.id ? "on" : ""}`} onClick={() => setSlugState(l.id)}>
+              <span className="os-dot" /><span>{l.name}<small>{l.detail}</small></span>
+            </button>
+          : l.kind === "portal"
           ? <button key={l.id} type="button" className="os-site" onClick={() => onOpenPortal?.()} title="Open this portal's campus dashboard">
               <span className="os-dot ok" /><span>{l.name}<small>{l.detail}</small></span>
             </button>
@@ -181,7 +187,7 @@ export default function OwnerSitesPanel({ onOpenPortal, selectedId, hideList = f
             </a>)}
       </nav>}
       <div>
-        {linked ? <LinkedSitePanel link={linked} /> : slug === "mildura" ? <MilduraSiteView /> : !detail ? <div className="os-row"><LoaderCircle className="animate-spin" /> Loading…</div>
+        {swing ? <ThomastownSwingView /> : linked ? <LinkedSitePanel link={linked} /> : slug === "mildura" ? <MilduraSiteView /> : !detail ? <div className="os-row"><LoaderCircle className="animate-spin" /> Loading…</div>
           : <SiteBody detail={detail} now={now} busy={busy} act={act} ask={ask} importRows={importRows} actingName={actingName} setActing={setActing}
               logTab={logTab} setLogTab={(t) => { setLogTab(t); }} calls={calls} changes={changes} callUnit={callUnit} setCallUnit={setCallUnit}
               callResult={callResult} setCallResult={setCallResult} reloadCalls={() => slug && loadCalls(slug)} />}
