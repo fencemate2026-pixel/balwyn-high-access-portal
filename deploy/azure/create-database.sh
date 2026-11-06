@@ -149,9 +149,16 @@ SQL
   { echo 'BEGIN;'
     psql "$PSQL_TARGET" -qAt -c "select 'TRUNCATE ' || string_agg(format('%I.%I', table_schema, table_name), ', ') || ' RESTART IDENTITY CASCADE;' from information_schema.tables where table_schema='balwyn_portal' and table_type='BASE TABLE'"
   } > "$LOAD_SQL"
+  # Tables that exist in the new schema but not yet in Supabase (profile_photos is new:
+  # photos still live in Supabase Storage there) are left empty on Azure.
+  SRC_TABLES="$(psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -qAt -c "select table_name from information_schema.tables where table_schema='balwyn_portal' and table_type='BASE TABLE'")" \
+    || die "Cannot list the Supabase tables."
   NTAB=0
   while read -r t _depth; do
     [[ "$t" =~ ^[a-z0-9_]+$ ]] || die "Unexpected table name: $t"
+    if ! printf '%s\n' "$SRC_TABLES" | grep -qx "$t"; then
+      echo "Not in Supabase, left empty on Azure: $t"; continue
+    fi
     # Columns the new table stores (generated columns are rebuilt by the database itself).
     COLS="$(psql "$PSQL_TARGET" -v ON_ERROR_STOP=1 -v t="$t" -qAt <<'SQL'
 select string_agg(quote_ident(attname), ', ' order by attnum)
@@ -196,7 +203,9 @@ printf '%-40s %10s %10s\n' table supabase azure
 for t in $TABLES; do
   a="$(psql "$SUPABASE_DB_URL" -qAtc "select count(*) from balwyn_portal.\"$t\"" 2>/dev/null || echo MISSING)"
   b="$(psql "$PSQL_TARGET" -qAtc "select count(*) from balwyn_portal.\"$t\"")"
-  mark=""; [ "$a" = "$b" ] || { mark="  <-- DIFFERENT"; BAD=1; }
+  mark=""
+  if [ "$a" = MISSING ] && [ "$b" = 0 ]; then mark="  (new table, not in Supabase)"
+  elif [ "$a" != "$b" ]; then mark="  <-- DIFFERENT"; BAD=1; fi
   printf '%-40s %10s %10s%s\n' "$t" "$a" "$b" "$mark"
 done
 unset SUPABASE_DB_URL PGPASSWORD
