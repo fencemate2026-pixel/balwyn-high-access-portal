@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { OWNER_SITES_CSS } from "./owner-sites-css";
 import MilduraSiteView from "./mildura-site-view";
 import ThomastownSwingView from "./thomastown-swing-view";
+import { isGdSiteId, type GdSiteId } from "@/lib/gd-swing-model";
 import { ConfirmDialog, FIELD_STYLE, INPUT, type ConfirmSpec } from "./mildura-controls";
 import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
 import { Empty, MUTED, Navy, Pill, Section, TD, TH, Td, downloadCsv, stampDay } from "./site-section-ui";
@@ -77,7 +78,7 @@ export default function OwnerSitesPanel({ onOpenPortal, selectedId, hideList = f
   // The chosen site: the sidebar's choice when it supplies one, otherwise the panel's own.
   const picked = selectedId ?? slugState;
   const linked = links.find((l): l is Extract<OwnerSiteLink, { kind: "external" }> => l.id === picked && l.kind === "external") ?? null;
-  const swing = picked === "thomastown-swing";       // Azure-backed view, not a Supabase gd_* site
+  const swing: GdSiteId | null = isGdSiteId(picked) ? picked : null;       // Azure-backed view, not a Supabase gd_* site
   const slug = linked || swing ? null : picked;
 
   const ask: Ask = useCallback((spec) => new Promise<boolean>((resolve) => setConfirm({ ...spec, resolve })), []);
@@ -187,7 +188,7 @@ export default function OwnerSitesPanel({ onOpenPortal, selectedId, hideList = f
             </a>)}
       </nav>}
       <div>
-        {swing ? <ThomastownSwingView /> : linked ? <LinkedSitePanel link={linked} /> : slug === "mildura" ? <MilduraSiteView /> : !detail ? <div className="os-row"><LoaderCircle className="animate-spin" /> Loading…</div>
+        {swing ? <ThomastownSwingView key={swing} device={swing} /> : linked ? <LinkedSitePanel link={linked} /> : slug === "mildura" ? <MilduraSiteView /> : !detail ? <div className="os-row"><LoaderCircle className="animate-spin" /> Loading…</div>
           : <SiteBody detail={detail} now={now} busy={busy} act={act} ask={ask} importRows={importRows} actingName={actingName} setActing={setActing}
               logTab={logTab} setLogTab={(t) => { setLogTab(t); }} calls={calls} changes={changes} callUnit={callUnit} setCallUnit={setCallUnit}
               callResult={callResult} setCallResult={setCallResult} reloadCalls={() => slug && loadCalls(slug)} />}

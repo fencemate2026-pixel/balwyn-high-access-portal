@@ -10,6 +10,19 @@ import { OwnerSiteInputError, normaliseAu } from "@/lib/owner-sites-model";
 
 export const SWING_DEVICE_ID = "thomastown-swing";
 export const SWING_SITE_NAME = "Thomastown Body Corp · double swing gate";
+export const SLIDING_DEVICE_ID = "thomastown-sliding";
+export const SLIDING_SITE_NAME = "Thomastown Body Corp · sliding gate";
+/**
+ * The Azure-backed gate sites. Each has its own device id, its own HMAC secret (App Service setting
+ * NAMED here, never the value) and its own device and owner routes. The Pi software and the command
+ * rules are identical, so one handler serves them all.
+ */
+export const GD_SITES = {
+  [SWING_DEVICE_ID]: { name: SWING_SITE_NAME, secretEnv: "GD_THOMASTOWN_SWING_SECRET" },
+  [SLIDING_DEVICE_ID]: { name: SLIDING_SITE_NAME, secretEnv: "GD_THOMASTOWN_SLIDING_SECRET" },
+} as const;
+export type GdSiteId = keyof typeof GD_SITES;
+export const isGdSiteId = (v: unknown): v is GdSiteId => typeof v === "string" && Object.prototype.hasOwnProperty.call(GD_SITES, v);
 export const SWING_KINDS = ["user.add", "user.update", "user.delete", "user.enable"] as const;
 export type SwingKind = typeof SWING_KINDS[number];
 /** A command the Pi has not collected within this time is dropped, never applied late. */

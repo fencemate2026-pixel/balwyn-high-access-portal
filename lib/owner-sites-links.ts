@@ -11,7 +11,7 @@
  * kind:
  *  - "portal": a view inside this portal (opens in place, no new tab).
  *  - "view": a screen inside this portal backed by the Azure gd schema (not the Supabase gd_* tables),
- *    e.g. the Thomastown swing gate (app/thomastown-swing-view.tsx). Opens in place.
+ *    e.g. the Thomastown swing and sliding gates (app/thomastown-swing-view.tsx). Opens in place.
  *  - "external": a separate dashboard, opened in a new tab. These are not
  *    monitored from here, so the panel shows no online/offline dot for them.
  */
@@ -31,6 +31,12 @@ export const OWNER_SITE_LINKS: readonly OwnerSiteLink[] = [
   {
     id: "thomastown-swing",
     name: "Thomastown swing gate",
+    detail: "Azure · callers, every call, changes",
+    kind: "view",
+  },
+  {
+    id: "thomastown-sliding",
+    name: "Thomastown sliding gate",
     detail: "Azure · callers, every call, changes",
     kind: "view",
   },

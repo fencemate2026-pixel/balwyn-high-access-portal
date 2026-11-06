@@ -22,3 +22,13 @@ Nothing in this folder has been run against a live database. It was tested only 
 - Access: only the owner login (404 for everyone else). The school role `balwyn_app` is explicitly denied all of `gd` (tested).
 - Calls with no caller ID, and rings repeated within 8 seconds, never reach the Pi's database, so they cannot appear here.
 - Changes expire after 15 minutes if the Pi has not collected them, and are handed out at most 5 times.
+
+## Second site: Thomastown sliding gate (added 7 Nov 2026, STAGED, NOT APPLIED)
+Same schema, same code path, its own device id (`thomastown-sliding`), its own secret and its own routes
+(`/api/device/thomastown-sliding`, `/api/owner/thomastown-sliding`). A secret acts only as its own device.
+1. Back up the Azure database (the 7-day automatic backup applies if no on-demand one is taken).
+2. Apply `002_thomastown_sliding.sql` as the database admin (one row; re-running is harmless).
+3. Set `GD_THOMASTOWN_SLIDING_SECRET` (new random 64 hex; never reuse the swing value) and restart the app.
+4. Deploy this branch. The owner sidebar then lists "Thomastown sliding gate" (waiting for the gate, empty lists).
+5. Only then install the sync service on the sliding Pi (separate approval, `PORTAL_SYNC_DEVICE=thomastown-sliding`).
+Rollback: `002_thomastown_sliding_rollback.sql`, unset the setting.
