@@ -1,8 +1,8 @@
 /**
  * Mildura read-only view (4 Nov 2026) — pure shaping of the gd_mirror_* rows the
- * owner route returns. No I/O, no PINs (the cloud has none), no controls.
+ * owner route returns. No I/O or controls. entered_pin is an optional actual event value.
  */
-export type MirrorAccess = { local_id?: number; occurred_at_local: string; user_name: string | null; method: string | null; success: boolean | null };
+export type MirrorAccess = { local_id?: number; occurred_at_local: string; user_name: string | null; method: string | null; success: boolean | null; entered_pin?: string | null };
 export type MirrorStatus = Record<string, unknown> | null;
 
 export const MILDURA_ADDRESS = "100-110 Deakin Ave, Mildura VIC 3500";

@@ -10,11 +10,11 @@ unchanged when MIRROR_CONTROL is unset.
 Safety contract (every point is enforced in code and covered by tests/test_mirror.py):
   * The gate database is opened read-only (SQLite URI mode=ro + PRAGMA query_only). This
     process never writes to it, never touches GPIO, and never imports the gate app.
-  * PINs never leave the Pi. Columns are allowlisted per table; `pin`, `attempted_pin`
-    and every other column not on the list are never selected. Free text is scrubbed of
-    4-8 digit runs before upload.
+  * User and administrator PINs are never read from their credential tables. The owner
+    explicitly requested access-event attempted_pin on 6 Nov 2026; only that recorded
+    field is sent to the owner-only access-PIN store. Other free text is still scrubbed.
   * Outbound HTTPS only. No listening socket. No network, Tailscale, sshd or WiFi changes.
-  * Any failure is logged and retried with back-off. Nothing here can raise into, block or
+  * Any failure is logged and retried continuously. Nothing here can raise into, block or
     slow the gate: this is a separate systemd unit with low priority.
   * Progress marks live in this service's own state file, not in the gate database.
 Standard library only (no pip installs on the Pi).
@@ -29,22 +29,22 @@ import time
 import urllib.error
 import urllib.request
 
-VERSION = "2.2.0"
-COMMAND_INTERVAL_S = 10       # Phase 2 command poll (tiny request)
+VERSION = "2.3.0"
+COMMAND_INTERVAL_S = 5        # Phase 2 command poll; keep checking during outages
 INTERVAL_S = 60                # normal cycle
-BACKOFF_MAX_S = 900            # cap when the cloud is unreachable
+RETRY_INTERVAL_S = 5           # seconds after a failed request; never back off for minutes
 HTTP_TIMEOUT_S = 20
 BATCH_ROWS = 200
 STATUS_URL_DEFAULT = "http://127.0.0.1:5000/api/status"
 STATUS_TIMEOUT_S = 3
 DIGIT_RUN = re.compile(r"\d{4,8}")
 
-# Allowlists. Anything not listed here is never read. `pin` / `attempted_pin` are absent on purpose.
+# Allowlists. Credential `pin` columns remain excluded. Only access_log.attempted_pin is included.
 TABLE_COLUMNS = {
     "users": ("id", "name", "enabled", "schedule_type", "schedule_data", "created_at"),
     "auto_schedules": ("id", "name", "days", "open_time", "close_time", "enabled", "created_at"),
     "auth_persons": ("id", "name", "role"),
-    "access_log": ("id", "user_name", "method", "success", "timestamp"),
+    "access_log": ("id", "user_name", "method", "success", "timestamp", "attempted_pin"),
     "changes_log": ("id", "action", "detail", "changed_by", "timestamp"),
 }
 SNAPSHOT_TABLES = ("users", "auto_schedules", "auth_persons")   # small; sent whole when changed
@@ -84,7 +84,11 @@ def clean_row(table, row):
     out = {}
     for k in row.keys():
         v = row[k]
-        out[k] = scrub(v) if k in FREE_TEXT else v
+        if table == "access_log" and k == "attempted_pin":
+            # Preserve the entered string, including leading zeros; never infer it from users.
+            out[k] = v if isinstance(v, str) and re.fullmatch(r"[0-9]{1,16}", v) else None
+        else:
+            out[k] = scrub(v) if k in FREE_TEXT else v
     return out
 
 
@@ -191,6 +195,7 @@ def build_payload(con, state, creds, status_url, caps=()):
     payload = {"device_id": creds["device_id"], "secret": creds["secret"], "action": "push",
                "fw_version": "mirror-" + VERSION, "status": status, "snapshots": {}, "streams": {}}
     snap_marks, stream_marks = {}, {}
+    pin_backfill = not state.get("access_pin_sync_v1")
     for t in SNAPSHOT_TABLES:
         rows = read_snapshot(con, t)
         d = digest(rows)
@@ -199,12 +204,17 @@ def build_payload(con, state, creds, status_url, caps=()):
             snap_marks[t] = d
     for t in STREAM_TABLES:
         after = int(state.get("stream", {}).get(t, 0))
+        if t == "access_log" and pin_backfill:
+            after = 0                      # resend recorded history once, without guessing old PINs
         rows = read_stream(con, t, after)
         if rows:
             payload["streams"][t] = rows
             stream_marks[t] = rows[-1]["id"]
 
     def commit(st):
+        if pin_backfill:
+            st["access_pin_sync_v1"] = True
+            st.setdefault("stream", {})["access_log"] = 0
         st.setdefault("snap", {}).update(snap_marks)
         st.setdefault("stream", {}).update(stream_marks)
     return payload, commit, bool(stream_marks) and any(len(payload["streams"][t]) >= BATCH_ROWS for t in payload["streams"])
@@ -293,6 +303,7 @@ def main():
                 log("GATE_URL must be loopback; gate actions disabled")
     state = load_state(state_path)
     delay, cdelay = INTERVAL_S, COMMAND_INTERVAL_S
+    commands_failed = sync_failed = False
     next_sync = next_cmd = time.monotonic()
     log("started v%s (control %s, gate actions %s)" % (VERSION, "on" if control else "off", "on" if gate else "off"))
     while True:
@@ -300,18 +311,27 @@ def main():
         if now >= next_sync:
             try:
                 more = cycle(db_path, url, creds, state, state_path, status_url, caps)
+                if sync_failed:
+                    log("sync connection restored")
+                sync_failed = False
                 delay = 1 if more else INTERVAL_S
             except (urllib.error.URLError, OSError, RuntimeError, ValueError, sqlite3.Error) as e:
-                delay = min(BACKOFF_MAX_S, max(delay, INTERVAL_S) * 2)
+                sync_failed = True
+                delay = RETRY_INTERVAL_S
                 log("sync failed (%s); retry in %ds" % (type(e).__name__, delay))
             next_sync = time.monotonic() + delay
-        if control and now >= next_cmd:
+        if control and time.monotonic() >= next_cmd:
             try:
-                if command_cycle(db_path, url, creds, key_path, state, state_path, ccfg, gate):
-                    next_sync = time.monotonic()          # show the change in the portal straight away
+                applied = command_cycle(db_path, url, creds, key_path, state, state_path, ccfg, gate)
+                if applied or commands_failed:
+                    next_sync = time.monotonic()          # refresh mirror immediately after recovery too
+                if commands_failed:
+                    log("command connection restored")
+                commands_failed = False
                 cdelay = COMMAND_INTERVAL_S
             except (urllib.error.URLError, OSError, RuntimeError, ValueError, sqlite3.Error, subprocess_error()) as e:
-                cdelay = min(300, cdelay * 2)
+                commands_failed = True
+                cdelay = RETRY_INTERVAL_S
                 log("commands failed (%s); retry in %ds" % (type(e).__name__, cdelay))
             next_cmd = time.monotonic() + cdelay
         time.sleep(max(0.5, min(next_sync, next_cmd if control else next_sync) - time.monotonic()))
@@ -324,3 +344,4 @@ def subprocess_error():
 
 if __name__ == "__main__":
     sys.exit(main())
+

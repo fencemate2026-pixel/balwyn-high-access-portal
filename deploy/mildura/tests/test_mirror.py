@@ -53,16 +53,41 @@ class MirrorTests(unittest.TestCase):
             db = os.path.join(self.d, "g%d.db" % new); make_db(db, new)
             yield new, db
 
-    def test_no_pin_ever_leaves_the_pi(self):
+    def test_only_recorded_event_pin_leaves_the_pi(self):
         for new, db in self.both_schemas():
             self.sent.clear(); st = {}
             self.run_cycle(db, st)
             blob = json.dumps(self.sent)
-            for pin in (PIN_A, PIN_B, FAIL_PIN):
+            for pin in (PIN_A, PIN_B):
                 self.assertNotIn(pin, blob, "schema new=%s leaked a PIN" % new)
-            self.assertNotIn("attempted_pin", blob)
+            attempts = self.sent[0]["streams"]["access_log"]
+            if new:
+                self.assertEqual(attempts[1]["attempted_pin"], FAIL_PIN)
+            else:
+                self.assertNotIn("attempted_pin", blob)
             self.assertNotIn('"pin"', blob)
             self.assertNotIn("0400000000", blob)   # auth_persons.phone is not allowlisted
+
+    def test_access_pin_backfill_starts_from_zero_and_advances_only_after_ack(self):
+        db = os.path.join(self.d, "backfill.db"); make_db(db, True)
+        st = {"stream": {"access_log": 999}}
+        self.ok = False
+        with self.assertRaises(RuntimeError): self.run_cycle(db, st)
+        self.assertEqual(st, {"stream": {"access_log": 999}})
+        self.ok = True
+        self.run_cycle(db, st)
+        self.assertEqual(len(self.sent[-1]["streams"]["access_log"]), 2)
+        self.assertEqual(st["stream"]["access_log"], 2)
+        self.assertTrue(st["access_pin_sync_v1"])
+
+    def test_entered_pin_preserves_leading_zeros_and_never_uses_current_user_pin(self):
+        db = os.path.join(self.d, "leading.db"); make_db(db, True)
+        con = sqlite3.connect(db)
+        con.execute("UPDATE access_log SET attempted_pin='001234' WHERE success=1")
+        con.commit(); con.close()
+        self.run_cycle(db, {})
+        self.assertEqual(self.sent[-1]["streams"]["access_log"][0]["attempted_pin"], "001234")
+        self.assertNotIn(PIN_A, json.dumps(self.sent))
 
     def test_rows_are_sent(self):
         for new, db in self.both_schemas():
@@ -111,3 +136,4 @@ class MirrorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

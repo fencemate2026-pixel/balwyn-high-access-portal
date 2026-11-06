@@ -52,7 +52,7 @@ export function MilduraControlProvider({ children, fixture }: { children: ReactN
         if (out.code === "admin_password_required") setState((s) => s && { ...s, unlocked: false });
         throw new Error(out.error ?? "The command could not be queued.");
       }
-      setToast({ tone: "ok", text: "Queued for the Mildura Pi. It applies within about 10 seconds when online." });
+      setToast({ tone: "ok", text: "Queued for the Mildura Pi. Wait for Applied to confirm the change reached the Pi." });
       await load();
       return true;
     } catch (e) { setToast({ tone: "bad", text: (e as Error).message }); return false; }
@@ -221,4 +221,5 @@ export function PersonForm({ onDone }: { onDone: () => void }) {
     <div className="flex gap-2 md:col-span-4"><button type="submit" className={glassButton("orange")} disabled={!ctx.state?.unlocked || ctx.busy || needsKey}>Add person</button><button type="button" className={glassButton()} onClick={onDone}>Cancel</button></div>
   </form>;
 }
+
 
