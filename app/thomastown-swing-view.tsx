@@ -11,7 +11,7 @@ import { ConfirmDialog, DayPicker, FIELD_STYLE, INPUT, type ConfirmSpec } from "
 import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
 import { MUTED, Pill, Section, TD, TH, Td, downloadCsv, stampDay } from "./site-section-ui";
 import { toCsv } from "@/lib/owner-csv";
-import { callResult, displayPhone, SWING_SITE_NAME } from "@/lib/gd-swing-model";
+import { GD_SITES, SWING_DEVICE_ID, callResult, displayPhone, type GdSiteId } from "@/lib/gd-swing-model";
 
 type SUser = { local_id: number; name: string; phone: string; enabled: boolean; schedule_type: string | null; schedule_data: string | null; created_at_local: string | null };
 type SAccess = { local_id: number; occurred_at_local: string | null; user_name: string | null; method: string | null; success: boolean | null };
@@ -45,8 +45,8 @@ function CmdPill({ c }: { c: SCommand | null | undefined }) {
   return <em className={`telemetry-badge not-italic text-[10px] font-bold uppercase tracking-[.08em] ${tone}`} title={c.error ?? undefined}><Icon className={`size-3 ${c.status === "delivered" ? "animate-spin" : ""}`} />{label}</em>;
 }
 
-async function call<T>(init?: { body: Record<string, unknown> }): Promise<T> {
-  const res = await fetch("/api/owner/thomastown-swing", init
+async function call<T>(device: GdSiteId, init?: { body: Record<string, unknown> }): Promise<T> {
+  const res = await fetch(`/api/owner/${device}`, init
     ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(init.body), credentials: "same-origin" }
     : { credentials: "same-origin", cache: "no-store" });
   const data = await res.json().catch(() => ({}));
@@ -54,15 +54,16 @@ async function call<T>(init?: { body: Record<string, unknown> }): Promise<T> {
   return data as T;
 }
 
-export default function ThomastownSwingView({ fixture }: { fixture?: SwingDetail } = {}) {
+// One screen for every Azure-backed Thomastown gate (swing, sliding): `device` picks the site and its API.
+export default function ThomastownSwingView({ fixture, device = SWING_DEVICE_ID }: { fixture?: SwingDetail; device?: GdSiteId } = {}) {
   const [data, setData] = useState<SwingDetail | null>(fixture ?? null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<(ConfirmSpec & { resolve: (ok: boolean) => void }) | null>(null);
 
   const load = useCallback(async () => {
-    try { setData(await call<SwingDetail>()); setError(""); } catch (e) { setError((e as Error).message); }
-  }, []);
+    try { setData(await call<SwingDetail>(device)); setError(""); } catch (e) { setError((e as Error).message); }
+  }, [device]);
   useEffect(() => {
     if (fixture) return;
     const run = () => { if (!document.hidden) void load(); };
@@ -74,17 +75,17 @@ export default function ThomastownSwingView({ fixture }: { fixture?: SwingDetail
     if (ask && !(await new Promise<boolean>((resolve) => setConfirm({ ...ask, resolve })))) return false;
     setBusy(true);
     try {
-      const out = await call<{ duplicate?: boolean }>({ body: { ...body, clientKey: crypto.randomUUID() } });
+      const out = await call<{ duplicate?: boolean }>(device, { body: { ...body, clientKey: crypto.randomUUID() } });
       toast.success(out.duplicate ? "Already queued." : "Queued for the Thomastown Pi. Wait for Applied.");
       await load(); return true;
     } catch (e) { toast.error((e as Error).message); return false; } finally { setBusy(false); }
-  }, [load]);
+  }, [device, load]);
 
   if (!data) return error ? <div className={`${GLASS_PANEL} p-4 text-sm`}><Pill tone="bad">{error}</Pill></div> : <div className="flex items-center gap-2"><LoaderCircle className="animate-spin" /> Loading Thomastown…</div>;
-  return <><Body data={data} busy={busy} send={send} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
+  return <><Body data={data} busy={busy} send={send} siteName={GD_SITES[device].name} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
 }
 
-function Body({ data, busy, send }: { data: SwingDetail; busy: boolean; send: Send }) {
+function Body({ data, busy, send, siteName }: { data: SwingDetail; busy: boolean; send: Send; siteName: string }) {
   const now = Date.parse(data.serverTime) || Date.now();
   const seen = data.device?.last_seen ?? null;
   const [tab, setTab] = useState<"calls" | "changes">("calls");
@@ -104,9 +105,9 @@ function Body({ data, busy, send }: { data: SwingDetail; busy: boolean; send: Se
 
   return (
     <div className="mildura-view">
-      <section className="gate-condition mb-4" aria-label="Thomastown swing gate status">
+      <section className="gate-condition mb-4" aria-label={`${siteName} status`}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="m-0 flex items-center gap-2 text-lg"><ShieldCheck className="size-4 text-[#FF7A00]" aria-hidden="true" /> {SWING_SITE_NAME}</h2>
+          <h2 className="m-0 flex items-center gap-2 text-lg"><ShieldCheck className="size-4 text-[#FF7A00]" aria-hidden="true" /> {siteName}</h2>
           <span className="connection-pill"><i /> Owner control · Azure · applied by the site Pi</span>
         </div>
         <div className="flex flex-wrap gap-2">
