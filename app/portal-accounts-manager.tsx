@@ -15,7 +15,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 type Role = "viewer" | "operator" | "administrator";
 type Account = {
   id: string; email: string; display_name: string; role: Role; active: boolean;
-  password_set: boolean; last_sign_in_at: string | null; setup_expires_at: string | null;
+  password_set: boolean; azure_only?: boolean; last_sign_in_at: string | null; setup_expires_at: string | null;
   // Time on portal, measured by the server. null = nothing recorded yet; undefined = usage unavailable.
   usage?: { sessions: number; total_seconds: number; week_seconds: number; last_seen_at: string | null } | null;
 };
@@ -66,6 +66,7 @@ export default function PortalAccountsManager({ adminUnlocked = false, onRequire
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("viewer");
+  const [azureOnly, setAzureOnly] = useState(false);
   const [detail, setDetail] = useState<Detail | null>(null);
 
   const load = useCallback(async () => {
@@ -123,8 +124,8 @@ export default function PortalAccountsManager({ adminUnlocked = false, onRequire
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (await run("create", { action: "create", email, displayName: name, role }, "Account created")) {
-      setEmail(""); setName(""); setRole("viewer");
+    if (await run("create", { action: "create", email, displayName: name, role, azureOnly: azureOnly && role === "viewer" }, "Account created")) {
+      setEmail(""); setName(""); setRole("viewer"); setAzureOnly(false);
     }
   }
 
@@ -153,6 +154,7 @@ export default function PortalAccountsManager({ adminUnlocked = false, onRequire
           <label><span>Full name</span><Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} required placeholder="e.g. Sam Lee" /></label>
           <label><span>School email</span><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={254} required placeholder="name@balwynhs.vic.edu.au" /></label>
           <label><span>Role</span><NativeSelect value={role} onChange={(e) => setRole(e.target.value as Role)}>{(Object.keys(ROLE_TEXT) as Role[]).map((value) => <NativeSelectOption key={value} value={value}>{ROLE_TEXT[value]}</NativeSelectOption>)}</NativeSelect></label>
+          {role === "viewer" && <label><span>Sign-in</span><NativeSelect value={azureOnly ? "azure" : "password"} onChange={(e) => setAzureOnly(e.target.value === "azure")}><NativeSelectOption value="password">Portal password (setup link)</NativeSelectOption><NativeSelectOption value="azure">Azure email and password (no link)</NativeSelectOption></NativeSelect></label>}
           <Button type="submit" disabled={busy === "create"}>{busy === "create" ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <UserPlus />} Create account</Button>
         </form>
 
@@ -164,7 +166,7 @@ export default function PortalAccountsManager({ adminUnlocked = false, onRequire
             <tbody>{accounts.map((account) => <tr key={account.id} className={account.active ? "" : "is-disabled"}>
               <td><strong>{account.display_name}</strong><small>{account.email}</small></td>
               <td><NativeSelect aria-label={`Role for ${account.display_name}`} value={account.role} disabled={Boolean(busy)} onChange={(e) => void run(`role-${account.id}`, { action: "update", id: account.id, role: e.target.value }, "Role changed. That person must sign in again.")}>{(Object.keys(ROLE_TEXT) as Role[]).map((value) => <NativeSelectOption key={value} value={value}>{ROLE_TEXT[value]}</NativeSelectOption>)}</NativeSelect></td>
-              <td>{!account.active ? "Disabled" : account.password_set ? "Active" : account.setup_expires_at && Date.parse(account.setup_expires_at) > loadedAt ? "Waiting for password" : "Setup link expired"}</td>
+              <td>{!account.active ? "Disabled" : account.azure_only ? "Active (Azure sign-in)" : account.password_set ? "Active" : account.setup_expires_at && Date.parse(account.setup_expires_at) > loadedAt ? "Waiting for password" : "Setup link expired"}</td>
               <td>{when(account.last_sign_in_at)}</td>
               <td>{account.usage === undefined ? "Unavailable" : account.usage === null ? "Not recorded yet"
                 : <><strong>{duration(account.usage.total_seconds)}</strong> total<small>{duration(account.usage.week_seconds)} in the last 7 days · {account.usage.sessions} {account.usage.sessions === 1 ? "visit" : "visits"}</small></>}</td>

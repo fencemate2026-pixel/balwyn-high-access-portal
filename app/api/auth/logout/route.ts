@@ -10,5 +10,7 @@ export async function POST(request: Request) {
   headers.append("Set-Cookie", clearMfaChallengeCookie());
   headers.append("Set-Cookie", clearGoogleSignInCookie());
   headers.append("Set-Cookie", clearMicrosoftSignInCookie());
+  // Also drop the Azure sign-in cookie, so a shared computer cannot reuse it (the portal also only accepts a login under 3 minutes old).
+  headers.append("Set-Cookie", "AppServiceAuthSession=; Path=/; HttpOnly; Secure; Max-Age=0");
   return Response.json({ ok: true }, { headers });
 }

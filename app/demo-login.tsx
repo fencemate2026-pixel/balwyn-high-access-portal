@@ -63,7 +63,8 @@ async function prepareGoogleSignIn() {
   return config;
 }
 
-type Providers = { google: boolean; microsoft: boolean; email: boolean };
+type Providers = { google: boolean; microsoft: boolean; email: boolean; azure?: boolean; azureStaff?: string };
+const AZURE_RETURN = encodeURIComponent("/api/auth/azure/complete");
 type Enrollment = { secret: string; account: string };
 
 type GoogleCredentialResponse = { credential?: string; state?: string };
@@ -161,6 +162,12 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
     if (new URLSearchParams(window.location.search).get("signin") === "microsoft_failed") {
       window.queueMicrotask(() => {
         if (active) setError("Microsoft sign-in was cancelled or this account is not approved. Please try again or choose another sign-in method.");
+      });
+      window.history.replaceState(null, "", "/login");
+    }
+    if (new URLSearchParams(window.location.search).get("signin") === "azure_failed") {
+      window.queueMicrotask(() => {
+        if (active) setError("Azure sign-in was cancelled or this account is not approved. Please try again or ask your administrator.");
       });
       window.history.replaceState(null, "", "/login");
     }
@@ -341,6 +348,8 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
                   {googlePortalLink && <p className="access-login-provider-note">{generalClient ? "You’ll continue on the secure MagicKeys portal." : "You’ll continue on the school’s Magic Keys portal."}</p>}
                   {googleError && <p className="access-login-error" role="alert">{googleError}</p>}
                   {!googleOnly && providers?.microsoft && <button className="access-login-provider access-login-microsoft" type="button" onClick={() => void handleMicrosoftSignIn()} disabled={submitting}><span className="access-login-microsoft-icon" aria-hidden="true"><i /><i /><i /><i /></span>Sign in with Microsoft<ArrowRight aria-hidden="true" /></button>}
+                  {!googleOnly && providers?.azure && <a className="access-login-provider" href={`/.auth/login/google?post_login_redirect_uri=${AZURE_RETURN}`}><GoogleMark />Sign in with Google (Azure)<ArrowRight aria-hidden="true" /></a>}
+                  {!googleOnly && providers?.azure && providers.azureStaff && <a className="access-login-provider" href={`/.auth/login/${encodeURIComponent(providers.azureStaff)}?post_login_redirect_uri=${AZURE_RETURN}`}>Staff sign-in with email and password (Azure)<ArrowRight aria-hidden="true" /></a>}
                   {submitting && <p className="access-login-loading flex items-center justify-center gap-3" role="status"><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Completing sign-in…</p>}
                 </div>
               </>}

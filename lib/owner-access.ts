@@ -10,9 +10,11 @@ export function portalEmailAllowed(email: string): boolean {
 
 // Owner status comes from server configuration and a verified login identity.
 // Microsoft display-email hints are not proof of ownership.
-export function withOwnerAccess(user: PortalUser, provider: 'google' | 'password' | 'microsoft'): PortalUser {
+// Azure sign-in: only the Google route ('azure-google') can be the owner; the
+// staff route ('azure-staff') never is.
+export function withOwnerAccess(user: PortalUser, provider: 'google' | 'password' | 'microsoft' | 'azure-google' | 'azure-staff'): PortalUser {
   const { isOwner: _previousOwner, ...identity } = user;
   const owner = String(env.PORTAL_OWNER_EMAIL ?? '').trim().toLowerCase();
-  return provider !== 'microsoft' && identity.role === 'administrator' && owner && portalEmailAllowed(identity.email)
+  return provider !== 'microsoft' && provider !== 'azure-staff' && identity.role === 'administrator' && owner && portalEmailAllowed(identity.email)
     && identity.email.trim().toLowerCase() === owner ? { ...identity, isOwner: true } : identity;
 }
