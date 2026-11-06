@@ -1,3 +1,4 @@
+import { azureSignInEnabled } from "@/lib/azure-auth";
 import { env } from "@/lib/server-env";
 import { eq } from "drizzle-orm";
 
@@ -215,7 +216,7 @@ function randomToken(): string {
 export class AccountError extends Error {}
 
 /** True when the email is the portal owner's (PORTAL_OWNER_EMAIL), compared case- and space-insensitively. */
-function isOwnerEmail(email: string): boolean {
+export function isOwnerEmail(email: string): boolean {
   const owner = String(env.PORTAL_OWNER_EMAIL ?? "").trim().toLowerCase();
   return owner !== "" && email.trim().toLowerCase() === owner;
 }
@@ -223,7 +224,7 @@ function isOwnerEmail(email: string): boolean {
 const OWNER_ACCOUNT_MESSAGE = "That email belongs to the portal owner. Only the owner can create or change that account.";
 
 /** Administrator creates an account. Returns a one-time setup token (shown once, never stored). */
-export async function createPortalAccount(input: { email: string; displayName: string; role: PortalUser["role"] }, createdBy: string, actorIsOwner = false) {
+export async function createPortalAccount(input: { email: string; displayName: string; role: PortalUser["role"]; azureOnly?: boolean }, createdBy: string, actorIsOwner = false) {
   const email = input.email.trim().toLowerCase();
   // The owner is whoever signs in as an administrator with the owner email, so nobody else may create that account.
   if (isOwnerEmail(email) && !actorIsOwner) throw new AccountError(OWNER_ACCOUNT_MESSAGE);
@@ -231,9 +232,12 @@ export async function createPortalAccount(input: { email: string; displayName: s
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254) throw new AccountError("Enter a valid email address.");
   if (!displayName || displayName.length > 120) throw new AccountError("Enter the person's name (up to 120 characters).");
   if (!["viewer", "operator", "administrator"].includes(input.role)) throw new AccountError("Choose a role.");
-  const token = randomToken();
-  const tokenHash = await sha256Hex(token);
-  const expires = new Date(Date.now() + SETUP_LINK_HOURS * 3600_000).toISOString();
+  // Azure-only accounts have no password and no setup link: the person signs in through Azure and nothing else.
+  const azureOnly = input.azureOnly === true;
+  if (azureOnly && input.role !== "viewer") throw new AccountError("Azure sign-in is for view-only staff. Choose the view-only role.");
+  const token = azureOnly ? "" : randomToken();
+  const tokenHash = azureOnly ? null : await sha256Hex(token);
+  const expires = azureOnly ? null : new Date(Date.now() + SETUP_LINK_HOURS * 3600_000).toISOString();
   const existing = await getSql().prepare("SELECT id FROM portal_accounts WHERE lower(email) = ?").bind(email).first<{ id: string }>();
   if (existing) throw new AccountError("An account with that email already exists. Use 'New setup link' to reset it.");
   const row = await getSql().prepare(`INSERT INTO portal_accounts (email, display_name, role, setup_token_hash, setup_expires_at, created_by)
@@ -272,7 +276,8 @@ export async function updatePortalAccount(id: string, change: { active?: boolean
 
 export async function listPortalAccounts() {
   const result = await getSql().prepare(`SELECT id, email, display_name, role, active, last_sign_in_at, created_at,
-      (password_hash IS NOT NULL) AS password_set, setup_expires_at
+      (password_hash IS NOT NULL) AS password_set, setup_expires_at,
+      (password_hash IS NULL AND setup_token_hash IS NULL) AS azure_only
     FROM portal_accounts ORDER BY lower(display_name)`).all<Record<string, unknown>>();
   return result.results;
 }
@@ -299,7 +304,32 @@ export async function recordAccountSignIn(user: PortalUser) {
   try { await getSql().prepare("UPDATE portal_accounts SET last_sign_in_at = now() WHERE id = ?").bind(user.accountId).run(); } catch { /* audit field only */ }
 }
 
-export type SessionIdentity = { provider: "google" | "password" | "microsoft"; subject?: string };
+export type SessionIdentity = { provider: "google" | "password" | "microsoft" | "azure-google" | "azure-staff"; subject?: string };
+
+/** Session identity for an owner/administrator who signed in with Google through Azure. Bound to the email. */
+export async function azureGoogleIdentity(email: string): Promise<SessionIdentity> {
+  return { provider: "azure-google", subject: await hmac(`azure-google\n${email.trim().toLowerCase()}`, sessionSecret()) };
+}
+
+/**
+ * Staff who signed in through Azure (Entra External ID). They must have an active
+ * per-person account with the exact email, and Azure sign-in is view-only: any
+ * other role, and the owner's email, are refused. The subject changes when the
+ * account's role, active state or password version changes, so an administrator
+ * disabling or changing the account ends Azure sessions on the next request.
+ */
+export async function azureStaffAccount(email: string): Promise<{ user: PortalUser; identity: SessionIdentity } | null> {
+  let row: AccountRow | null = null;
+  try {
+    row = await getSql().prepare(`SELECT id, email, display_name, role, password_salt, password_hash, password_version, active
+      FROM portal_accounts WHERE lower(email) = ? LIMIT 1`).bind(email.trim().toLowerCase()).first<AccountRow>();
+  } catch { return null; }
+  if (!row || !row.active || row.role !== "viewer" || isOwnerEmail(row.email)) return null;
+  return {
+    user: { displayName: row.display_name, email: row.email, role: "viewer", accountId: row.id },
+    identity: { provider: "azure-staff", subject: await hmac(`azure-staff\n${row.id}\n${row.password_version}\n${row.role}`, sessionSecret()) },
+  };
+}
 
 export function passwordSignInAvailable(): boolean {
   try { runtimeSecrets(); return true; } catch { return false; }
@@ -516,6 +546,17 @@ export async function getSessionUser(request: Request): Promise<PortalUser | nul
       if (!identity.subject || microsoftAccountRoles().get(identity.subject) !== parsed.user.role) return null;
     } else if (identity.provider === "google") {
       if (googleAccountRoles().get(parsed.user.email.trim().toLocaleLowerCase("en-AU")) !== parsed.user.role) return null;
+    } else if (identity.provider === "azure-google") {
+      // Rolling back is one setting: turning PORTAL_AZURE_AUTH off ends every Azure session.
+      if (!azureSignInEnabled() || !identity.subject) return null;
+      const email = parsed.user.email.trim().toLocaleLowerCase("en-AU");
+      if (googleAccountRoles().get(email) !== parsed.user.role) return null;
+      if (!constantTimeEqual(identity.subject, (await azureGoogleIdentity(email)).subject ?? "")) return null;
+    } else if (identity.provider === "azure-staff") {
+      if (!azureSignInEnabled() || !identity.subject) return null;
+      const current = await azureStaffAccount(parsed.user.email);
+      if (!current || current.user.accountId !== parsed.user.accountId || parsed.user.role !== "viewer"
+        || !constantTimeEqual(identity.subject, current.identity.subject ?? "")) return null;
     } else return null;
     return withOwnerAccess(parsed.user, identity.provider);
   } catch {
@@ -577,6 +618,7 @@ export async function getSessionAccountKey(request: Request): Promise<string | n
   if (!user || !raw) return null;
   const value = JSON.parse(new TextDecoder().decode(decodeBase64Url(raw.split(".")[0]))) as { identity?: SessionIdentity };
   if (value.identity?.provider === "microsoft") return `microsoft:${value.identity.subject}`;
+  if (value.identity?.provider === "azure-staff") return `azure:${user.email.trim().toLocaleLowerCase("en-AU")}`;
   if (value.identity?.provider === "password") return `password:${user.displayName.toLocaleLowerCase("en-AU")}`;
   return `google:${user.email.trim().toLocaleLowerCase("en-AU")}`;
 }

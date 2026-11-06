@@ -63,8 +63,9 @@ export async function POST(request: Request) {
     if (body.action === "create") {
       const role = String(body.role ?? "");
       if (!ROLES.has(role)) throw new AccountError("Choose a role.");
-      const created = await createPortalAccount({ email: String(body.email ?? ""), displayName: String(body.displayName ?? ""), role: role as "viewer" }, auth.user.email, auth.user.isOwner === true);
-      await recordActivity(auth.user, "Account created", `${String(body.email ?? "").trim().toLowerCase()} as ${role}`, "access");
+      const created = await createPortalAccount({ email: String(body.email ?? ""), displayName: String(body.displayName ?? ""), role: role as "viewer", azureOnly: body.azureOnly === true }, auth.user.email, auth.user.isOwner === true);
+      await recordActivity(auth.user, "Account created", `${String(body.email ?? "").trim().toLowerCase()} as ${role}${body.azureOnly === true ? " (Azure sign-in only)" : ""}`, "access");
+      if (body.azureOnly === true) return Response.json({ id: created.id, azureOnly: true }, { headers });
       return Response.json({ id: created.id, setupLink: setupLink(request, created.token), expiresAt: created.expiresAt }, { headers });
     }
     if (body.action === "reset") {

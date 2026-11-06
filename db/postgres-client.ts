@@ -1,4 +1,5 @@
 import { supabaseFetch } from "../lib/supabase-server";
+import { directDatabaseConfigured, executeDirect } from "./direct-postgres";
 
 export type Statement = { sql: string; params: unknown[] };
 type QueryResult = { rows: unknown[][]; columns: string[]; count: number };
@@ -12,6 +13,11 @@ function safeFailureCode(failure: unknown): string {
 }
 
 export async function executeStatements(statements: Statement[]): Promise<QueryResult[]> {
+  // Direct PostgreSQL (Azure) when PORTAL_DATABASE_URL is set; otherwise the Supabase Edge Function.
+  if (directDatabaseConfigured()) {
+    try { return await executeDirect(statements); }
+    catch (failure) { throw new Error(`Portal database unavailable (direct, SQLSTATE ${safeFailureCode(failure)}).`); }
+  }
   const response = await supabaseFetch("/functions/v1/balwyn-portal-db", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ statements }),
   });
