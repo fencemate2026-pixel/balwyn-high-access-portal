@@ -88,6 +88,7 @@ test('actual owner route denies school administrators before any PIN or mirror r
   const mod = await importSource('../app/api/owner/sites/route.ts', `
     const requireOperator = async () => ({ user: { isOwner: globalThis.__pinRole } });
     const getMirrorDetail = (...args) => globalThis.__pinRead(...args);
+    const milduraOnAzure = () => false, gdTransaction = async () => null, mirrorDetail = null, siteRow = null;   // Azure path: covered by mildura-azure.test.mjs
     class OwnerSiteInputError extends Error {}
     class OwnerSitesUnavailableError extends Error {}
   `, /^import[\s\S]*?from ["'][^"']+["'];\n/gm);

@@ -4,6 +4,8 @@
 // administrators, get 404, so the section's existence is not disclosed.
 // Every change: owner session, exact same-origin, bounded body, server-side
 // validation (lib/owner-sites-model.ts), site-scoped writes, audit to gd_changes.
+import { gdTransaction } from "@/lib/gd-db";
+import { milduraOnAzure, mirrorDetail, siteRow } from "@/lib/gd-mildura-store";
 import { assertSameOrigin, requireOperator } from "@/lib/portal-auth";
 import { readBoundedText } from "@/lib/request-body";
 import {
@@ -50,6 +52,12 @@ export async function GET(request: Request) {
         if (error instanceof OwnerSiteInputError) throw error;
         sitesUnavailable = true; console.warn("owner_sites_list_unavailable");
       }
+      // Mildura on Azure (MILDURA_BACKEND=azure): its row comes from Azure, so it neither disappears when Supabase is
+      // down nor appears twice (any Supabase "mildura" row is dropped).
+      if (milduraOnAzure()) {
+        sites = sites.filter((s) => String(s.slug) !== "mildura");
+        try { const row = await gdTransaction((c) => siteRow(c)); if (row) sites = [...sites, row]; } catch { sitesUnavailable = true; console.warn("owner_sites_mildura_unavailable"); }
+      }
       return Response.json({ sites, links: OWNER_SITE_LINKS, sitesUnavailable, serverTime: new Date().toISOString() }, { headers });
     }
     if (view === "calls") {
@@ -59,7 +67,10 @@ export async function GET(request: Request) {
       }) }, { headers });
     }
     // Mildura mirror, including recorded access PINs. Owner check above runs before any reads.
-    if (view === "mirror") return Response.json({ ...(await getMirrorDetail(slug)), serverTime: new Date().toISOString() }, { headers });
+    if (view === "mirror") {
+      const detail = milduraOnAzure() && slug === "mildura" ? await gdTransaction((c) => mirrorDetail(c)) : await getMirrorDetail(slug);
+      return Response.json({ ...detail, serverTime: new Date().toISOString() }, { headers });
+    }
     if (view === "changes") {
       const site = await getSiteBySlug(slug);
       return Response.json({ changes: await listChanges(String(site.id)) }, { headers });
