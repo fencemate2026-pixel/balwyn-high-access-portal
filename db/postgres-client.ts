@@ -1,22 +1,21 @@
 import { supabaseFetch } from "../lib/supabase-server";
 import { directDatabaseConfigured, executeDirect } from "./direct-postgres";
+import { directFailureCode, safeFailureCode } from "./failure-code";
 
 export type Statement = { sql: string; params: unknown[] };
 type QueryResult = { rows: unknown[][]; columns: string[]; count: number };
 
 import { postgresPlaceholders } from "./sql-dialect";
 
-function safeFailureCode(failure: unknown): string {
-  if (!failure || typeof failure !== "object" || !("code" in failure) || typeof failure.code !== "string") return "unknown";
-  if (/^[0-9A-Z]{5}$/.test(failure.code) || /^[A-Z][A-Z0-9_]{1,40}$/.test(failure.code)) return failure.code;
-  return "unknown";
-}
-
 export async function executeStatements(statements: Statement[]): Promise<QueryResult[]> {
   // Direct PostgreSQL (Azure) when PORTAL_DATABASE_URL is set; otherwise the Supabase Edge Function.
   if (directDatabaseConfigured()) {
     try { return await executeDirect(statements); }
-    catch (failure) { throw new Error(`Portal database unavailable (direct, SQLSTATE ${safeFailureCode(failure)}).`); }
+    catch (failure) {
+      const code = directFailureCode(failure);
+      console.error("portal_database_direct_failed", { code });
+      throw new Error(`Portal database unavailable (direct, SQLSTATE ${code}).`);
+    }
   }
   const response = await supabaseFetch("/functions/v1/balwyn-portal-db", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ statements }),
