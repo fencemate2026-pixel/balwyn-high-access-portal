@@ -10,11 +10,14 @@
  *
  * kind:
  *  - "portal": a view inside this portal (opens in place, no new tab).
+ *  - "view": a screen inside this portal backed by the Azure gd schema (not the Supabase gd_* tables),
+ *    e.g. the Thomastown swing gate (app/thomastown-swing-view.tsx). Opens in place.
  *  - "external": a separate dashboard, opened in a new tab. These are not
  *    monitored from here, so the panel shows no online/offline dot for them.
  */
 export type OwnerSiteLink =
   | { id: string; name: string; detail: string; kind: "portal"; view: "dashboard" }
+  | { id: string; name: string; detail: string; kind: "view" }
   | { id: string; name: string; detail: string; kind: "external"; url: string; note: string };
 
 export const OWNER_SITE_LINKS: readonly OwnerSiteLink[] = [
@@ -24,6 +27,12 @@ export const OWNER_SITE_LINKS: readonly OwnerSiteLink[] = [
     detail: "This portal · campus gates, schedules, hire",
     kind: "portal",
     view: "dashboard",
+  },
+  {
+    id: "thomastown-swing",
+    name: "Thomastown swing gate",
+    detail: "Azure · callers, every call, changes",
+    kind: "view",
   },
   // Mildura now reports to gd_sites (slug "mildura") through the read-only mirror,
   // so it is listed with the other sites and opens in place (app/mildura-site-view.tsx).

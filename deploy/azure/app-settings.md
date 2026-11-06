@@ -22,6 +22,14 @@ list are marked MISSING-ON-RENDER: set them on Azure if you use the feature.
 | SUPABASE_SERVICE_ROLE_KEY | ROTATE first (exposed earlier), then enter the NEW key here and on Render |
 | SUPABASE_DATABASE_URL | MISSING-ON-RENDER. Only if the direct database path is used; otherwise leave unset |
 
+## Thomastown swing gate (owner console, Azure `gd` schema) — added 6 Nov 2026
+Names only. Values are secrets: never in Git, chat or email. Not needed until the `gd` migration is approved and applied.
+| Key | Notes |
+|---|---|
+| GD_DATABASE_URL | Connection string for the dedicated `gd_app` login role (NOT `balwyn_app`). See `deploy/azure/gd/README.md` |
+| GD_DATABASE_SSL | Leave unset for TLS (default). Only set to `off` for a local test database |
+| GD_THOMASTOWN_SWING_SECRET | 32+ random characters. The same value goes on the Pi (`/etc/thomgate-portal-sync.env`, mode 0600). Rotate by changing both |
+
 ## Sessions and accounts
 | Key | Notes |
 |---|---|
