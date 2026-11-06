@@ -61,6 +61,8 @@ else
 fi
 
 say "2/7 Firewall: only the portal's outbound addresses, plus this shell for the next few minutes"
+# Public access must be on for firewall rules to work. With no rules, nothing is allowed in.
+az postgres flexible-server update -g "$RG" -n "$SERVER" --public-access Enabled >/dev/null
 IPS="$(az webapp show -g "$RG" -n "$APP" --query possibleOutboundIpAddresses -o tsv | tr ',' '\n' | sort -u)"
 [ -n "$IPS" ] || die "Could not read the app's outbound IP addresses."
 i=0
