@@ -1,0 +1,14 @@
+{
+  "version": "1.19.0",
+  "covered": [
+    "bash",
+    "css",
+    "docker",
+    "nextjs",
+    "python",
+    "react",
+    "sql",
+    "typescript"
+  ],
+  "updated": 1793982835.0844543
+}

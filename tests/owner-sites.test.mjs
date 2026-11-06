@@ -236,3 +236,9 @@ test("a healthy site list is reported as available", async (t) => {
   const body = await (await get()).json();
   assert.equal(body.sitesUnavailable, false);
 });
+
+test("an empty Supabase site list does not hide a chosen Azure gate or linked site", () => {
+  assert.equal(model.showsNoSites(0, false), true);
+  assert.equal(model.showsNoSites(0, true), false);
+  assert.equal(model.showsNoSites(2, false), false);
+});

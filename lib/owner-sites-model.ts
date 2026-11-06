@@ -153,3 +153,10 @@ export function siteHealth(
   if (site.gd_units.some((u) => !u.last_seen || (now - Date.parse(u.last_seen)) / 1000 >= UNIT_ONLINE_SECONDS)) return "bad";
   return site.gd_units.some((u) => u.applied_version < site.config_version || u.lockdown) ? "warn" : "ok";
 }
+
+/**
+ * The owner panel shows "No sites yet" only when there is truly nothing to show. A chosen Azure-backed
+ * gate (Thomastown swing/sliding) or linked site does not come from the Supabase site list, so an empty
+ * or unavailable list must not hide it (7 Nov 2026).
+ */
+export const showsNoSites = (siteCount: number, chosenOutsideSiteList: boolean): boolean => siteCount === 0 && !chosenOutsideSiteList;
