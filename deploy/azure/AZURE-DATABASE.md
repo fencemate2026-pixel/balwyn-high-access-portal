@@ -21,3 +21,9 @@ The portal talks to PostgreSQL directly when `PORTAL_DATABASE_URL` is set. Unset
 ## Evidence
 - VERIFIED (tests run): the guard and transaction rules on real PostgreSQL semantics (PGlite) with every migration; photo storage round trip.
 - NOT TESTED (needs a live server): the node-postgres pool, TLS to Azure, the pg_dump copy (triggers on `activity_log` may need care), timestamp formats against the live app.
+
+## One-script path (Azure Cloud Shell)
+
+`deploy/azure/create-database.sh` does steps 1 to 4 above in one run: creates the PostgreSQL server (Australia East, PostgreSQL 16, Burstable B1ms, 32 GB, 7-day backups), limits the firewall to the app's outbound addresses plus your Cloud Shell for the run, loads `balwyn-schema.sql`, copies the `balwyn_portal` data from Supabase (read-only), clears the starter rows first so the copy cannot collide, compares row counts per table, and only sets `PORTAL_DATABASE_URL` if you type SWITCH. Re-running skips finished steps. Tested locally on PostgreSQL 16 (dump, clear, load, counts, restricted role). Not yet run on Azure: TLS trust of the Azure certificate by the app is UNVERIFIED until the first live connection.
+
+Run: upload `create-database.sh` and `balwyn-schema.sql` to Cloud Shell, then `bash create-database.sh`.
