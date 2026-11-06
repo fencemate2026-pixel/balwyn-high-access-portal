@@ -56,3 +56,8 @@ Names only. Values are secrets: never in Git, chat or email. Not needed until th
 | Key | Notes |
 |---|---|
 | DOOR_SERVICE_URL, DOOR_SERVICE_TOKEN, DOOR_GATE_MAP | MISSING-ON-RENDER. Only once the Pi door service is installed and reachable |
+
+## Mildura boom gate on Azure (STAGED)
+| Key | Notes |
+|---|---|
+| MILDURA_BACKEND | Unset = the old Supabase path. `azure` = Mildura reads and writes the Azure `gd` schema (needs GD_DATABASE_URL and `gd/003_mildura.sql`). The Pi's secret is not an app setting: only its sha256 is stored in `gd.devices` |
