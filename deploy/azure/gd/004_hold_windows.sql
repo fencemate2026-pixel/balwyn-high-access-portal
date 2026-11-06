@@ -1,6 +1,6 @@
 -- STAGED, NOT APPLIED. Hold-open windows for the Azure-backed gates (Thomastown swing + sliding).
 -- Run as the Azure PostgreSQL administrator, AFTER 001 (and 002). Additive: one new table and one widened
--- CHECK on gd.commands.kind. Re-runnable. Rollback: 003_hold_windows_rollback.sql.
+-- CHECK on gd.commands.kind. Re-runnable. Rollback: 004_hold_windows_rollback.sql.
 -- The Pi's own database stays the authority; this is a mirror of its windows plus the owner's queued edits.
 
 CREATE TABLE IF NOT EXISTS gd.hold_windows (

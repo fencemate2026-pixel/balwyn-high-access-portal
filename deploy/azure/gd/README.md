@@ -51,3 +51,10 @@ Device id `mildura-001`. The secret is NOT stored in Azure, only its sha256 (`gd
 Rollback: `003_mildura_rollback.sql`; unset `MILDURA_BACKEND`; put the Pi's `MIRROR_URL` and `state.json` back.
 Stored: user, schedule and person names; access and change history; the PIN typed at each access event (owner request, 6 Nov 2026) in `gd.mildura_access_pins`
 (read only by the owner-gated screens); sealed command ciphertext (wiped when a command finishes). Tests: `tests/mildura-azure.test.mjs` (includes the real Pi mirror code against the real route).
+
+## Hold-open windows (added 7 Nov 2026, STAGED, NOT APPLIED)
+Adds `gd.hold_windows` and widens the allowed command kinds (hold.add/update/delete/enable) for both Thomastown gates.
+1. Apply `004_hold_windows.sql` as the database admin, after 001 and 002. In Azure Cloud Shell: `bash deploy/azure/gd/apply-hold.sh` (asks for the admin login, applies in one transaction, checks the result, prints the rollback).
+2. Deploy the portal branch. Until step 1 is done the page still loads and a hold change is refused with a plain message.
+3. Only then update the Pi package and set `HOLD_PIN` on that Pi (separate approval; Thomastown repo, branch `claude/thomastown-hold-windows`). A Pi without `HOLD_PIN` never holds anything.
+Rollback: `004_hold_windows_rollback.sql`.

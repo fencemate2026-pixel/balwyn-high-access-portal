@@ -1,4 +1,4 @@
-// Hold-open windows (7 Nov 2026) on the Azure-backed Thomastown gates. Real migrations 001 + 003 on PGlite.
+// Hold-open windows (7 Nov 2026) on the Azure-backed Thomastown gates. Real migrations 001 + 004 on PGlite.
 // The real migration (deploy/azure/gd/001_*.sql) runs on PostgreSQL semantics (PGlite); the real routes run
 // against it. NOT covered here (needs a live server): the node-postgres pool/TLS in lib/gd-db.ts.
 import { serverFixturePlugin } from "./server-fixture.mjs";
@@ -23,8 +23,8 @@ const origin = "https://magickeys-balwyn-portal.com";
 const SECRET = "t".repeat(48);
 const SQL = readFileSync(new URL("../deploy/azure/gd/001_thomastown_swing.sql", import.meta.url), "utf8");
 const ROLLBACK = readFileSync(new URL("../deploy/azure/gd/001_thomastown_swing_rollback.sql", import.meta.url), "utf8");
-const HOLD_SQL = readFileSync(new URL("../deploy/azure/gd/003_hold_windows.sql", import.meta.url), "utf8");
-const HOLD_ROLLBACK = readFileSync(new URL("../deploy/azure/gd/003_hold_windows_rollback.sql", import.meta.url), "utf8");
+const HOLD_SQL = readFileSync(new URL("../deploy/azure/gd/004_hold_windows.sql", import.meta.url), "utf8");
+const HOLD_ROLLBACK = readFileSync(new URL("../deploy/azure/gd/004_hold_windows_rollback.sql", import.meta.url), "utf8");
 const KEY = "11111111-1111-4111-8111-111111111111";
 
 async function fixture(t, withHolds = true) {
@@ -115,7 +115,7 @@ test("only the owner can queue hold changes; double click queues once", async (t
   assert.equal(a.command.id, b.command.id);
 });
 
-test("before migration 003 the page still loads and a hold change is refused plainly", async (t) => {
+test("before migration 004 the page still loads and a hold change is refused plainly", async (t) => {
   await fixture(t, false);
   const seen = await ownerGet();
   assert.equal(seen.status, 200);
@@ -130,7 +130,7 @@ test("before migration 003 the page still loads and a hold change is refused pla
   assert.equal(push.ok, true);                                                                           // old table absent: skipped, not an error
 });
 
-test("migration 003 is re-runnable, keeps balwyn_app out, and its rollback restores the original kinds", async (t) => {
+test("migration 004 is re-runnable, keeps balwyn_app out, and its rollback restores the original kinds", async (t) => {
   const pg = await fixture(t);
   await pg.exec(HOLD_SQL);                                                                               // second run
   const priv = await pg.query("SELECT has_table_privilege('balwyn_app','gd.hold_windows','SELECT') AS p");

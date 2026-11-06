@@ -11,7 +11,7 @@ import { melbourneNow } from "@/lib/mildura-commands-model";
 const COMMAND_COLUMNS = "id,seq,kind,args,status,actor_email,error,result,created_at,finished_at";
 const MAX_ATTEMPTS = 5;
 
-/** True once deploy/azure/gd/003_hold_windows.sql has been applied. Until then hold windows are skipped, never an error. */
+/** True once deploy/azure/gd/004_hold_windows.sql has been applied. Until then hold windows are skipped, never an error. */
 export async function holdsReady(c: GdClient): Promise<boolean> {
   const r = await c.query("SELECT to_regclass('gd.hold_windows') IS NOT NULL AS ok");
   return r.rows[0]?.ok === true;
