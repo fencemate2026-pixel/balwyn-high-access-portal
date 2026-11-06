@@ -44,7 +44,7 @@ PSQL_TARGET="host=$HOST port=5432 dbname=$DB_NAME user=$ADMIN_USER password=$ADM
 MY_IP="$(curl -fsS https://api.ipify.org || true)"
 cleanup() {
   if [ -n "${MY_IP:-}" ]; then
-    az postgres flexible-server firewall-rule delete -g "$RG" -n "$SERVER" --rule-name cloudshell-temp --yes >/dev/null 2>&1 || true
+    az postgres flexible-server firewall-rule delete -g "$RG" -s "$SERVER" --name cloudshell-temp --yes >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
@@ -66,12 +66,12 @@ IPS="$(az webapp show -g "$RG" -n "$APP" --query possibleOutboundIpAddresses -o 
 i=0
 for ip in $IPS; do
   i=$((i+1))
-  az postgres flexible-server firewall-rule create -g "$RG" -n "$SERVER" --rule-name "portal-out-$i" \
+  az postgres flexible-server firewall-rule create -g "$RG" -s "$SERVER" --name "portal-out-$i" \
     --start-ip-address "$ip" --end-ip-address "$ip" >/dev/null
 done
 echo "$i portal addresses allowed."
 [ -n "$MY_IP" ] || die "Could not work out this shell's public IP."
-az postgres flexible-server firewall-rule create -g "$RG" -n "$SERVER" --rule-name cloudshell-temp \
+az postgres flexible-server firewall-rule create -g "$RG" -s "$SERVER" --name cloudshell-temp \
   --start-ip-address "$MY_IP" --end-ip-address "$MY_IP" >/dev/null
 
 say "3/7 Database and schema"
