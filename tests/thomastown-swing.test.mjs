@@ -137,7 +137,7 @@ test("device route: unsigned, mis-signed, stale, replayed or wrong-device reques
 
 test("push mirrors users (full snapshot), calls and changes; resends and shrinking snapshots behave", async (t) => {
   const pg = await fixture(t);
-  assert.deepEqual((await (await deviceRoute.POST(await signed(PUSH))).json()).stored, { users: 2, access: 2, changes: 1 });
+  assert.deepEqual((await (await deviceRoute.POST(await signed(PUSH))).json()).stored, { users: 2, holds: 0, access: 2, changes: 1 });
   assert.equal((await deviceRoute.POST(await signed(PUSH))).status, 200);       // resend: same rows, no duplicates
   assert.equal((await pg.query("SELECT count(*)::int AS n FROM gd.access_log")).rows[0].n, 2);
   assert.equal((await pg.query("SELECT enabled FROM gd.users WHERE local_id=2")).rows[0].enabled, false);

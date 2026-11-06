@@ -28,7 +28,7 @@ const GD_DIAL_IN: Partial<Record<GdSiteId, string>> = {
 };
 export const gdDialIn = (site: GdSiteId): string | null => GD_DIAL_IN[site] ?? null;
 export const isGdSiteId = (v: unknown): v is GdSiteId => typeof v === "string" && Object.prototype.hasOwnProperty.call(GD_SITES, v);
-export const SWING_KINDS = ["user.add", "user.update", "user.delete", "user.enable"] as const;
+export const SWING_KINDS = ["user.add", "user.update", "user.delete", "user.enable", "hold.add", "hold.update", "hold.delete", "hold.enable"] as const;
 export type SwingKind = typeof SWING_KINDS[number];
 /** A command the Pi has not collected within this time is dropped, never applied late. */
 export const COMMAND_TTL_MINUTES = 15;
@@ -71,6 +71,21 @@ function schedule(body: Record<string, unknown>) {
   return { schedule_type: "time_range", schedule_data: JSON.stringify({ days: [...d as number[]].sort((a, b) => a - b), start, end }) };
 }
 
+/** Hold-open window: the Pi holds its hold relay closed on these days between open and close (close before open = overnight). */
+function holdFields(body: Record<string, unknown>, all: boolean) {
+  const out: Record<string, unknown> = {};
+  if (all || body.name !== undefined) out.name = name(body.name);
+  if (all || body.days !== undefined) {
+    const d = body.days;
+    if (!Array.isArray(d) || !d.length || d.length > 7 || d.some((x) => !Number.isInteger(x) || x < 0 || x > 6) || new Set(d).size !== d.length) bad("Pick at least one day.");
+    out.days = [...d as number[]].sort((a, b) => a - b);
+  }
+  for (const k of ["open_time", "close_time"] as const) {
+    if (all || body[k] !== undefined) out[k] = typeof body[k] === "string" && TIME.test(body[k] as string) ? body[k] : bad("Times must be HH:MM (24 hour).");
+  }
+  return out;
+}
+
 export type SwingCommandInput = { kind: SwingKind; args: Record<string, unknown>; clientKey: string; summary: string };
 
 /** Validate an owner's browser request into a queueable command. */
@@ -96,6 +111,19 @@ export function swingCommandInput(body: Record<string, unknown>): SwingCommandIn
     }
     case "user.delete": args = { local_id: localId(body.local_id) }; summary = `Delete caller #${args.local_id}`; break;
     case "user.enable": args = { local_id: localId(body.local_id), enabled: flag(body.enabled) }; summary = `${args.enabled ? "Enable" : "Disable"} caller #${args.local_id}`; break;
+    case "hold.add": {
+      args = holdFields(body, true);
+      if (args.open_time === args.close_time) bad("Open and close times cannot be the same.");
+      summary = `Add hold window ${args.name} ${args.open_time}-${args.close_time}`; break;
+    }
+    case "hold.update": {
+      args = { local_id: localId(body.local_id), ...holdFields(body, false) };
+      if (Object.keys(args).length === 1) bad("Nothing to change.");
+      if (args.open_time !== undefined && args.open_time === args.close_time) bad("Open and close times cannot be the same.");
+      summary = `Edit hold window #${args.local_id}`; break;
+    }
+    case "hold.delete": args = { local_id: localId(body.local_id) }; summary = `Delete hold window #${args.local_id}`; break;
+    case "hold.enable": args = { local_id: localId(body.local_id), enabled: flag(body.enabled) }; summary = `${args.enabled ? "Enable" : "Disable"} hold window #${args.local_id}`; break;
   }
   return { kind: k, args, clientKey, summary };
 }
@@ -120,7 +148,8 @@ const rows = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.sl
 export type PushUser = { local_id: number; name: string; phone: string; enabled: boolean; schedule_type: string | null; schedule_data: string | null; created_at_local: string | null };
 export type PushAccess = { local_id: number; occurred_at_local: string | null; user_name: string | null; method: string | null; success: boolean | null };
 export type PushChange = { local_id: number; occurred_at_local: string | null; action: string | null; detail: string | null; changed_by: string | null };
-export type PushBody = { fw_version: string | null; status: Record<string, unknown> | null; users: PushUser[] | null; access: PushAccess[]; changes: PushChange[] };
+export type PushHold = { local_id: number; name: string; days: number[]; open_time: string; close_time: string; enabled: boolean };
+export type PushBody = { fw_version: string | null; status: Record<string, unknown> | null; users: PushUser[] | null; holds: PushHold[] | null; access: PushAccess[]; changes: PushChange[] };
 
 export function pushInput(b: Record<string, unknown>): PushBody {
   const users = b.users === undefined || b.users === null ? null : rows(b.users).flatMap((r) => {
@@ -128,9 +157,14 @@ export function pushInput(b: Record<string, unknown>): PushBody {
     return local_id && local_id > 0 && nm && phone ? [{ local_id, name: nm, phone, enabled: r.enabled === true || r.enabled === 1,
       schedule_type: str(r.schedule_type, 20), schedule_data: str(r.schedule_data, 300), created_at_local: ts(r.created_at_local) }] : [];
   });
+  const holds = b.holds === undefined || b.holds === null ? null : rows(b.holds).slice(0, 20).flatMap((r) => {
+    const local_id = int(r.local_id), nm = str(r.name, 80), o = str(r.open_time, 5), c = str(r.close_time, 5);
+    const days = Array.isArray(r.days) ? r.days.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6) : [];
+    return local_id && local_id > 0 && nm && o && c && TIME.test(o) && TIME.test(c) && days.length ? [{ local_id, name: nm, days: [...new Set(days)].sort((x, y) => x - y), open_time: o, close_time: c, enabled: r.enabled === true || r.enabled === 1 }] : [];
+  });
   const status = b.status && typeof b.status === "object" && !Array.isArray(b.status) ? sanitiseStatus(b.status as Record<string, unknown>) : null;
   return {
-    fw_version: str(b.fw_version, 40), status, users,
+    fw_version: str(b.fw_version, 40), status, users, holds,
     access: rows(b.access).flatMap((r) => { const id = int(r.local_id); return id && id > 0 ? [{ local_id: id, occurred_at_local: ts(r.occurred_at_local), user_name: str(r.user_name, 80), method: str(r.method, 40), success: r.success === null || r.success === undefined ? null : (r.success === true || r.success === 1) }] : []; }),
     changes: rows(b.changes).flatMap((r) => { const id = int(r.local_id); return id && id > 0 ? [{ local_id: id, occurred_at_local: ts(r.occurred_at_local), action: str(r.action, 60), detail: str(r.detail, 300), changed_by: str(r.changed_by, 80) }] : []; }),
   };

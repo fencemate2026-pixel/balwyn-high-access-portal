@@ -5,10 +5,17 @@
  */
 import type { GdClient } from "@/lib/gd-db";
 import { COMMAND_TTL_MINUTES, SWING_DEVICE_ID, type PushBody, type SwingCommandInput } from "@/lib/gd-swing-model";
+import { OwnerSiteInputError } from "@/lib/owner-sites-model";
 import { melbourneNow } from "@/lib/mildura-commands-model";
 
 const COMMAND_COLUMNS = "id,seq,kind,args,status,actor_email,error,result,created_at,finished_at";
 const MAX_ATTEMPTS = 5;
+
+/** True once deploy/azure/gd/003_hold_windows.sql has been applied. Until then hold windows are skipped, never an error. */
+export async function holdsReady(c: GdClient): Promise<boolean> {
+  const r = await c.query("SELECT to_regclass('gd.hold_windows') IS NOT NULL AS ok");
+  return r.rows[0]?.ok === true;
+}
 
 /** Single-use nonce. Returns false when it was seen before (a replay). Old nonces are cleared first. */
 export async function useNonce(c: GdClient, device: string, nonce: string): Promise<boolean> {
@@ -22,7 +29,7 @@ export async function deviceKnown(c: GdClient, device: string): Promise<boolean>
 }
 
 /** Store what the Pi sent. Users are a full snapshot (replace); logs are append-only by the Pi's own id. */
-export async function applyPush(c: GdClient, device: string, p: PushBody): Promise<{ users: number; access: number; changes: number }> {
+export async function applyPush(c: GdClient, device: string, p: PushBody): Promise<{ users: number; holds: number; access: number; changes: number }> {
   await c.query("UPDATE gd.devices SET last_seen = now(), fw_version = COALESCE($2, fw_version), last_status = COALESCE($3::jsonb, last_status) WHERE device_id = $1",
     [device, p.fw_version, p.status ? JSON.stringify(p.status) : null]);
   if (p.users) {
@@ -37,6 +44,17 @@ export async function applyPush(c: GdClient, device: string, p: PushBody): Promi
         [device, u.local_id, u.name, u.phone, u.enabled, u.schedule_type, u.schedule_data, u.created_at_local]);
     }
   }
+  if (p.holds && (await holdsReady(c))) {
+    await c.query("DELETE FROM gd.hold_windows WHERE device_id = $1 AND NOT (local_id = ANY($2::bigint[]))", [device, p.holds.map((h) => h.local_id)]);
+    for (const h of p.holds) {
+      await c.query(
+        `INSERT INTO gd.hold_windows(device_id,local_id,name,days,open_time,close_time,enabled,synced_at)
+         VALUES ($1,$2,$3,$4::smallint[],$5,$6,$7,now())
+         ON CONFLICT (device_id,local_id) DO UPDATE SET name=EXCLUDED.name, days=EXCLUDED.days, open_time=EXCLUDED.open_time,
+           close_time=EXCLUDED.close_time, enabled=EXCLUDED.enabled, synced_at=now()`,
+        [device, h.local_id, h.name, `{${h.days.join(",")}}`, h.open_time, h.close_time, h.enabled]);
+    }
+  }
   for (const a of p.access) {
     await c.query("INSERT INTO gd.access_log(device_id,local_id,occurred_at_local,user_name,method,success) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING",
       [device, a.local_id, a.occurred_at_local, a.user_name, a.method, a.success]);
@@ -45,7 +63,7 @@ export async function applyPush(c: GdClient, device: string, p: PushBody): Promi
     await c.query("INSERT INTO gd.changes(device_id,local_id,occurred_at_local,action,detail,changed_by,source) VALUES ($1,$2,$3,$4,$5,$6,'pi') ON CONFLICT DO NOTHING",
       [device, ch.local_id, ch.occurred_at_local, ch.action, ch.detail, ch.changed_by]);
   }
-  return { users: p.users?.length ?? 0, access: p.access.length, changes: p.changes.length };
+  return { users: p.users?.length ?? 0, holds: p.holds?.length ?? 0, access: p.access.length, changes: p.changes.length };
 }
 
 /** Hand the Pi its waiting commands. Stale ones are expired first; each is delivered at most MAX_ATTEMPTS times. */
@@ -69,13 +87,15 @@ export async function ackCommand(c: GdClient, device: string, id: string, ok: bo
 
 // ---- Owner side ----
 export async function getDetail(c: GdClient, device = SWING_DEVICE_ID) {
-  const [dev, users, access, changes] = await Promise.all([
+  const ready = await holdsReady(c);
+  const [dev, users, holds, access, changes] = await Promise.all([
     c.query("SELECT device_id, site_name, last_seen, fw_version, last_status FROM gd.devices WHERE device_id=$1", [device]),
     c.query("SELECT local_id,name,phone,enabled,schedule_type,schedule_data,created_at_local FROM gd.users WHERE device_id=$1 ORDER BY name", [device]),
+    ready ? c.query("SELECT local_id,name,days,open_time,close_time,enabled FROM gd.hold_windows WHERE device_id=$1 ORDER BY open_time, name", [device]) : Promise.resolve({ rows: [] }),
     c.query("SELECT local_id,occurred_at_local,user_name,method,success FROM gd.access_log WHERE device_id=$1 ORDER BY local_id DESC LIMIT 500", [device]),
     c.query("SELECT local_id,occurred_at_local,action,detail,changed_by,source FROM gd.changes WHERE device_id=$1 ORDER BY received_at DESC, local_id DESC LIMIT 300", [device]),
   ]);
-  return { device: dev.rows[0] ?? null, users: users.rows, access: access.rows, changes: changes.rows };
+  return { device: dev.rows[0] ?? null, holdsReady: ready, users: users.rows, holds: holds.rows, access: access.rows, changes: changes.rows };
 }
 
 export async function listCommands(c: GdClient, device = SWING_DEVICE_ID) {
@@ -84,6 +104,7 @@ export async function listCommands(c: GdClient, device = SWING_DEVICE_ID) {
 
 /** Queue a command. The same click twice returns the first command instead of queueing again. */
 export async function enqueueCommand(c: GdClient, input: SwingCommandInput, actorEmail: string, device = SWING_DEVICE_ID) {
+  if (input.kind.startsWith("hold.") && !(await holdsReady(c))) throw new OwnerSiteInputError("Hold windows are not set up on the server yet.");
   const seen = await c.query(`SELECT ${COMMAND_COLUMNS} FROM gd.commands WHERE device_id=$1 AND client_key=$2`, [device, input.clientKey]);
   if (seen.rowCount) return { command: seen.rows[0], duplicate: true };
   const made = await c.query(
