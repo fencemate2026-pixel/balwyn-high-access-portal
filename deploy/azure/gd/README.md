@@ -32,3 +32,22 @@ Same schema, same code path, its own device id (`thomastown-sliding`), its own s
 4. Deploy this branch. The owner sidebar then lists "Thomastown sliding gate" (waiting for the gate, empty lists).
 5. Only then install the sync service on the sliding Pi (separate approval, `PORTAL_SYNC_DEVICE=thomastown-sliding`).
 Rollback: `002_thomastown_sliding_rollback.sql`, unset the setting.
+
+## Third site: Mildura boom gate (added 7 Nov 2026, STAGED, NOT APPLIED)
+Moves Mildura's mirror off the Supabase `gd-mirror` function (HTTP 402) onto Azure. The Pi's own protocol is kept
+(`POST {device_id, secret, action: push|key|commands|ack}`), so the Pi needs ONE value changed: `MIRROR_URL`
+in `/etc/mildura-mirror.env` -> `https://<portal-host>/api/device/mildura`. No Pi code, network, Tailscale, sshd or gate-app change.
+Device id `mildura-001`. The secret is NOT stored in Azure, only its sha256 (`gd.devices.secret_sha256`).
+1. Back up the Azure database.
+2. Apply `003_mildura.sql` as the database admin (needs 001 first; re-running is harmless).
+3. Set the device's secret hash and the Pi's command PUBLIC key (values come from the Pi, never from this repo):
+   `UPDATE gd.devices SET secret_sha256 = '<64 hex>', command_pubkey = '<PEM>', command_pubkey_at = now() WHERE device_id = 'mildura-001';`
+   Hash: on the Pi, `sudo sh -c "grep -h '^MIRROR_SECRET=' /etc/mildura-mirror.env | cut -d= -f2- | tr -d '\n' | sha256sum"`.
+   Key: on the Pi, `sudo openssl pkey -in /var/lib/mildura-mirror/command_key.pem -pubout`.
+4. Deploy this branch. Leave `MILDURA_BACKEND` unset first: the owner screens still use the old path. Then set
+   `MILDURA_BACKEND=azure` and restart: the Mildura page reads Azure ("waiting for the gate" until the Pi switches).
+5. Pi cutover (separate approval, with a timed auto-revert): change `MIRROR_URL`, clear the mark entries `snap` and `stream`
+   in `/var/lib/mildura-mirror/state.json` (keep `key_registered` and `access_pin_sync_v1`) so users, schedules, people and the full history resend, restart `mildura-mirror` only.
+Rollback: `003_mildura_rollback.sql`; unset `MILDURA_BACKEND`; put the Pi's `MIRROR_URL` and `state.json` back.
+Stored: user, schedule and person names; access and change history; the PIN typed at each access event (owner request, 6 Nov 2026) in `gd.mildura_access_pins`
+(read only by the owner-gated screens); sealed command ciphertext (wiped when a command finishes). Tests: `tests/mildura-azure.test.mjs` (includes the real Pi mirror code against the real route).
