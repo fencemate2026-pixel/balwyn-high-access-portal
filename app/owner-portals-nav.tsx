@@ -32,9 +32,9 @@ export default function OwnerPortalsNav({ choice, onChoose }: { choice: OwnerPor
       try {
         const res = await fetch("/api/owner/sites", { credentials: "same-origin", cache: "no-store" });
         if (!res.ok) throw new Error(String(res.status));
-        const data = await res.json() as { sites: SiteRow[]; links?: OwnerSiteLink[]; serverTime?: string };
+        const data = await res.json() as { sites: SiteRow[]; links?: OwnerSiteLink[]; sitesUnavailable?: boolean; serverTime?: string };
         if (cancelled) return;
-        setSites(data.sites); setLinks(data.links ?? []); setFailed(false);
+        setSites(data.sites); setLinks(data.links ?? []); setFailed(data.sitesUnavailable === true);
         setNow(Date.parse(data.serverTime ?? "") || Date.now());
       } catch { if (!cancelled) setFailed(true); }
     };
