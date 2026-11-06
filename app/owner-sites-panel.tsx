@@ -17,7 +17,7 @@ import { isGdSiteId, type GdSiteId } from "@/lib/gd-swing-model";
 import { ConfirmDialog, FIELD_STYLE, INPUT, type ConfirmSpec } from "./mildura-controls";
 import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
 import { Empty, MUTED, Navy, Pill, Section, TD, TH, Td, downloadCsv, stampDay } from "./site-section-ui";
-import { RESULT_LABELS, UNIT_ONLINE_SECONDS, WHITELIST_IMPORT_MAX, localAu } from "@/lib/owner-sites-model";
+import { RESULT_LABELS, UNIT_ONLINE_SECONDS, WHITELIST_IMPORT_MAX, localAu, showsNoSites } from "@/lib/owner-sites-model";
 import { parseWhitelistCsv, toCsv, type WhitelistCsvRow } from "@/lib/owner-csv";
 
 type Unit = {
@@ -156,7 +156,7 @@ export default function OwnerSitesPanel({ onOpenPortal, selectedId, hideList = f
   }, [detail, actingName, loadSites]);
 
   if (!sites) return <div className="os-row"><LoaderCircle className="animate-spin" /> Loading sites…</div>;
-  if (!sites.length) return <p>No sites yet.</p>;
+  if (showsNoSites(sites.length, swing !== null || linked !== null)) return <p>No sites yet.</p>;
 
   const dot = (s: SiteRow) => !s.gd_units.length ? "" : s.gd_units.some((u) => !online(u, now)) ? "bad"
     : s.gd_units.some((u) => u.applied_version < s.config_version || u.lockdown) ? "warn" : "ok";
