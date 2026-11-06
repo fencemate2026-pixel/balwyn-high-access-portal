@@ -1,4 +1,6 @@
 import { supabaseFetch } from "./supabase-server";
+import { directDatabaseConfigured } from "@/db/direct-postgres";
+import { databaseProfileStorage } from "./db-profile-storage";
 
 const bucket = "balwyn-profile-photos";
 function path(key: string) {
@@ -7,6 +9,8 @@ function path(key: string) {
 }
 
 export function profileStorage() {
+  // On the portal's own PostgreSQL there is no Supabase Storage: photos live in the database.
+  if (directDatabaseConfigured()) return databaseProfileStorage();
   return {
     async put(key: string, bytes: Uint8Array, options: { httpMetadata: { contentType: string } }) {
       const response = await supabaseFetch(path(key), { method: "POST", body: bytes as BodyInit,
