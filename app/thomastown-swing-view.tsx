@@ -5,7 +5,7 @@
 // No PIN or unlock step for the owner. No "delete all": every delete asks first. Owner-only: the API
 // answers 404 to anyone else, so hiding this component is presentation, not security.
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { CheckCircle2, ClipboardList, Clock3, Download, History, LoaderCircle, Pencil, Phone, Plus, Search, ShieldCheck, Trash2, Users, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardList, Clock3, DoorOpen, Download, History, LoaderCircle, Pencil, Phone, Plus, Search, ShieldCheck, Trash2, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog, DayPicker, FIELD_STYLE, INPUT, type ConfirmSpec } from "./mildura-controls";
 import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
@@ -14,12 +14,13 @@ import { toCsv } from "@/lib/owner-csv";
 import { GD_SITES, SWING_DEVICE_ID, callResult, displayPhone, gdDialIn, type GdSiteId } from "@/lib/gd-swing-model";
 
 type SUser = { local_id: number; name: string; phone: string; enabled: boolean; schedule_type: string | null; schedule_data: string | null; created_at_local: string | null };
+type SHold = { local_id: number; name: string; days: number[]; open_time: string; close_time: string; enabled: boolean };
 type SAccess = { local_id: number; occurred_at_local: string | null; user_name: string | null; method: string | null; success: boolean | null };
 type SChange = { local_id: number; occurred_at_local: string | null; action: string | null; detail: string | null; changed_by: string | null; source: string };
 type SCommand = { id: string; seq: number; kind: string; args: Record<string, unknown>; status: "pending" | "delivered" | "applied" | "failed" | "expired"; actor_email: string; error: string | null; created_at: string };
 export type SwingDetail = {
   device: { last_seen: string | null; fw_version: string | null; last_status: Record<string, unknown> | null } | null;
-  users: SUser[]; access: SAccess[]; changes: SChange[]; commands: SCommand[]; online: boolean; serverTime: string;
+  users: SUser[]; holds?: SHold[]; holdsReady?: boolean; access: SAccess[]; changes: SChange[]; commands: SCommand[]; online: boolean; serverTime: string;
 };
 type Send = (body: Record<string, unknown>, ask?: ConfirmSpec) => Promise<boolean>;
 
@@ -93,7 +94,7 @@ function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy:
   const [cq, setCq] = useState(""); const [cres, setCres] = useState<"all" | "opened" | "refused">("all");
   const [form, setForm] = useState<null | "add" | { edit: number }>(null);
   const editing = form && typeof form === "object" ? data.users.find((u) => u.local_id === form.edit) : undefined;
-  const open = useMemo(() => { const m = new Map<number, SCommand>(); for (const c of [...data.commands].reverse()) { const id = Number(c.args.local_id); if (id) m.set(id, c); } return m; }, [data.commands]);
+  const open = useMemo(() => { const m = new Map<number, SCommand>(); for (const c of [...data.commands].reverse()) { const id = Number(c.args.local_id); if (id && !c.kind.startsWith("hold.")) m.set(id, c); } return m; }, [data.commands]);
   const users = data.users.filter((u) => (u.name + u.phone).toLowerCase().includes(q.trim().toLowerCase()) && (status === "all" || (status === "on") === u.enabled));
   const calls = data.access.filter((a) => {
     const r = callResult(a.method, a.success);
@@ -145,7 +146,9 @@ function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy:
         </table></div>
       </Section>
 
-      <Section n={2} icon={tab === "calls" ? Phone : History} title={tab === "calls" ? "Every call that reached the gate" : "Changes log"} right={<div className="flex flex-wrap items-center gap-2" role="tablist">
+      <HoldSection data={data} busy={busy} send={send} />
+
+      <Section n={3} icon={tab === "calls" ? Phone : History} title={tab === "calls" ? "Every call that reached the gate" : "Changes log"} right={<div className="flex flex-wrap items-center gap-2" role="tablist">
         {tab === "calls" && <>
           <label className={`${GLASS_PANEL} flex h-9 items-center gap-2 px-3`}><Search className="size-4 text-[#5CC8FF]" aria-hidden="true" />
             <input className="w-40 bg-transparent text-sm text-[#F5FBFF] outline-none placeholder:text-[#B9CFE2]" placeholder="Search name or number" value={cq} onChange={(e) => setCq(e.target.value)} aria-label="Search calls" /></label>
@@ -168,7 +171,7 @@ function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy:
             : <tr><Td colSpan={4}><span className={MUTED}>No changes recorded yet.</span></Td></tr>}</tbody></table>}</div>
       </Section>
 
-      <Section n={3} icon={ClipboardList} title="Changes sent to the Pi" right={<span className="text-xs text-muted-foreground">Pending → Applied / Failed, as reported by the Pi</span>}>
+      <Section n={4} icon={ClipboardList} title="Changes sent to the Pi" right={<span className="text-xs text-muted-foreground">Pending → Applied / Failed, as reported by the Pi</span>}>
         {data.commands.length ? <div className="max-h-[260px] overflow-auto"><table className="w-full border-collapse">
           <thead><tr><th className={TH}>When</th><th className={TH}>Change</th><th className={TH}>By</th><th className={TH}>Result</th></tr></thead>
           <tbody>{data.commands.map((c) => <tr key={c.id}><Td className="tabular-nums">{ago(c.created_at, now)}</Td><Td>{c.kind}{c.args.name ? ` · ${String(c.args.name)}` : ""}{c.args.local_id ? ` · #${String(c.args.local_id)}` : ""}</Td><Td className={MUTED}>{c.actor_email}</Td><td className={TD}><CmdPill c={c} />{c.error ? <small className={`ml-2 ${MUTED}`}>{c.error}</small> : null}</td></tr>)}</tbody></table></div>
@@ -203,5 +206,60 @@ function CallerForm({ user, busy, send, onDone }: { user?: SUser; busy: boolean;
       <div className="grid grid-cols-2 gap-2"><input style={FIELD_STYLE} className={INPUT} type="time" aria-label="Start" value={start} onChange={(e) => setStart(e.target.value)} />
         <input style={FIELD_STYLE} className={INPUT} type="time" aria-label="End" value={end} onChange={(e) => setEnd(e.target.value)} /></div></div>}
     <div className="flex gap-2 md:col-span-2"><button type="submit" className={glassButton("orange")} disabled={busy}>{user ? "Save changes" : "Add caller"}</button><button type="button" className={glassButton()} onClick={onDone}>Cancel</button></div>
+  </form>;
+}
+
+const dayText = (d: number[]) => (d.length === 7 ? "Every day" : d.map((x) => DAYN[x]).join(" "));
+
+function HoldSection({ data, busy, send }: { data: SwingDetail; busy: boolean; send: Send }) {
+  const [form, setForm] = useState<null | "add" | { edit: number }>(null);
+  const holds = data.holds ?? [];
+  const editing = form && typeof form === "object" ? holds.find((h) => h.local_id === form.edit) : undefined;
+  const cmds = useMemo(() => { const m = new Map<number, SCommand>(); for (const c of [...data.commands].reverse()) { const id = Number(c.args.local_id); if (id && c.kind.startsWith("hold.")) m.set(id, c); } return m; }, [data.commands]);
+  const ready = data.holdsReady !== false;
+  const lock = busy ? "Working…" : undefined;
+  return <Section n={2} icon={DoorOpen} title="Hold-open windows" right={<button type="button" className={glassButton("orange")} disabled={busy || !ready} title={lock} onClick={() => setForm("add")}><Plus className="size-4" /> Add window</button>}>
+    <p className={`mb-3 text-xs ${MUTED}`}>While a window is active the site Pi holds the gate open (its hold relay stays closed), then releases it at the close time so the operator closes the gate. Lockdown releases it. Changes are applied by the Pi; wait for Applied. The Pi must have its hold relay enabled for a window to move the gate.</p>
+    {!ready && <p role="status" className="mb-3 text-sm text-[#fbbf24]">Hold windows are not set up on the server yet, so they cannot be shown or changed.</p>}
+    {(form === "add" || editing) && <HoldForm key={editing?.local_id ?? "new"} hold={editing} busy={busy} send={send} onDone={() => setForm(null)} />}
+    <div className="overflow-auto"><table className="w-full border-collapse">
+      <thead><tr><th className={TH}>Name</th><th className={TH}>Days</th><th className={TH}>Hold from</th><th className={TH}>Release at</th><th className={TH}>Status</th><th className={TH}>Actions</th></tr></thead>
+      <tbody>{holds.length ? holds.map((h) => <tr key={h.local_id}>
+        <Td>{h.name}</Td><Td>{dayText(h.days)}</Td><Td className="tabular-nums">{h.open_time}</Td>
+        <Td className="tabular-nums">{h.close_time}{h.close_time < h.open_time ? " (next day)" : ""}</Td>
+        <Td><Pill tone={h.enabled ? "ok" : "mute"}>{h.enabled ? "On" : "Off"}</Pill></Td>
+        <td className={TD}><div className="flex flex-wrap items-center gap-1">
+          <button type="button" className={`${glassButton()} h-8`} aria-label={`Edit ${h.name}`} disabled={busy} title={lock} onClick={() => setForm({ edit: h.local_id })}><Pencil className="size-4" /></button>
+          <button type="button" className={`${glassButton()} h-8`} disabled={busy} title={lock} onClick={() => send({ kind: "hold.enable", local_id: h.local_id, enabled: !h.enabled }, h.enabled ? { title: `Turn off ${h.name}?`, body: "The gate will no longer be held open by this window.", action: "Turn off" } : undefined)}><span>{h.enabled ? "Turn off" : "Turn on"}</span></button>
+          <button type="button" className={`${glassButton()} h-8`} aria-label={`Delete ${h.name}`} disabled={busy} title={lock} onClick={() => send({ kind: "hold.delete", local_id: h.local_id }, { title: `Delete ${h.name}?`, body: "The window is removed from the Pi. This cannot be undone from the portal.", action: "Delete window" })}><Trash2 className="size-4" /></button>
+          <CmdPill c={cmds.get(h.local_id)} />
+        </div></td></tr>)
+        : <tr><Td colSpan={6}><span className={MUTED}>{ready ? "No hold windows. Nothing is held open by the Pi." : "—"}</span></Td></tr>}</tbody>
+    </table></div>
+  </Section>;
+}
+
+function HoldForm({ hold, busy, send, onDone }: { hold?: SHold; busy: boolean; send: Send; onDone: () => void }) {
+  const [name, setName] = useState(hold?.name ?? "");
+  const [days, setDays] = useState<number[]>(hold?.days ?? [0, 1, 2, 3, 4, 5, 6]);
+  const [open, setOpen] = useState(hold?.open_time ?? "06:00"); const [close, setClose] = useState(hold?.close_time ?? "18:00");
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const body: Record<string, unknown> = hold ? { kind: "hold.update", local_id: hold.local_id } : { kind: "hold.add", name, days, open_time: open, close_time: close };
+    if (hold) {
+      if (name !== hold.name) body.name = name;
+      if (JSON.stringify(days) !== JSON.stringify(hold.days)) body.days = days;
+      if (open !== hold.open_time) body.open_time = open;
+      if (close !== hold.close_time) body.close_time = close;
+      if (Object.keys(body).length === 2) { onDone(); return; }
+    }
+    if (await send(body)) onDone();
+  };
+  return <form onSubmit={submit} className={`${GLASS_TILE} mb-3 grid gap-3 p-3 md:grid-cols-2`} aria-label={hold ? `Edit ${hold.name}` : "Add hold window"}>
+    <label className="grid gap-1 text-xs"><span className={MUTED}>Name</span><input style={FIELD_STYLE} className={INPUT} value={name} maxLength={60} onChange={(e) => setName(e.target.value)} required /></label>
+    <div className="grid gap-1 text-xs"><span className={MUTED}>Days</span><DayPicker value={days} onChange={setDays} /></div>
+    <label className="grid gap-1 text-xs"><span className={MUTED}>Hold open from</span><input style={FIELD_STYLE} className={INPUT} type="time" value={open} onChange={(e) => setOpen(e.target.value)} required /></label>
+    <label className="grid gap-1 text-xs"><span className={MUTED}>Release at (earlier than start = next day)</span><input style={FIELD_STYLE} className={INPUT} type="time" value={close} onChange={(e) => setClose(e.target.value)} required /></label>
+    <div className="flex gap-2 md:col-span-2"><button type="submit" className={glassButton("orange")} disabled={busy || !days.length}>{hold ? "Save changes" : "Add window"}</button><button type="button" className={glassButton()} onClick={onDone}>Cancel</button></div>
   </form>;
 }
