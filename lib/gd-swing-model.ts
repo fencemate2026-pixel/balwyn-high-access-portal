@@ -22,6 +22,11 @@ export const GD_SITES = {
   [SLIDING_DEVICE_ID]: { name: SLIDING_SITE_NAME, secretEnv: "GD_THOMASTOWN_SLIDING_SECRET" },
 } as const;
 export type GdSiteId = keyof typeof GD_SITES;
+/** The number callers ring to open each gate (the gate SIM's own number). Shown to the owner only. Display-only: never used for access. */
+const GD_DIAL_IN: Partial<Record<GdSiteId, string>> = {
+  [SWING_DEVICE_ID]: "0475184833",   // Telstra SIM in the swing gate Pi (Jarrod, 6 Nov 2026). The sliding gate's number has not been given.
+};
+export const gdDialIn = (site: GdSiteId): string | null => GD_DIAL_IN[site] ?? null;
 export const isGdSiteId = (v: unknown): v is GdSiteId => typeof v === "string" && Object.prototype.hasOwnProperty.call(GD_SITES, v);
 export const SWING_KINDS = ["user.add", "user.update", "user.delete", "user.enable"] as const;
 export type SwingKind = typeof SWING_KINDS[number];

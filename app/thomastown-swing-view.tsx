@@ -11,7 +11,7 @@ import { ConfirmDialog, DayPicker, FIELD_STYLE, INPUT, type ConfirmSpec } from "
 import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
 import { MUTED, Pill, Section, TD, TH, Td, downloadCsv, stampDay } from "./site-section-ui";
 import { toCsv } from "@/lib/owner-csv";
-import { GD_SITES, SWING_DEVICE_ID, callResult, displayPhone, type GdSiteId } from "@/lib/gd-swing-model";
+import { GD_SITES, SWING_DEVICE_ID, callResult, displayPhone, gdDialIn, type GdSiteId } from "@/lib/gd-swing-model";
 
 type SUser = { local_id: number; name: string; phone: string; enabled: boolean; schedule_type: string | null; schedule_data: string | null; created_at_local: string | null };
 type SAccess = { local_id: number; occurred_at_local: string | null; user_name: string | null; method: string | null; success: boolean | null };
@@ -82,10 +82,10 @@ export default function ThomastownSwingView({ fixture, device = SWING_DEVICE_ID 
   }, [device, load]);
 
   if (!data) return error ? <div className={`${GLASS_PANEL} p-4 text-sm`}><Pill tone="bad">{error}</Pill></div> : <div className="flex items-center gap-2"><LoaderCircle className="animate-spin" /> Loading Thomastown…</div>;
-  return <><Body data={data} busy={busy} send={send} siteName={GD_SITES[device].name} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
+  return <><Body data={data} busy={busy} send={send} siteName={GD_SITES[device].name} dialIn={gdDialIn(device)} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
 }
 
-function Body({ data, busy, send, siteName }: { data: SwingDetail; busy: boolean; send: Send; siteName: string }) {
+function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy: boolean; send: Send; siteName: string; dialIn: string | null }) {
   const now = Date.parse(data.serverTime) || Date.now();
   const seen = data.device?.last_seen ?? null;
   const [tab, setTab] = useState<"calls" | "changes">("calls");
@@ -113,6 +113,7 @@ function Body({ data, busy, send, siteName }: { data: SwingDetail; busy: boolean
         <div className="flex flex-wrap gap-2">
           <Pill tone={data.online ? "ok" : "bad"}>{data.online ? "Online" : "Offline"} · last seen {ago(seen, now)}</Pill>
           <Pill tone="mute">{data.users.length} callers · {data.users.filter((u) => u.enabled).length} enabled</Pill>
+          {dialIn && <Pill tone="ok"><Phone className="mr-1 inline size-3" aria-hidden="true" />Dial-in number {displayPhone(dialIn)}</Pill>}
           {data.device?.fw_version && <Pill tone="mute">sync {data.device.fw_version}</Pill>}
         </div>
         {!data.online && <p role="status" className="mt-3 text-sm text-[#fbbf24]">The Thomastown Pi is not reporting. Changes stay queued until it reconnects and expire after 15 minutes. Check that each change shows Applied.</p>}
