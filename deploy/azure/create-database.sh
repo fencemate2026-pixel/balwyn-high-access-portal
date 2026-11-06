@@ -65,9 +65,12 @@ say "2/7 Firewall: only the portal's outbound addresses, plus this shell for the
 az postgres flexible-server update -g "$RG" -n "$SERVER" --public-access Enabled >/dev/null
 IPS="$(az webapp show -g "$RG" -n "$APP" --query possibleOutboundIpAddresses -o tsv | tr ',' '\n' | sort -u)"
 [ -n "$IPS" ] || die "Could not read the app's outbound IP addresses."
+EXISTING_RULES="$(az postgres flexible-server firewall-rule list -g "$RG" -s "$SERVER" --query '[].startIpAddress' -o tsv 2>/dev/null \
+  || az postgres flexible-server firewall-rule list -g "$RG" -n "$SERVER" --query '[].startIpAddress' -o tsv 2>/dev/null || true)"
 i=0
 for ip in $IPS; do
   i=$((i+1))
+  if printf '%s\n' "$EXISTING_RULES" | grep -qx "$ip"; then continue; fi
   az postgres flexible-server firewall-rule create -g "$RG" -s "$SERVER" --name "portal-out-$i" \
     --start-ip-address "$ip" --end-ip-address "$ip" >/dev/null
 done
@@ -77,6 +80,7 @@ az postgres flexible-server firewall-rule create -g "$RG" -s "$SERVER" --name cl
   --start-ip-address "$MY_IP" --end-ip-address "$MY_IP" >/dev/null
 
 say "3/7 Database and schema"
+az postgres flexible-server parameter set -g "$RG" -s "$SERVER" --name azure.extensions --value PGCRYPTO >/dev/null
 PSQL_MAINT="host=$HOST port=5432 dbname=postgres user=$ADMIN_USER password=$ADMIN_PASS sslmode=require"
 for n in 1 2 3 4 5 6; do psql "$PSQL_MAINT" -qAtc 'select 1' >/dev/null 2>&1 && break; echo "waiting for the server..."; sleep 10; done
 if [ "$(psql "$PSQL_MAINT" -qAtc "select count(*) from pg_database where datname='$DB_NAME'")" = "0" ]; then
@@ -87,7 +91,10 @@ psql "$PSQL_TARGET" -qAtc 'select 1' >/dev/null || die "Cannot connect to the ne
 if [ "$(psql "$PSQL_TARGET" -qAtc "select to_regclass('balwyn_portal.portal_accounts') is not null")" = "t" ]; then
   echo "Schema already loaded, skipping."
 else
-  psql "$PSQL_TARGET" -v ON_ERROR_STOP=1 -q -f "$SCHEMA_FILE"
+  # A failed earlier attempt may have left a partial schema. This database is new and
+  # holds no data yet, so clear it and load again, all in one transaction.
+  psql "$PSQL_TARGET" -v ON_ERROR_STOP=1 -qc "DROP SCHEMA IF EXISTS balwyn_portal CASCADE;"
+  psql "$PSQL_TARGET" -v ON_ERROR_STOP=1 -q -1 -f "$SCHEMA_FILE"
   psql "$PSQL_TARGET" -v ON_ERROR_STOP=1 -qc "GRANT balwyn_app TO $ADMIN_USER;"
   echo "Schema loaded."
 fi
