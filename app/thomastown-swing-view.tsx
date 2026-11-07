@@ -11,7 +11,7 @@ import { ConfirmDialog, DayPicker, FIELD_STYLE, INPUT, type ConfirmSpec } from "
 import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
 import { MUTED, Pill, Section, TD, TH, Td, downloadCsv, stampDay } from "./site-section-ui";
 import { toCsv } from "@/lib/owner-csv";
-import { GD_SITES, SWING_DEVICE_ID, callResult, displayPhone, gdDialIn, type GdSiteId } from "@/lib/gd-swing-model";
+import { GD_SITES, SWING_DEVICE_ID, callResult, displayPhone, gdDialIn, simInfo, type GdSiteId } from "@/lib/gd-swing-model";
 
 type SUser = { local_id: number; name: string; phone: string; enabled: boolean; schedule_type: string | null; schedule_data: string | null; created_at_local: string | null };
 type SHold = { local_id: number; name: string; days: number[]; open_time: string; close_time: string; enabled: boolean };
@@ -103,6 +103,8 @@ function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy:
   const nameFor = (a: SAccess) => looksLikeNumber(a.user_name) ? "Not on the list" : a.user_name ?? "Unknown";
   const numFor = (a: SAccess) => looksLikeNumber(a.user_name) ? displayPhone(a.user_name!.replace(/^\+61/, "0").replace(/\s/g, "")) : "On the list";
   const lock = busy ? "Working…" : undefined;
+  const sim = simInfo(data.device?.last_status);
+  const simCmd = useMemo(() => data.commands.find((c) => c.kind === "sim.number"), [data.commands]);
 
   return (
     <div className="mildura-view">
@@ -114,9 +116,14 @@ function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy:
         <div className="flex flex-wrap gap-2">
           <Pill tone={data.online ? "ok" : "bad"}>{data.online ? "Online" : "Offline"} · last seen {ago(seen, now)}</Pill>
           <Pill tone="mute">{data.users.length} callers · {data.users.filter((u) => u.enabled).length} enabled</Pill>
-          {dialIn && <Pill tone="ok"><Phone className="mr-1 inline size-3" aria-hidden="true" />Dial-in number {displayPhone(dialIn)}</Pill>}
+          {sim.state === "ok" && <Pill tone="ok"><Phone className="mr-1 inline size-3" aria-hidden="true" />Dial-in number {displayPhone(sim.number)}</Pill>}
+          {sim.state === "unsupported" && dialIn && <Pill tone="ok"><Phone className="mr-1 inline size-3" aria-hidden="true" />Dial-in number {displayPhone(dialIn)}</Pill>}
+          {sim.state === "nosim" && <Pill tone="bad">No SIM detected in the unit</Pill>}
+          {sim.state === "unread" && <Pill tone="mute">Reading the SIM…</Pill>}
           {data.device?.fw_version && <Pill tone="mute">sync {data.device.fw_version}</Pill>}
         </div>
+        {sim.state === "needs_number" && <SimNumberForm iccid={sim.iccid} busy={busy} send={send} cmd={simCmd} />}
+        {sim.state === "ok" && <SimNumberForm iccid={sim.iccid} busy={busy} send={send} cmd={simCmd} current={sim.number} source={sim.source} />}
         {!data.online && <p role="status" className="mt-3 text-sm text-[#fbbf24]">The Thomastown Pi is not reporting. Changes stay queued until it reconnects and expire after 15 minutes. Check that each change shows Applied.</p>}
         {!seen && <p className={`mt-3 text-sm ${MUTED}`}>Waiting for the first sync from the Thomastown Pi. Nothing has been received yet.</p>}
       </section>
@@ -206,6 +213,22 @@ function CallerForm({ user, busy, send, onDone }: { user?: SUser; busy: boolean;
       <div className="grid grid-cols-2 gap-2"><input style={FIELD_STYLE} className={INPUT} type="time" aria-label="Start" value={start} onChange={(e) => setStart(e.target.value)} />
         <input style={FIELD_STYLE} className={INPUT} type="time" aria-label="End" value={end} onChange={(e) => setEnd(e.target.value)} /></div></div>}
     <div className="flex gap-2 md:col-span-2"><button type="submit" className={glassButton("orange")} disabled={busy}>{user ? "Save changes" : "Add caller"}</button><button type="button" className={glassButton()} onClick={onDone}>Cancel</button></div>
+  </form>;
+}
+
+/** The unit read its SIM but the SIM stores no number (common on prepaid): the owner types it once. Display only; never affects who can open the gate. */
+function SimNumberForm({ iccid, busy, send, cmd, current, source }: { iccid: string; busy: boolean; send: Send; cmd: SCommand | undefined; current?: string; source?: "sim" | "owner" }) {
+  const [editing, setEditing] = useState(false);
+  const [num, setNum] = useState("");
+  if (current && !editing) return <p className={`mt-3 text-xs ${MUTED}`}>Read from {source === "owner" ? "the number you entered for this SIM" : "the SIM"}. <button type="button" className="underline" onClick={() => setEditing(true)}>Wrong number?</button> <CmdPill c={cmd} /></p>;
+  const submit = async (e: FormEvent) => { e.preventDefault(); if (await send({ kind: "sim.number", iccid, number: num })) { setEditing(false); setNum(""); } };
+  return <form onSubmit={submit} className={`${GLASS_TILE} mt-3 flex flex-wrap items-end gap-2 p-3`} aria-label="Gate SIM number">
+    <label className="grid gap-1 text-xs"><span className={MUTED}>{current ? "Correct dial-in number" : "This SIM does not store its own number. Enter the number callers ring, once."}</span>
+      <input style={FIELD_STYLE} className={INPUT} inputMode="tel" autoComplete="off" placeholder="04xx xxx xxx" value={num} onChange={(e) => setNum(e.target.value)} required /></label>
+    <button type="submit" className={glassButton("orange")} disabled={busy}>Save number</button>
+    {current && <button type="button" className={glassButton()} onClick={() => setEditing(false)}>Cancel</button>}
+    <CmdPill c={cmd} />
+    <p className={`w-full text-xs ${MUTED}`}>Shown on this page only. It is remembered for this SIM; a different SIM will ask again.</p>
   </form>;
 }
 

@@ -17,6 +17,12 @@ export async function holdsReady(c: GdClient): Promise<boolean> {
   return r.rows[0]?.ok === true;
 }
 
+/** True once deploy/azure/gd/005_sim_number.sql has been applied (the command-kind CHECK allows sim.number). */
+export async function simReady(c: GdClient): Promise<boolean> {
+  const r = await c.query("SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conname = 'commands_kind_check' AND conrelid = 'gd.commands'::regclass");
+  return String(r.rows[0]?.d ?? "").includes("sim.number");
+}
+
 /** Single-use nonce. Returns false when it was seen before (a replay). Old nonces are cleared first. */
 export async function useNonce(c: GdClient, device: string, nonce: string): Promise<boolean> {
   await c.query("DELETE FROM gd.device_nonces WHERE seen_at < now() - interval '10 minutes'");
@@ -105,6 +111,7 @@ export async function listCommands(c: GdClient, device = SWING_DEVICE_ID) {
 /** Queue a command. The same click twice returns the first command instead of queueing again. */
 export async function enqueueCommand(c: GdClient, input: SwingCommandInput, actorEmail: string, device = SWING_DEVICE_ID) {
   if (input.kind.startsWith("hold.") && !(await holdsReady(c))) throw new OwnerSiteInputError("Hold windows are not set up on the server yet.");
+  if (input.kind === "sim.number" && !(await simReady(c))) throw new OwnerSiteInputError("Saving the SIM number is not set up on the server yet.");
   const seen = await c.query(`SELECT ${COMMAND_COLUMNS} FROM gd.commands WHERE device_id=$1 AND client_key=$2`, [device, input.clientKey]);
   if (seen.rowCount) return { command: seen.rows[0], duplicate: true };
   const made = await c.query(
