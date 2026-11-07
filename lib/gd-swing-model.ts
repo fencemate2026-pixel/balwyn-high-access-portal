@@ -28,7 +28,7 @@ const GD_DIAL_IN: Partial<Record<GdSiteId, string>> = {
 };
 export const gdDialIn = (site: GdSiteId): string | null => GD_DIAL_IN[site] ?? null;
 export const isGdSiteId = (v: unknown): v is GdSiteId => typeof v === "string" && Object.prototype.hasOwnProperty.call(GD_SITES, v);
-export const SWING_KINDS = ["user.add", "user.update", "user.delete", "user.enable", "hold.add", "hold.update", "hold.delete", "hold.enable"] as const;
+export const SWING_KINDS = ["user.add", "user.update", "user.delete", "user.enable", "hold.add", "hold.update", "hold.delete", "hold.enable", "sim.number"] as const;
 export type SwingKind = typeof SWING_KINDS[number];
 /** A command the Pi has not collected within this time is dropped, never applied late. */
 export const COMMAND_TTL_MINUTES = 15;
@@ -86,6 +86,27 @@ function holdFields(body: Record<string, unknown>, all: boolean) {
   return out;
 }
 
+/** ICCID: the SIM's own serial, 18-22 digits. The Pi refuses the number if this is not the SIM it has fitted. */
+const ICCID = /^\d{18,22}$/;
+
+export type SimInfo =
+  | { state: "unsupported" }                         // Pi software older than SIM reporting: caller falls back to the legacy number
+  | { state: "unread" }                              // Pi supports it but the modem has not answered yet
+  | { state: "nosim" }                               // modem answered: no readable SIM
+  | { state: "needs_number"; iccid: string }         // SIM fitted, no number on it, owner has not typed one
+  | { state: "ok"; iccid: string; number: string; source: "sim" | "owner" };
+
+/** What the Pi's last heartbeat says about the fitted SIM. Display only: never used for access. */
+export function simInfo(status: Record<string, unknown> | null | undefined): SimInfo {
+  if (!status || typeof status.sim_read !== "boolean") return { state: "unsupported" };
+  if (!status.sim_read) return { state: "unread" };
+  const iccid = typeof status.sim_iccid === "string" && ICCID.test(status.sim_iccid) ? status.sim_iccid : "";
+  if (!iccid) return { state: "nosim" };
+  const number = typeof status.sim_number === "string" && /^0[2-9]\d{8}$/.test(status.sim_number) ? status.sim_number : "";
+  if (!number) return { state: "needs_number", iccid };
+  return { state: "ok", iccid, number, source: status.sim_number_source === "owner" ? "owner" : "sim" };
+}
+
 export type SwingCommandInput = { kind: SwingKind; args: Record<string, unknown>; clientKey: string; summary: string };
 
 /** Validate an owner's browser request into a queueable command. */
@@ -124,6 +145,11 @@ export function swingCommandInput(body: Record<string, unknown>): SwingCommandIn
     }
     case "hold.delete": args = { local_id: localId(body.local_id) }; summary = `Delete hold window #${args.local_id}`; break;
     case "hold.enable": args = { local_id: localId(body.local_id), enabled: flag(body.enabled) }; summary = `${args.enabled ? "Enable" : "Disable"} hold window #${args.local_id}`; break;
+    case "sim.number": {
+      const iccid = typeof body.iccid === "string" && ICCID.test(body.iccid) ? body.iccid : bad("The SIM was not read. Reload the page.");
+      args = { iccid, number: phoneLocal(body.number) };
+      summary = `Set the gate's dial-in number to ${displayPhone(String(args.number))}`; break;
+    }
   }
   return { kind: k, args, clientKey, summary };
 }

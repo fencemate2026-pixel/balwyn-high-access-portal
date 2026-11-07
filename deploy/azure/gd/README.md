@@ -58,3 +58,10 @@ Adds `gd.hold_windows` and widens the allowed command kinds (hold.add/update/del
 2. Deploy the portal branch. Until step 1 is done the page still loads and a hold change is refused with a plain message.
 3. Only then update the Pi package and set `HOLD_PIN` on that Pi (separate approval; Thomastown repo, branch `claude/thomastown-hold-windows`). A Pi without `HOLD_PIN` never holds anything.
 Rollback: `004_hold_windows_rollback.sql`.
+
+## Gate SIM number (added 8 Nov 2026, STAGED, NOT APPLIED)
+The Pi reads whichever SIM is fitted (ICCID, and the number on it if any); if the SIM stores no number the owner types it once on the Thomastown page and the Pi remembers it per SIM. Display only.
+1. Apply `005_sim_number.sql` as the database admin (after 001 and 004): widens the command kinds to include `sim.number`. Until then the page loads and saving a number is refused with a plain message.
+2. Deploy the portal. A Pi that has not been updated keeps showing the legacy number for the swing gate.
+3. Update the Pi package (separate approval; restarts `thomgate`, which briefly drops caller detection).
+Rollback: `005_sim_number_rollback.sql`.
