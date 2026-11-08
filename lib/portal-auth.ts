@@ -574,6 +574,23 @@ export async function requireOperator(request: Request, minimum: "viewer" | "ope
   return { user, response: null };
 }
 
+/**
+ * Owner-only gate (8 Nov 2026, Jarrod: two portals). The CLIENT portal is everything a school
+ * login sees: gates, schedules, stadium hire, activity, its own profile. The OWNER portal adds
+ * system settings, automation, staff accounts, controller commissioning and the other RJL sites.
+ * "Owner" is decided only by withOwnerAccess (lib/owner-access.ts): a verified administrator
+ * session whose login email equals PORTAL_OWNER_EMAIL, never by a client-supplied flag.
+ * Status 403 with code "owner_required"; routes that must hide their existence (owner sites) use 404 themselves.
+ */
+export async function requireOwner(request: Request) {
+  const auth = await requireOperator(request, "administrator");
+  if (!auth.user) return auth;
+  if (auth.user.isOwner !== true) {
+    return { user: null, response: Response.json({ error: "This is available to the RJL portal owner only.", code: "owner_required" }, { status: 403, headers: { "Cache-Control": "no-store" } }) };
+  }
+  return { user: auth.user, response: null };
+}
+
 export async function requestFingerprint(request: Request): Promise<string> {
   const address = clientAddress(request);
   const agent = request.headers.get("user-agent") ?? "unknown";
@@ -630,7 +647,8 @@ export function clearAdminSettingsCookie(): string {
 export async function createAdminSettingsCookie(request: Request) {
   const user = await getSessionUser(request);
   const session = readUniqueCookie(request, COOKIE_NAME);
-  if (user?.role !== "administrator" || !session) throw new Error("Administrator sign-in required.");
+  // Settings unlock is the owner portal's key (8 Nov 2026): a client login, even an administrator, never gets one.
+  if (user?.role !== "administrator" || user.isOwner !== true || !session) throw new Error("Owner sign-in required.");
   const expiresAt = Date.now() + ADMIN_LIFETIME_MS;
   const payload = base64Url(encoder.encode(JSON.stringify({
     session: await hmac(session, sessionSecret()), expiresAt,
@@ -641,7 +659,9 @@ export async function createAdminSettingsCookie(request: Request) {
 
 export async function getAdminSettingsAccess(request: Request): Promise<{ expiresAt: number } | null> {
   const user = await getSessionUser(request);
-  if (user?.role !== "administrator") return null;
+  // Owner only (8 Nov 2026). Everything behind the settings unlock (system settings, automation,
+  // staff accounts, controller credentials, equipment mapping, other users' profiles) is the owner portal.
+  if (user?.role !== "administrator" || user.isOwner !== true) return null;
   const token = readUniqueCookie(request, ADMIN_COOKIE_NAME);
   const session = readUniqueCookie(request, COOKIE_NAME);
   if (!token || !session) return null;

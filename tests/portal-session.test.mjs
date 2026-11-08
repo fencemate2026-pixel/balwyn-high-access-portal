@@ -87,20 +87,21 @@ test("advanced features require an explicit hosted plan and lock again after dow
   assert.equal(planAllowsModule("video"), false);
 });
 
-test("an administrator cannot bypass the plan lock through the settings API", async () => {
+test("a client administrator cannot unlock settings, reach the settings API or enable a locked module (8 Nov 2026)", async () => {
   env.PORTAL_USERNAME = "test-admin";
   env.PORTAL_PASSWORD_HASH = "test-only-hash";
   env.PORTAL_PASSWORD_SALT = "test-only-salt";
   const baseCookie = await sessionCookie();
-  const adminCookie = (await createAdminSettingsCookie(request(baseCookie))).cookie.split(";")[0];
+  // No PORTAL_OWNER_EMAIL is set, so this administrator is a client login: the settings unlock is never issued.
+  await assert.rejects(createAdminSettingsCookie(request(baseCookie)), /Owner sign-in required/);
   const req = new Request(`${origin}/api/portal`, {
     method: "POST",
-    headers: { Cookie: `${baseCookie}; ${adminCookie}`, Origin: origin, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" },
+    headers: { Cookie: baseCookie, Origin: origin, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" },
     body: JSON.stringify({ action: "update_settings", plan: "advanced", patch: { enabledModules: ["mobile", "video"], advancedFeatures: true } }),
   });
   const response = await portalPost(req);
-  assert.equal(response.status, 402);
-  assert.equal((await response.json()).code, "plan_upgrade_required");
+  assert.equal(response.status, 403);
+  assert.equal((await response.json()).code, "owner_required");
   assert.equal(getPortalPlan().advancedFeatures, false);
 });
 

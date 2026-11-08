@@ -1,12 +1,12 @@
 import { getSql } from "@/db";
 import { clientAddress } from "@/lib/client-address";
-import { clearAdminSettingsCookie, createAdminSettingsCookie, getAdminSettingsAccess, requireOperator, signInRateKey, verifyAdministratorPassword } from "@/lib/portal-auth";
+import { clearAdminSettingsCookie, createAdminSettingsCookie, getAdminSettingsAccess, requireOwner, signInRateKey, verifyAdministratorPassword } from "@/lib/portal-auth";
 import { isSameOriginSignInRequest } from "@/lib/google-signin";
 import { readSignInBody } from "@/lib/signin-request";
 import { reserveSignInAttempt, SignInRateLimitError } from "@/lib/signin-rate-limit";
 
 export async function GET(request: Request) {
-  const auth = await requireOperator(request, "administrator");
+  const auth = await requireOwner(request);
   if (!auth.user) return auth.response;
   const access = await getAdminSettingsAccess(request);
   return Response.json({ unlocked: Boolean(access), expiresAt: access?.expiresAt ?? null }, { headers: { "Cache-Control": "no-store" } });
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const headers = new Headers({ "Cache-Control": "no-store" });
   if (!isSameOriginSignInRequest(request)) return Response.json({ error: "Request rejected." }, { status: 403, headers });
-  const auth = await requireOperator(request, "administrator");
+  const auth = await requireOwner(request);
   if (!auth.user) return auth.response;
   let body: Record<string, unknown>;
   try { body = await readSignInBody(request); }

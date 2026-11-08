@@ -26,7 +26,7 @@ const password = "A-test-password-934!";
 const hash = await passwordHash(password, "test-password-salt");
 beforeEach(() => {
   for (const key of Object.keys(env)) delete env[key];
-  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: user.email,
+  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: user.email, PORTAL_OWNER_EMAIL: user.email,
     PORTAL_USERNAME: user.displayName, PORTAL_OPERATOR_EMAIL: user.email, PORTAL_PASSWORD_SALT: "test-password-salt", PORTAL_PASSWORD_HASH: hash });
 });
 function request(path, body, cookie = "", overrides = {}) {

@@ -140,6 +140,11 @@ import {
 
 type ViewKey = "dashboard" | "hire" | "gates" | "cctv" | "guidance" | "schedule" | "automation" | "safety" | "access" | "activity" | "settings" | "sites";
 
+// Two portals from one server-verified flag (8 Nov 2026, Jarrod). A CLIENT login (the school, any role) gets the
+// everyday portal. Only the OWNER login (administrator whose verified email is PORTAL_OWNER_EMAIL) also gets these.
+// Presentation only: every matching API route re-checks ownership on the server (lib/portal-auth.ts requireOwner).
+const OWNER_ONLY_VIEWS: ReadonlySet<ViewKey> = new Set<ViewKey>(["settings", "automation", "sites"]);
+
 type DashboardClientProps = {
   user: PortalUser;
   initialData: PortalSnapshot;
@@ -298,7 +303,9 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const isAdministrator = user.role === "administrator";
   const isOwner = isAdministrator && user.isOwner === true;
   const roleLabel = isAdministrator ? "System administrator" : canOperate ? "Authorised operator" : "View-only operator";
-  const [activeView, setActiveView] = useState<ViewKey>("dashboard");
+  const [activeView, setActiveViewRaw] = useState<ViewKey>("dashboard");
+  // A client login can never land on an owner-only view, whichever button or shortcut asks for it.
+  const setActiveView = (view: ViewKey) => setActiveViewRaw(!isOwner && OWNER_ONLY_VIEWS.has(view) ? "dashboard" : view);
   // Owner only: which portal the sidebar list has selected (null = this portal's own dashboard).
   const [ownerChoice, setOwnerChoice] = useState<OwnerPortalChoice | null>(null);
   const [currentTime, setCurrentTime] = useState(() => Date.parse(initialData.serverTime));
@@ -307,7 +314,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const displayName = userProfile?.displayName || user.displayName;
   const profileImage = userProfile?.avatarUrl || undefined;
   const [adminUnlockOpen, setAdminUnlockOpen] = useState(false);
-  const adminUnlocked = isAdministrator && adminAccessUntil > currentTime;
+  const adminUnlocked = isOwner && adminAccessUntil > currentTime;
   const configurationView = ["settings", "automation"].includes(activeView);
   // CCTV and Emergency guidance: the real modules open only when the package is included and an administrator
   // has unlocked settings (System settings, 10 minutes). Otherwise everyone sees the locked-package showcase.
@@ -362,13 +369,13 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
   const mutationsInFlightRef = useRef(0);
 
   useEffect(() => {
-    if (!isAdministrator) return;
+    if (!isOwner) return; // the settings unlock belongs to the owner portal; a client login never asks for it
     let active = true;
     void fetch("/api/auth/admin", { cache: "no-store" }).then(async (response) => response.ok ? response.json() : null).then((body) => {
       if (active && body?.unlocked && typeof body.expiresAt === "number") setAdminAccessUntil(body.expiresAt);
     }).catch(() => undefined);
     return () => { active = false; };
-  }, [isAdministrator]);
+  }, [isOwner]);
 
   useEffect(() => {
     if (!adminAccessUntil) return;
@@ -435,7 +442,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
   async function postPortal(payload: Record<string, unknown>, label: string) {
     if (PROTECTED_SETTINGS_ACTIONS.has(String(payload.action)) && !adminUnlocked) {
-      if (isAdministrator) setAdminUnlockOpen(true);
+      if (isOwner) setAdminUnlockOpen(true);
       throw new Error("Enter an administrator password, then submit the change again.");
     }
     setBusyAction(label);
@@ -452,7 +459,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         await onSignOut?.();
         throw new Error("Your secure session expired. Sign in again.");
       }
-      if (result.code === "admin_password_required") { setAdminAccessUntil(0); setControllerCredential(null); if (isAdministrator) setAdminUnlockOpen(true); }
+      if (result.code === "admin_password_required") { setAdminAccessUntil(0); setControllerCredential(null); if (isOwner) setAdminUnlockOpen(true); }
       if (!response.ok || !result.snapshot) throw new Error(result.error || "The operation could not be completed.");
       mutationEpochRef.current += 1;
       applySnapshot(result.snapshot);
@@ -841,12 +848,16 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
     setControllerCredential(null);
   }
 
+  function viewInfo(view: ViewKey) {
+    return !isOwner && view === "access" ? { label: "My account", description: "Your Magic Keys sign-in identity, permissions and profile" } : viewMeta[view];
+  }
+
   function navItem(view: ViewKey, Icon: typeof LayoutDashboard, badge?: string) {
     const locked = (view === "cctv" || view === "guidance") && (!adminUnlocked || !advancedFeaturesEnabled);
     return (
       <SidebarMenuItem key={view}>
-        <SidebarMenuButton className="portal-nav-button" isActive={activeView === view} tooltip={viewMeta[view].label} onClick={() => setActiveView(view)}>
-          <Icon /><span>{viewMeta[view].label}</span>
+        <SidebarMenuButton className="portal-nav-button" isActive={activeView === view} tooltip={viewInfo(view).label} onClick={() => setActiveView(view)}>
+          <Icon /><span>{viewInfo(view).label}</span>
         </SidebarMenuButton>
         {locked ? <SidebarMenuBadge><LockKeyhole className="plan-nav-lock" aria-hidden="true" /><span className="sr-only">{advancedFeaturesEnabled ? "Unlock administrator settings to open" : "Package not included. Contact the team to unlock"}</span></SidebarMenuBadge> : badge && <SidebarMenuBadge>{badge}</SidebarMenuBadge>}
       </SidebarMenuItem>
@@ -923,8 +934,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
         <SidebarHeader className="portal-sidebar-header"><div className="magic-sidebar-brand"><BrandLogo tone="dark" /></div></SidebarHeader>
         <SidebarSeparator />
         <SidebarContent>
-          <SidebarGroup><SidebarGroupLabel>Operations</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("dashboard", LayoutDashboard)}{navItem("schedule", CalendarClock)}{navItem("hire", CalendarDays)}{navItem("cctv", Camera)}{navItem("guidance", MapPin)}{navItem("automation", Workflow, String(automations.filter((rule) => rule.enabled).length))}{navItem("safety", ShieldCheck)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
-          <SidebarGroup><SidebarGroupLabel>Administration</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("access", Users)}{navItem("activity", ClipboardList, activity.length ? String(activity.length) : undefined)}{navItem("settings", Settings2)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
+          <SidebarGroup><SidebarGroupLabel>Operations</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("dashboard", LayoutDashboard)}{navItem("schedule", CalendarClock)}{navItem("hire", CalendarDays)}{navItem("cctv", Camera)}{navItem("guidance", MapPin)}{isOwner && navItem("automation", Workflow, String(automations.filter((rule) => rule.enabled).length))}{navItem("safety", ShieldCheck)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
+          <SidebarGroup><SidebarGroupLabel>Administration</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{navItem("access", Users)}{navItem("activity", ClipboardList, activity.length ? String(activity.length) : undefined)}{isOwner && navItem("settings", Settings2)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
           {/* Owner only (server-verified PORTAL_OWNER_EMAIL); /api/owner/sites re-checks it on every request. */}
           {isOwner && <SidebarGroup><SidebarGroupLabel>RJL portals</SidebarGroupLabel><SidebarGroupContent>
             <OwnerPortalsNav choice={activeView === "sites" ? ownerChoice : null} onChoose={(next) => {
@@ -954,7 +965,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
 
 
         <div className="workspace-content" data-view={activeView}>
-          {activeView !== "dashboard" && <div className="workspace-title-row"><div><h1>{viewMeta[activeView].label}</h1><span>{viewMeta[activeView].description}</span><div className="workspace-context" aria-label="Portal context"><span>Portal sync · {portalTimeLabel(serverTime)}</span><span>Timezone · Australia/Melbourne</span><span>Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</span></div></div><div className="workspace-title-meta"><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>}
+          {activeView !== "dashboard" && <div className="workspace-title-row"><div><h1>{viewInfo(activeView).label}</h1><span>{viewInfo(activeView).description}</span><div className="workspace-context" aria-label="Portal context"><span>Portal sync · {portalTimeLabel(serverTime)}</span><span>Timezone · Australia/Melbourne</span><span>Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</span></div></div><div className="workspace-title-meta"><Badge variant="outline" className="concept-badge"><ShieldCheck /> {operationalReady ? "All controllers ready" : "Commissioning / attention required"}</Badge></div></div>}
           {activeView === "dashboard" && (
             <div className="desk-service-row is-dashboard-utility">
               <button type="button" onClick={() => { setActiveView("activity"); toast.message("Fault report", { description: "Use the activity log to record the gate, time and fault. Controllers stay amber until a verified heartbeat exists." }); }}>Report a fault</button>
@@ -966,7 +977,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             <>
               <div className="sr-only" aria-label="Portal context">Portal sync · {portalTimeLabel(serverTime)} · Timezone · Australia/Melbourne · Heartbeat coverage · {onlineCount}/{activeGates.length} active controllers</div>
               <GateConditionPanel gates={activeGates} runtime={gateRuntime} temperatureC={Object.fromEntries(activeGates.map((gate) => [gate.id, runtimeFor(gate)?.cpuTempC ?? undefined]))} getPosition={getPosition} monitoring={positionMonitoring} systemMode={systemMode} now={currentTime} canOperate={canOperate} busy={Boolean(busyAction)} service={gateService} onSelect={setSelectedGate} onCommand={(gate, position) => setPendingGateCommand({ gate, position })} />
-              <GateServiceSummary gates={activeGates} service={gateService} isAdministrator={isAdministrator} busy={Boolean(busyAction)} onRecord={async (gateId, servicedOn) => { await postPortal({ action: "record_service", gateId, servicedOn }, `service-${gateId}`); toast.success("Service recorded", { description: "The gate’s cycle count is reset and its next service date is set." }); }} />
+              <GateServiceSummary gates={activeGates} service={gateService} isAdministrator={isOwner} busy={Boolean(busyAction)} onRecord={async (gateId, servicedOn) => { await postPortal({ action: "record_service", gateId, servicedOn }, `service-${gateId}`); toast.success("Service recorded", { description: "The gate’s cycle count is reset and its next service date is set." }); }} />
               <section className="compact-controller-health" aria-label="Controller verification">
                 <OperationsGauge title="Controller connection" count={respondingGates.length} total={activeGates.length} caption="Recent heartbeat" />
                 <OperationsGauge title="Gate commissioning" count={commissionedCount} total={activeGates.length} caption="Commissioned" />
@@ -1170,11 +1181,11 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
           )}
 
           {activeView === "access" && <>
-            <UserProfileEditor ownProfile={userProfile} adminUnlocked={adminUnlocked} isAdministrator={isAdministrator} onUnlock={() => setAdminUnlockOpen(true)} onSaved={profileSaved} />
-            {isAdministrator && <PortalAccountsManager adminUnlocked={adminUnlocked} onRequireUnlock={() => setAdminUnlockOpen(true)} />}
-            <section className="identity-layout"><article className="identity-card"><div className="identity-card-head"><span><KeyRound /></span><div><h2>Signed-in operator</h2><small>Magic Keys server-verified identity</small></div></div><div className="identity-profile"><Avatar size="lg"><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><div><strong>{displayName}</strong><span>{user.email}</span></div><Badge><ShieldCheck /> Authenticated</Badge></div><div className="identity-rows"><div><span>Access role</span><strong>{isAdministrator ? "System administrator" : canOperate ? "Authorised operator" : "View-only operator"}</strong></div><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Session</span><strong>Signed, HTTP-only, 8-hour maximum</strong></div><div><span>Audit</span><strong>Commands and changes retained centrally</strong></div></div></article><article className="permissions-card"><div className="panel-heading"><div><h2>Operator permissions</h2><small>Current role</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> View physical gate feedback</span>{canOperate && <span><CheckCircle2 /> Queue authorised relay commands</span>}{isAdministrator && <span><CheckCircle2 /> Change gate schedules and automation after password verification</span>}{isAdministrator && <span><CheckCircle2 /> Issue emergency gate responses</span>}{isAdministrator && <span><CheckCircle2 /> Configure controllers and system policy</span>}<span><CheckCircle2 /> Review and export the audit trail</span></div><p>Gate-specific roles, a second emergency approver and school identity integration can be added before final production handover.</p></article></section>
+            <UserProfileEditor ownProfile={userProfile} adminUnlocked={adminUnlocked} isAdministrator={isOwner} onUnlock={() => setAdminUnlockOpen(true)} onSaved={profileSaved} />
+            {isOwner && <PortalAccountsManager adminUnlocked={adminUnlocked} onRequireUnlock={() => setAdminUnlockOpen(true)} />}
+            <section className="identity-layout"><article className="identity-card"><div className="identity-card-head"><span><KeyRound /></span><div><h2>Signed-in operator</h2><small>Magic Keys server-verified identity</small></div></div><div className="identity-profile"><Avatar size="lg"><AvatarImage src={profileImage} alt="Operator profile" /><AvatarFallback>{initials(displayName)}</AvatarFallback><AvatarBadge /></Avatar><div><strong>{displayName}</strong><span>{user.email}</span></div><Badge><ShieldCheck /> Authenticated</Badge></div><div className="identity-rows"><div><span>Access role</span><strong>{isAdministrator ? "System administrator" : canOperate ? "Authorised operator" : "View-only operator"}</strong></div><div><span>Managed site</span><strong>Balwyn High School</strong></div><div><span>Session</span><strong>Signed, HTTP-only, 8-hour maximum</strong></div><div><span>Audit</span><strong>Commands and changes retained centrally</strong></div></div></article><article className="permissions-card"><div className="panel-heading"><div><h2>Operator permissions</h2><small>Current role</small></div><ShieldCheck /></div><div className="permission-list"><span><CheckCircle2 /> View physical gate feedback</span>{canOperate && <span><CheckCircle2 /> Queue authorised relay commands</span>}{isAdministrator && <span><CheckCircle2 /> Change gate schedules</span>}{isAdministrator && <span><CheckCircle2 /> Issue emergency gate responses</span>}{isOwner && <span><CheckCircle2 /> Configure automation, controllers and system policy</span>}<span><CheckCircle2 /> Review and export the audit trail</span></div><p>Gate-specific roles, a second emergency approver and school identity integration can be added before final production handover.</p></article></section>
 
-            <section className="controller-commissioning"><div className="view-panel-heading"><div><h2>Separate controller commissioning</h2><small>Sensor-equipped controller path · separate from the ACB-004 open-only trigger</small></div><Badge variant="outline"><Network /> {commissionedCount} commissioned · {credentialCount} issued</Badge></div>{controllerCredential && <div className="credential-issued" role="status"><ShieldCheck /><span><strong>{controllerCredential.gateId} interface credential ready</strong><small>Transfer it once to the approved Compass interface gateway. It will be removed from this screen after download.</small></span><Button onClick={downloadControllerCredential}><Download /> Download setup file</Button><Button variant="ghost" onClick={() => setControllerCredential(null)}>Close</Button></div>}<div className="controller-list">{activeGates.map((gate) => { const runtime = runtimeFor(gate); return <article key={gate.id}><span className={`controller-state-dot is-${runtime?.controllerState ?? "uncommissioned"}`} /><span><strong>{gate.name}</strong><small>{gate.id} · {runtime?.commissioned ? runtime.controllerState : runtime?.credentialIssued ? "interface credential issued · awaiting verified Compass output and position feedback" : "Compass relay output not mapped"}{runtime?.lastSeen ? ` · last contact ${activityTime(runtime.lastSeen)}` : ""}</small></span><span className="controller-safety">{runtime?.controllerState === "online" && runtime.safetyOk === true ? <><ShieldCheck /> Current safety healthy</> : runtime?.safetyOk === false ? <><AlertTriangle /> Safety fault</> : <><Radio /> No current safety feedback</>}</span><Button variant="outline" disabled={!isAdministrator || busyAction === `provision-${gate.id}`} onClick={() => provisionController(gate.id)}>{busyAction === `provision-${gate.id}` ? "Issuing…" : runtime?.credentialIssued ? "Rotate credential" : "Issue credential"}</Button></article>; })}</div><p className="module-disclaimer">The existing Compass ACB-004 open-only trigger is configured separately and supplies no sensor feedback. This controller list is for the Pi gate controller (one relay contact plus reed switches and a safety input); it must not be used to infer ACB-004 position or commissioning status.</p></section>
+            {isOwner && <section className="controller-commissioning"><div className="view-panel-heading"><div><h2>Separate controller commissioning</h2><small>Sensor-equipped controller path · separate from the ACB-004 open-only trigger</small></div><Badge variant="outline"><Network /> {commissionedCount} commissioned · {credentialCount} issued</Badge></div>{controllerCredential && <div className="credential-issued" role="status"><ShieldCheck /><span><strong>{controllerCredential.gateId} interface credential ready</strong><small>Transfer it once to the approved Compass interface gateway. It will be removed from this screen after download.</small></span><Button onClick={downloadControllerCredential}><Download /> Download setup file</Button><Button variant="ghost" onClick={() => setControllerCredential(null)}>Close</Button></div>}<div className="controller-list">{activeGates.map((gate) => { const runtime = runtimeFor(gate); return <article key={gate.id}><span className={`controller-state-dot is-${runtime?.controllerState ?? "uncommissioned"}`} /><span><strong>{gate.name}</strong><small>{gate.id} · {runtime?.commissioned ? runtime.controllerState : runtime?.credentialIssued ? "interface credential issued · awaiting verified Compass output and position feedback" : "Compass relay output not mapped"}{runtime?.lastSeen ? ` · last contact ${activityTime(runtime.lastSeen)}` : ""}</small></span><span className="controller-safety">{runtime?.controllerState === "online" && runtime.safetyOk === true ? <><ShieldCheck /> Current safety healthy</> : runtime?.safetyOk === false ? <><AlertTriangle /> Safety fault</> : <><Radio /> No current safety feedback</>}</span><Button variant="outline" disabled={!isAdministrator || busyAction === `provision-${gate.id}`} onClick={() => provisionController(gate.id)}>{busyAction === `provision-${gate.id}` ? "Issuing…" : runtime?.credentialIssued ? "Rotate credential" : "Issue credential"}</Button></article>; })}</div><p className="module-disclaimer">The existing Compass ACB-004 open-only trigger is configured separately and supplies no sensor feedback. This controller list is for the Pi gate controller (one relay contact plus reed switches and a safety input); it must not be used to infer ACB-004 position or commissioning status.</p></section>}
           </>}
 
           {activeView === "sites" && isOwner && <OwnerSitesPanel key={ownerChoice?.kind === "site" ? ownerChoice.id : "default"} selectedId={ownerChoice?.kind === "site" ? ownerChoice.id : undefined} hideList onOpenPortal={() => { setOwnerChoice({ kind: "balwyn" }); setActiveView("dashboard"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />}

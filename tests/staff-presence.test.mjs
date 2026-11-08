@@ -25,7 +25,7 @@ const at = (s) => new Date(Date.UTC(2026, 9, 15, 0, 0, 0) + s * 1000);
 async function setup(t) {
   const { fetchDatabase } = await databaseFixture(t);
   for (const key of Object.keys(env)) delete env[key];
-  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: "admin@example.test" });
+  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: "admin@example.test", PORTAL_OWNER_EMAIL: "admin@example.test" });
   env.fetchDatabase = fetchDatabase;
 }
 

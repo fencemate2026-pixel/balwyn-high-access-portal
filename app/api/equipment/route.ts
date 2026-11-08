@@ -1,7 +1,7 @@
 import { helpProvider } from '@/lib/help-provider';
 import { env } from "@/lib/server-env";
 import { getSql } from "@/db";
-import { assertSameOrigin, getAdminSettingsAccess, requireOperator } from "@/lib/portal-auth";
+import { assertSameOrigin, getAdminSettingsAccess, requireOperator, requireOwner } from "@/lib/portal-auth";
 import { readEquipment } from "@/lib/equipment-store";
 import { validateEquipment } from "@/lib/equipment-config";
 import { ensurePortalSeeded } from "@/lib/portal-store";
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   if (!assertSameOrigin(request)) return json({error:"Request rejected"},403);
-  const auth = await requireOperator(request,"administrator");
+  const auth = await requireOwner(request);
   if (!auth.user) return auth.response;
   if (!await getAdminSettingsAccess(request)) return json({error:"Unlock administrator settings before changing equipment",code:"admin_password_required"},403);
   try {
