@@ -71,7 +71,7 @@ async function setup(t, role = "operator") {
   const { pg, fetchDatabase } = await databaseFixture(t);
   for (const key of Object.keys(env)) delete env[key];
   const password = "A-test-password-934!";
-  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: `op@example.test|${role}`,
+  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: `op@example.test|${role}`, PORTAL_OWNER_EMAIL: "op@example.test",
     PORTAL_USERNAME: "Op", PORTAL_OPERATOR_EMAIL: "op@example.test", PORTAL_PASSWORD_SALT: "test-password-salt", PORTAL_PASSWORD_HASH: await passwordHash(password, "test-password-salt") });
   env.fetchDatabase = fetchDatabase;
   const user = { displayName: "Op", email: "op@example.test", role };
@@ -245,7 +245,7 @@ test("staff accounts: listing needs an administrator; every change also needs th
   const { fetchDatabase } = await databaseFixture(t);
   const password = "A-test-password-934!";
   for (const key of Object.keys(env)) delete env[key];
-  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: "admin@example.test|administrator,op@example.test|operator",
+  Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters", GOOGLE_ALLOWED_EMAILS: "admin@example.test|administrator,op@example.test|operator", PORTAL_OWNER_EMAIL: "admin@example.test",
     PORTAL_USERNAME: "administrator", PORTAL_OPERATOR_EMAIL: "admin@example.test", PORTAL_PASSWORD_SALT: "test-password-salt", PORTAL_PASSWORD_HASH: await passwordHash(password, "test-password-salt") });
   env.fetchDatabase = fetchDatabase;
   const cookieFor = async (email, role) => (await auth.createSessionCookie({ displayName: role, email, role })).split(";")[0];

@@ -5,7 +5,7 @@
 // session alone can no longer create accounts. Listing stays admin-login only.
 // Also enforced on every request: verified administrator session (role checked
 // on the server), exact same-origin for every change, activity-log entry.
-import { AccountError, assertSameOrigin, createPortalAccount, getAdminSettingsAccess, listPortalAccounts, requireOperator, resetPortalAccount, updatePortalAccount } from "@/lib/portal-auth";
+import { AccountError, assertSameOrigin, createPortalAccount, getAdminSettingsAccess, listPortalAccounts, requireOwner, resetPortalAccount, updatePortalAccount } from "@/lib/portal-auth";
 import { recordActivity } from "@/lib/portal-store";
 import { requestOrigin } from "@/lib/request-origin";
 import { readBoundedText } from "@/lib/request-body";
@@ -15,7 +15,8 @@ const headers = { "Cache-Control": "no-store" };
 const ROLES = new Set(["viewer", "operator", "administrator"]);
 
 async function authorise(request: Request) {
-  const auth = await requireOperator(request, "administrator");
+  // Owner only (8 Nov 2026): client logins never manage accounts.
+  const auth = await requireOwner(request);
   if (!auth.user) return { response: auth.response };
   return { user: auth.user };
 }

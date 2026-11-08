@@ -40,6 +40,12 @@ export async function POST(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     const action = String(body.action ?? "");
 
+    // Settings-class actions belong to the owner portal only (8 Nov 2026). A client login, even an
+    // administrator, is refused here before the settings password is ever asked for.
+    if (PROTECTED_SETTINGS_ACTIONS.has(action) && auth.user.isOwner !== true) {
+      return Response.json({ error: "System settings are managed by RJL Commercial.", code: "owner_required" }, { status: 403, headers: { "Cache-Control": "no-store" } });
+    }
+
     if (PROTECTED_SETTINGS_ACTIONS.has(action) && !await getAdminSettingsAccess(request)) {
       return Response.json({ error: "Enter an administrator password to change system or relay settings.", code: "admin_password_required" }, { status: 403, headers: { "Cache-Control": "no-store" } });
     }

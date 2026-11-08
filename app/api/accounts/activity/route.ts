@@ -1,12 +1,12 @@
 // Administrator-only: one person's recent sessions, button presses and logged
 // actions (15 Oct 2026). Read-only. The person is chosen by account id.
-import { listPortalAccounts, requireOperator } from "@/lib/portal-auth";
+import { listPortalAccounts, requireOwner } from "@/lib/portal-auth";
 import { accountKeyFor, staffDetail } from "@/lib/staff-presence";
 
 const headers = { "Cache-Control": "no-store" };
 
 export async function GET(request: Request) {
-  const auth = await requireOperator(request, "administrator");
+  const auth = await requireOwner(request);
   if (!auth.user) return auth.response;
   const id = new URL(request.url).searchParams.get("id") ?? "";
   try {

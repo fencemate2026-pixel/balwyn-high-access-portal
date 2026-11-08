@@ -48,7 +48,8 @@ function fake({ pubkey = PUB, existing = [], caps = ["users", "schedules", "pers
   return calls;
 }
 
-async function as(email, { unlocked = true, ...opts } = {}) {
+// 8 Nov 2026: only the owner can obtain a settings unlock cookie, so a non-owner session is never unlocked.
+async function as(email, { unlocked = email === "owner@example.test", ...opts } = {}) {
   for (const k of Object.keys(env)) delete env[k];
   Object.assign(env, { PORTAL_SESSION_SECRET: "test-only-session-secret-at-least-32-characters",
     GOOGLE_ALLOWED_EMAILS: "owner@example.test|administrator,staff@example.test|administrator", PORTAL_OWNER_EMAIL: "owner@example.test",
