@@ -62,6 +62,7 @@ export default function ThomastownSwingView({ fixture, device = SWING_DEVICE_ID 
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<(ConfirmSpec & { resolve: (ok: boolean) => void }) | null>(null);
 
+  const siteName = GD_SITES[device].name;
   const load = useCallback(async () => {
     try { setData(await call<SwingDetail>(device)); setError(""); } catch (e) { setError((e as Error).message); }
   }, [device]);
@@ -77,13 +78,13 @@ export default function ThomastownSwingView({ fixture, device = SWING_DEVICE_ID 
     setBusy(true);
     try {
       const out = await call<{ duplicate?: boolean }>(device, { body: { ...body, clientKey: crypto.randomUUID() } });
-      toast.success(out.duplicate ? "Already queued." : "Queued for the Thomastown Pi. Wait for Applied.");
+      toast.success(out.duplicate ? "Already queued." : `Queued for ${siteName}. Wait for Applied.`);
       await load(); return true;
     } catch (e) { toast.error((e as Error).message); return false; } finally { setBusy(false); }
-  }, [device, load]);
+  }, [device, load, siteName]);
 
-  if (!data) return error ? <div className={`${GLASS_PANEL} p-4 text-sm`}><Pill tone="bad">{error}</Pill></div> : <div className="flex items-center gap-2"><LoaderCircle className="animate-spin" /> Loading Thomastown…</div>;
-  return <><Body data={data} busy={busy} send={send} siteName={GD_SITES[device].name} dialIn={gdDialIn(device)} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
+  if (!data) return error ? <div className={`${GLASS_PANEL} p-4 text-sm`}><Pill tone="bad">{error}</Pill></div> : <div className="flex items-center gap-2"><LoaderCircle className="animate-spin" /> Loading {siteName}…</div>;
+  return <><Body data={data} busy={busy} send={send} siteName={siteName} dialIn={gdDialIn(device)} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
 }
 
 function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy: boolean; send: Send; siteName: string; dialIn: string | null }) {
@@ -124,8 +125,8 @@ function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy:
         </div>
         {sim.state === "needs_number" && <SimNumberForm iccid={sim.iccid} busy={busy} send={send} cmd={simCmd} />}
         {sim.state === "ok" && <SimNumberForm iccid={sim.iccid} busy={busy} send={send} cmd={simCmd} current={sim.number} source={sim.source} />}
-        {!data.online && <p role="status" className="mt-3 text-sm text-[#fbbf24]">The Thomastown Pi is not reporting. Changes stay queued until it reconnects and expire after 15 minutes. Check that each change shows Applied.</p>}
-        {!seen && <p className={`mt-3 text-sm ${MUTED}`}>Waiting for the first sync from the Thomastown Pi. Nothing has been received yet.</p>}
+        {!data.online && <p role="status" className="mt-3 text-sm text-[#fbbf24]">The {siteName} unit is not reporting. Changes stay queued until it reconnects and expire after 15 minutes. Check that each change shows Applied.</p>}
+        {!seen && <p className={`mt-3 text-sm ${MUTED}`}>Waiting for the first sync from {siteName}. Nothing has been received yet.</p>}
       </section>
 
       <Section n={1} icon={Users} title="Callers who can open the gate" right={<div className="flex flex-wrap items-center gap-2">
@@ -133,7 +134,7 @@ function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy:
           <input className="w-44 bg-transparent text-sm text-[#F5FBFF] outline-none placeholder:text-[#B9CFE2]" placeholder="Search name or number" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search callers" /></label>
         <select style={FIELD_STYLE} className={`${INPUT} !w-auto`} aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
           <option value="all">All statuses</option><option value="on">Enabled only</option><option value="off">Disabled only</option></select>
-        <button type="button" className={glassButton()} onClick={() => downloadCsv(`thomastown-callers-${stampDay()}.csv`, toCsv(["Name", "Number", "Status", "Schedule", "Added"], users.map((u) => [u.name, displayPhone(u.phone), u.enabled ? "Enabled" : "Disabled", scheduleText(u), u.created_at_local ?? ""])))}><Download className="size-4" /> Export</button>
+        <button type="button" className={glassButton()} onClick={() => downloadCsv(`${siteName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-callers-${stampDay()}.csv`, toCsv(["Name", "Number", "Status", "Schedule", "Added"], users.map((u) => [u.name, displayPhone(u.phone), u.enabled ? "Enabled" : "Disabled", scheduleText(u), u.created_at_local ?? ""])))}><Download className="size-4" /> Export</button>
         <button type="button" className={glassButton("orange")} disabled={busy} title={lock} onClick={() => setForm("add")}><Plus className="size-4" /> Add caller</button>
       </div>}>
         {(form === "add" || editing) && <CallerForm key={editing?.local_id ?? "new"} user={editing} busy={busy} send={send} onDone={() => setForm(null)} />}
@@ -146,10 +147,10 @@ function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy:
             <td className={TD}><div className="flex items-center gap-1">
               <button type="button" className={`${glassButton()} h-8`} aria-label={`Edit ${u.name}`} disabled={busy} title={lock} onClick={() => setForm({ edit: u.local_id })}><Pencil className="size-4" /></button>
               <button type="button" className={`${glassButton()} h-8`} disabled={busy} title={lock} onClick={() => send({ kind: "user.enable", local_id: u.local_id, enabled: !u.enabled }, u.enabled ? { title: `Disable ${u.name}?`, body: "Their number will stop opening the gate until re-enabled.", action: "Disable" } : undefined)}><span>{u.enabled ? "Disable" : "Enable"}</span></button>
-              <button type="button" className={`${glassButton()} h-8`} aria-label={`Delete ${u.name}`} disabled={busy} title={lock} onClick={() => send({ kind: "user.delete", local_id: u.local_id }, { title: `Delete ${u.name}?`, body: "The caller is removed from the Thomastown Pi's list. This cannot be undone from the portal.", action: "Delete caller" })}><Trash2 className="size-4" /></button>
+              <button type="button" className={`${glassButton()} h-8`} aria-label={`Delete ${u.name}`} disabled={busy} title={lock} onClick={() => send({ kind: "user.delete", local_id: u.local_id }, { title: `Delete ${u.name}?`, body: `The caller is removed from the ${siteName} list. This cannot be undone from the portal.`, action: "Delete caller" })}><Trash2 className="size-4" /></button>
               <CmdPill c={open.get(u.local_id)} />
             </div></td></tr>)
-            : <tr><Td colSpan={5}><span className={MUTED}>{data.users.length ? "No caller matches that search." : "Waiting for the first sync from the Thomastown Pi."}</span></Td></tr>}</tbody>
+            : <tr><Td colSpan={5}><span className={MUTED}>{data.users.length ? "No caller matches that search." : `Waiting for the first sync from ${siteName}.`}</span></Td></tr>}</tbody>
         </table></div>
       </Section>
 

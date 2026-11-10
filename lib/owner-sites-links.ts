@@ -30,7 +30,7 @@ export const OWNER_SITE_LINKS: readonly OwnerSiteLink[] = [
   },
   {
     id: "thomastown-swing",
-    name: "Thomastown swing gate",
+    name: "Macquarie Drive Thomastown",
     detail: "Azure · callers, every call, changes",
     kind: "view",
   },

@@ -9,7 +9,7 @@
 import { OwnerSiteInputError, normaliseAu } from "@/lib/owner-sites-model";
 
 export const SWING_DEVICE_ID = "thomastown-swing";
-export const SWING_SITE_NAME = "Thomastown Body Corp · double swing gate";
+export const SWING_SITE_NAME = "Macquarie Drive Thomastown";
 export const SLIDING_DEVICE_ID = "thomastown-sliding";
 export const SLIDING_SITE_NAME = "Thomastown Body Corp · sliding gate";
 /**

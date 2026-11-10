@@ -91,6 +91,8 @@ test("the owner lists sites and the key hash never reaches the browser", async (
   // 4 Nov 2026: Mildura reports through gd_sites (read-only mirror), so it is no longer an external link.
   // 6 Nov 2026: the Thomastown swing gate (Azure, owner-only view) joins the owner list.
   assert.deepEqual(listed.links.map((l) => l.id), ["balwyn", "thomastown-swing", "thomastown-sliding"]);
+  assert.equal(listed.links.find((l) => l.id === "thomastown-swing").name, "Macquarie Drive Thomastown");
+  assert.equal(listed.links.find((l) => l.id === "thomastown-sliding").name, "Thomastown sliding gate");
   const detail = await (await get("?site=thomastown")).json();
   assert.equal(detail.units[0].has_device_key, true);
   assert.equal("secret_hash" in detail.units[0], false);

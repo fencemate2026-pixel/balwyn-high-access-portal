@@ -116,5 +116,5 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA gd TO gd_app;
 
 -- The one device row. Name only; no secret.
 INSERT INTO gd.devices(device_id, site_name)
-VALUES ('thomastown-swing', 'Thomastown Body Corp - double swing gate')
+VALUES ('thomastown-swing', 'Macquarie Drive Thomastown')
 ON CONFLICT (device_id) DO NOTHING;

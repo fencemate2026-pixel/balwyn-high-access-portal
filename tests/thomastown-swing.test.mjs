@@ -116,6 +116,7 @@ test("the migration shuts the school portal's role out of the gd schema, and rol
   await assert.rejects(pg.query("SELECT 1 FROM gd.devices"), /permission denied/);
   await pg.exec("RESET ROLE; SET ROLE gd_app");
   assert.equal((await pg.query("SELECT device_id FROM gd.devices")).rows[0].device_id, "thomastown-swing");
+  assert.equal((await pg.query("SELECT site_name FROM gd.devices")).rows[0].site_name, "Macquarie Drive Thomastown");
   await pg.exec("RESET ROLE");
   await pg.exec(SQL);                                                           // re-running is harmless
   await pg.exec(ROLLBACK);
@@ -207,6 +208,9 @@ test("oversize bodies are refused before any parsing", async (t) => {
 });
 
 test("dial-in number: swing gate shows its own number, sliding shows none, no secrets involved", () => {
+  assert.equal(model.SWING_DEVICE_ID, "thomastown-swing");
+  assert.equal(model.SWING_SITE_NAME, "Macquarie Drive Thomastown");
+  assert.equal(model.SLIDING_SITE_NAME, "Thomastown Body Corp · sliding gate");
   assert.equal(model.gdDialIn("thomastown-swing"), "0475184833");
   assert.equal(model.gdDialIn("thomastown-sliding"), null);
   assert.equal(model.displayPhone(model.gdDialIn("thomastown-swing")), "0475 184 833");
