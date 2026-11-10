@@ -30,6 +30,7 @@ Names only. Values are secrets: never in Git, chat or email. Not needed until th
 | GD_DATABASE_SSL | Leave unset for TLS (default). Only set to `off` for a local test database |
 | GD_THOMASTOWN_SWING_SECRET | 32+ random characters. The same value goes on the Pi (`/etc/thomgate-portal-sync.env`, mode 0600). Rotate by changing both |
 | GD_THOMASTOWN_SLIDING_SECRET | Added 7 Nov 2026 for the sliding gate. A DIFFERENT 64-hex value from the swing secret (one secret per Pi). Same rules; goes on the sliding Pi only |
+| GD_SETTLEMENT_ROAD_SWING_SECRET | Added 10 Nov 2026 for Settlement Road swing. A different value again. No Pi is connected yet, so the value stays in App Service until that unit exists |
 
 ## Sessions and accounts
 | Key | Notes |

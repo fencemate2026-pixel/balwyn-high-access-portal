@@ -126,7 +126,8 @@ function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy:
         {sim.state === "needs_number" && <SimNumberForm iccid={sim.iccid} busy={busy} send={send} cmd={simCmd} />}
         {sim.state === "ok" && <SimNumberForm iccid={sim.iccid} busy={busy} send={send} cmd={simCmd} current={sim.number} source={sim.source} />}
         {!data.online && <p role="status" className="mt-3 text-sm text-[#fbbf24]">The {siteName} unit is not reporting. Changes stay queued until it reconnects and expire after 15 minutes. Check that each change shows Applied.</p>}
-        {!seen && <p className={`mt-3 text-sm ${MUTED}`}>Waiting for the first sync from {siteName}. Nothing has been received yet.</p>}
+        {!seen && data.users.length === 0 && <p className={`mt-3 text-sm ${MUTED}`}>Waiting for the first sync from {siteName}. Nothing has been received yet.</p>}
+        {!seen && data.users.length > 0 && <p className={`mt-3 text-sm ${MUTED}`}>These callers are stored for {siteName}. No gate unit has reported yet, so a change made here waits until that unit is online.</p>}
       </section>
 
       <Section n={1} icon={Users} title="Callers who can open the gate" right={<div className="flex flex-wrap items-center gap-2">

@@ -29,6 +29,12 @@ export const OWNER_SITE_LINKS: readonly OwnerSiteLink[] = [
     view: "dashboard",
   },
   {
+    id: "settlement-road-swing",
+    name: "Settlement Road Swing Gate",
+    detail: "Azure · callers stored here, no dial-in number yet",
+    kind: "view",
+  },
+  {
     id: "thomastown-swing",
     name: "Macquarie Drive Thomastown",
     detail: "Azure · callers, every call, changes",

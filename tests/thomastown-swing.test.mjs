@@ -211,7 +211,9 @@ test("dial-in number: swing gate shows its own number, sliding shows none, no se
   assert.equal(model.SWING_DEVICE_ID, "thomastown-swing");
   assert.equal(model.SWING_SITE_NAME, "Macquarie Drive Thomastown");
   assert.equal(model.SLIDING_SITE_NAME, "Thomastown Body Corp · sliding gate");
+  assert.equal(model.SETTLEMENT_SITE_NAME, "Settlement Road Swing Gate");
   assert.equal(model.gdDialIn("thomastown-swing"), "0475184833");
+  assert.equal(model.gdDialIn("settlement-road-swing"), null);
   assert.equal(model.gdDialIn("thomastown-sliding"), null);
   assert.equal(model.displayPhone(model.gdDialIn("thomastown-swing")), "0475 184 833");
 });

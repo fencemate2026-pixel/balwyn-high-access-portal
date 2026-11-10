@@ -12,6 +12,8 @@ export const SWING_DEVICE_ID = "thomastown-swing";
 export const SWING_SITE_NAME = "Macquarie Drive Thomastown";
 export const SLIDING_DEVICE_ID = "thomastown-sliding";
 export const SLIDING_SITE_NAME = "Thomastown Body Corp · sliding gate";
+export const SETTLEMENT_DEVICE_ID = "settlement-road-swing";
+export const SETTLEMENT_SITE_NAME = "Settlement Road Swing Gate";
 /**
  * The Azure-backed gate sites. Each has its own device id, its own HMAC secret (App Service setting
  * NAMED here, never the value) and its own device and owner routes. The Pi software and the command
@@ -20,11 +22,12 @@ export const SLIDING_SITE_NAME = "Thomastown Body Corp · sliding gate";
 export const GD_SITES = {
   [SWING_DEVICE_ID]: { name: SWING_SITE_NAME, secretEnv: "GD_THOMASTOWN_SWING_SECRET" },
   [SLIDING_DEVICE_ID]: { name: SLIDING_SITE_NAME, secretEnv: "GD_THOMASTOWN_SLIDING_SECRET" },
+  [SETTLEMENT_DEVICE_ID]: { name: SETTLEMENT_SITE_NAME, secretEnv: "GD_SETTLEMENT_ROAD_SWING_SECRET" },
 } as const;
 export type GdSiteId = keyof typeof GD_SITES;
 /** The number callers ring to open each gate (the gate SIM's own number). Shown to the owner only. Display-only: never used for access. */
 const GD_DIAL_IN: Partial<Record<GdSiteId, string>> = {
-  [SWING_DEVICE_ID]: "0475184833",   // Telstra SIM in the swing gate Pi (Jarrod, 6 Nov 2026). The sliding gate's number has not been given.
+  [SWING_DEVICE_ID]: "0475184833",   // Telstra SIM in the Macquarie Drive unit (Jarrod, 6 Nov 2026). Settlement Road has no number yet. The sliding gate's number has not been given.
 };
 export const gdDialIn = (site: GdSiteId): string | null => GD_DIAL_IN[site] ?? null;
 export const isGdSiteId = (v: unknown): v is GdSiteId => typeof v === "string" && Object.prototype.hasOwnProperty.call(GD_SITES, v);

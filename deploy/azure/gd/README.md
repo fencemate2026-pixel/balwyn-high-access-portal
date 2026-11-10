@@ -33,6 +33,15 @@ Same schema, same code path, its own device id (`thomastown-sliding`), its own s
 5. Only then install the sync service on the sliding Pi (separate approval, `PORTAL_SYNC_DEVICE=thomastown-sliding`).
 Rollback: `002_thomastown_sliding_rollback.sql`, unset the setting.
 
+## Settlement Road swing gate (added 10 Nov 2026)
+Device id `settlement-road-swing`. No dial-in number. Routes `/api/device/settlement-road-swing` and
+`/api/owner/settlement-road-swing`. The caller rows are loaded into `gd.users` from the unit that moved
+to Macquarie Drive; they are not in the SQL file. A later empty Pi sync would replace this list, so do
+not turn portal sync on for this device until that Pi has these callers.
+1. Apply `007_settlement_road_swing.sql`.
+2. Set `GD_SETTLEMENT_ROAD_SWING_SECRET` (new random 64 hex; do not reuse another gate's secret).
+Rollback: `007_settlement_road_swing_rollback.sql`, unset the setting.
+
 ## Third site: Mildura boom gate (added 7 Nov 2026, STAGED, NOT APPLIED)
 Moves Mildura's mirror off the Supabase `gd-mirror` function (HTTP 402) onto Azure. The Pi's own protocol is kept
 (`POST {device_id, secret, action: push|key|commands|ack}`), so the Pi needs ONE value changed: `MIRROR_URL`
