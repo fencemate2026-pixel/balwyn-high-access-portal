@@ -144,7 +144,7 @@ h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute
     <div class="week" id="week"></div>
   </div>
 
-  <p class="note2"><b>Safety rule kept:</b> red and green are shown only when a controller has reported that position on a heartbeat less than 90 seconds old. Everything else shows amber. Today every Balwyn gate is uncommissioned, so in the live portal all of them would show <b>amber — Issue</b> until a controller connects. That is correct, not a fault in the display.</p>
+  <p class="note2"><b>Safety rule kept:</b> red and green are shown only when a controller has reported that position on a heartbeat less than 90 seconds old. Everything else shows amber. Today every gate is uncommissioned, so in the live portal all of them would show <b>amber — Issue</b> until a controller connects. That is correct, not a fault in the display.</p>
 </div>
 
 <script>
@@ -282,7 +282,7 @@ function drawScene(c){
       <rect width="380" height="230" fill="url(#sky)"/>${sun}${cl}${rain}
       <rect y="190" width="380" height="40" fill="#000" opacity=".12"/>
     </svg>
-    <div class="where">Balwyn · now</div>
+    <div class="where">Site · now</div>
     <div class="read"><b>${s.t}°</b><span>${s.text}</span></div>`;
   document.querySelectorAll(".switch button").forEach(b=>b.setAttribute("aria-pressed", String(b.dataset.c===c)));
 }

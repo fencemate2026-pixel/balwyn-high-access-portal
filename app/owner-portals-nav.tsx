@@ -51,8 +51,8 @@ export default function OwnerPortalsNav({ choice, onChoose }: { choice: OwnerPor
     <SidebarMenu aria-label="RJL portals">
       {/* This portal. Active whenever the owner is looking at the normal campus dashboard. */}
       <SidebarMenuItem>
-        <SidebarMenuButton className="portal-nav-button" isActive={choice === null || choice.kind === "balwyn"} tooltip="Balwyn High School" onClick={() => onChoose({ kind: "balwyn" })}>
-          <Building2 /><span>Balwyn High School</span>
+        <SidebarMenuButton className="portal-nav-button" isActive={choice === null || choice.kind === "balwyn"} tooltip="Operations portal" onClick={() => onChoose({ kind: "balwyn" })}>
+          <Building2 /><span>Operations portal</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
       {(sites ?? []).map((site) => (

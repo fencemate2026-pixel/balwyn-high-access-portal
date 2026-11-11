@@ -196,7 +196,10 @@ test("rendered CLIENT portal: no settings, automation, RJL portals or Thomastown
   for (const cookie of [w.schoolAdmin, w.operator, w.viewer]) {
     const html = await renderFor(w, cookie);
     const labels = navLabels(html);
-    for (const owned of ["System settings", "Automation", "Access & users", "Balwyn High School", "Thomastown", "Mildura"]) assert.ok(!labels.has(owned), `client sees nav "${owned}"`);
+    for (const owned of ["System settings", "Automation", "Access & users", "Operations portal", "Thomastown", "Mildura"]) assert.ok(!labels.has(owned), `client sees nav "${owned}"`);
+    assert.ok(!html.includes("Balwyn High"), "client view has no Balwyn High name");
+    assert.ok(!html.includes("balwyn-high-school-logo"), "client view has no school logo");
+    assert.ok(!html.includes("balwyn-crest"), "client view has no school crest");
     assert.ok(!html.includes("RJL portals"), "no RJL portals group");
     assert.ok(!/Thomastown|Mildura/.test(html), "no other site is named anywhere in the client view");
     for (const everyday of ["Campus overview", "Gate schedules", "Stadium hire", "Activity log", "My account"]) assert.ok(labels.has(everyday), `client has nav "${everyday}"`);
@@ -209,5 +212,8 @@ test("rendered OWNER portal: the full set, including settings, automation and th
   const labels = navLabels(html);
   for (const owned of ["System settings", "Automation", "Access & users", "Campus overview", "Gate schedules"]) assert.ok(labels.has(owned), `owner has nav "${owned}"`);
   assert.ok(html.includes("RJL portals"), "owner sees the RJL portals group");
+  assert.ok(labels.has("Operations portal"), "owner can open this portal without the school name");
+  assert.ok(!html.includes("Balwyn High"), "owner view has no Balwyn High name");
+  assert.ok(!html.includes("balwyn-high-school-logo"), "owner view has no school logo");
   assert.ok(!labels.has("My account"), "owner keeps the full Access & users page");
 });

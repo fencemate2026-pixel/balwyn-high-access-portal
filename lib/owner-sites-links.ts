@@ -23,8 +23,8 @@ export type OwnerSiteLink =
 export const OWNER_SITE_LINKS: readonly OwnerSiteLink[] = [
   {
     id: "balwyn",
-    name: "Balwyn High School",
-    detail: "This portal · campus gates, schedules, hire",
+    name: "Operations portal",
+    detail: "This portal · gates, schedules, hire",
     kind: "portal",
     view: "dashboard",
   },

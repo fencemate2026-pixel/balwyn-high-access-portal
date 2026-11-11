@@ -1625,7 +1625,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 /* Public OAuth application homepage */
 .brand-intro, .brand-purpose, .brand-details, .brand-support { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
-.brand-hero { min-height: clamp(620px, 42vw, 840px); display: flex; align-items: center; background: #204260 url('/magic-keys-school-background.png') center / cover no-repeat; }
+.brand-hero { min-height: clamp(620px, 42vw, 840px); display: flex; align-items: center; background: #204260; }
 .brand-intro { padding: 54px 0; }
 .brand-intro h1 { max-width: 47%; margin: 0 0 24px; color: #fff; font-size: clamp(2.75rem, 4.6vw, 4.6rem); line-height: 1.06; letter-spacing: -.015em; text-transform: none; overflow-wrap: anywhere; }
 .brand-intro .public-kicker { margin-bottom: 22px; color: #cae8ff; }

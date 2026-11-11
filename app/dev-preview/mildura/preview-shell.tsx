@@ -24,7 +24,7 @@ export default function PreviewShell({ fixture, controlFixture }: { fixture: Mir
         <SidebarContent>
           <SidebarGroup><SidebarGroupLabel>Operations</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{item("Campus overview", LayoutDashboard)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
           <SidebarGroup><SidebarGroupLabel>Administration</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{item("Access & users", Users)}{item("Activity log", ClipboardList)}{item("System settings", Settings2)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
-          <SidebarGroup><SidebarGroupLabel>RJL portals</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{item("Balwyn High School", Building2)}{item("Mildura Working Men's Club", Building2, true)}{item("Thomastown Body Corp", Building2)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
+          <SidebarGroup><SidebarGroupLabel>RJL portals</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{item("Operations portal", Building2)}{item("Mildura Working Men's Club", Building2, true)}{item("Thomastown Body Corp", Building2)}</SidebarMenu></SidebarGroupContent></SidebarGroup>
         </SidebarContent>
       </Sidebar>
       <SidebarInset className="portal-workspace">

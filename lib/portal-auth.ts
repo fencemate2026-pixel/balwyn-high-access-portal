@@ -462,7 +462,7 @@ export async function getOrCreateTotpEnrollment(user: PortalUser) {
   if (!record) throw new Error("Authenticator enrollment could not be created.");
   const secret = await decryptTotpSecret(record.encryptedSecret);
   const account = totpAccount(user);
-  const issuer = "Magic Keys - Balwyn High School";
+  const issuer = "Magic Keys";
   const uri = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(account)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
   return { enrolled: Boolean(record.enrolledAt), secret, account, uri };
 }

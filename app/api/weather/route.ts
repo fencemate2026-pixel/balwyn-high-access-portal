@@ -8,6 +8,6 @@ export async function GET(request: Request) {
   try {
     return Response.json(await getBalwynWeather(), { headers: { "Cache-Control": "private, no-store" } });
   } catch {
-    return Response.json({ error: "Balwyn forecast is temporarily unavailable." }, { status: 503, headers: { "Cache-Control": "no-store", "Retry-After": "60" } });
+    return Response.json({ error: "The forecast is temporarily unavailable." }, { status: 503, headers: { "Cache-Control": "no-store", "Retry-After": "60" } });
   }
 }

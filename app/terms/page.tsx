@@ -11,11 +11,11 @@ export default function TermsPage() {
     eyebrow="Authorised operator use"
     title="Terms of Use"
     updated="16 October 2026"
-    summary="These terms govern access to the Magic Keys Balwyn High School operations portal. By signing in or using the portal, you agree to use it only for authorised school access-control operations."
+    summary="These terms govern access to the Magic Keys operations portal. By signing in or using the portal, you agree to use it only for authorised access-control operations."
     sections={[
       {
         title: "Authorised access",
-        content: <p>You may use the portal only if Balwyn High School or RJL Commercial Group has approved your account and assigned you an operator role. Access is personal to you. Do not share access, allow another person to use your signed-in session or attempt to bypass security controls.</p>,
+        content: <p>You may use the portal only if the site operator or RJL Commercial Group has approved your account and assigned you an operator role. Access is personal to you. Do not share access, allow another person to use your signed-in session or attempt to bypass security controls.</p>,
       },
       {
         title: "Operator responsibilities",

@@ -2,7 +2,7 @@
   "$schema": "https://balwyn.local/schemas/magic-keys.v1.json",
   "schemaVersion": "1.0.0",
   "campus": {
-    "name": "Balwyn High School",
+    "name": "Magic Keys",
     "timezone": "Australia/Melbourne",
     "compassTenant": null,
     "guardianTenant": null

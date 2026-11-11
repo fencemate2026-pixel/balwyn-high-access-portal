@@ -18,11 +18,11 @@ export default function PrivacyPage() {
     eyebrow="Privacy and data handling"
     title="Privacy Policy"
     updated="16 October 2026"
-    summary="This policy explains how the Magic Keys Balwyn High School operations portal collects, uses, stores and discloses personal information needed to sign staff in, operate the school's access-control equipment, manage stadium hire bookings, provide in-portal help and keep an accountable activity record."
+    summary="This policy explains how the Magic Keys operations portal collects, uses, stores and discloses personal information needed to sign people in, operate access-control equipment, manage bookings, provide in-portal help and keep an accountable activity record."
     sections={[
       {
         title: "Who operates this portal",
-        content: <><p>The portal is provided and managed by RJL Commercial Fencing and Gates (VIC) Pty Ltd (ABN 37 652 237 431), trading as RJL Commercial Group and Magic Keys (“RJL”, “we”), for authorised Balwyn High School operations. We handle personal information in line with the Australian Privacy Principles in the Privacy Act 1988 (Cth).</p><p>Privacy enquiries, access or correction requests and complaints can be sent to <a href="mailto:info@rjlcommercialgroup.com">info@rjlcommercialgroup.com</a>.</p></>,
+        content: <><p>The portal is provided and managed by RJL Commercial Fencing and Gates (VIC) Pty Ltd (ABN 37 652 237 431), trading as RJL Commercial Group and Magic Keys (“RJL”, “we”), for authorised site operations. We handle personal information in line with the Australian Privacy Principles in the Privacy Act 1988 (Cth).</p><p>Privacy enquiries, access or correction requests and complaints can be sent to <a href="mailto:info@rjlcommercialgroup.com">info@rjlcommercialgroup.com</a>.</p></>,
       },
       {
         title: "What we collect",
@@ -78,7 +78,7 @@ export default function PrivacyPage() {
       },
       {
         title: "Sharing and disclosure",
-        content: <><p>Personal information is not sold or rented. It may be accessed by authorised Balwyn High School staff according to their portal role, by RJL personnel who support and maintain the service, and by the service providers listed above where they need it to provide their services.</p><p>We may also disclose information where required or authorised by law, or where reasonably necessary to lessen or prevent a serious threat to safety or to investigate a security incident.</p></>,
+        content: <><p>Personal information is not sold or rented. It may be accessed by authorised operators according to their portal role, by RJL personnel who support and maintain the service, and by the service providers listed above where they need it to provide their services.</p><p>We may also disclose information where required or authorised by law, or where reasonably necessary to lessen or prevent a serious threat to safety or to investigate a security incident.</p></>,
       },
       {
         title: "Retention and deletion",
