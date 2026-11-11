@@ -1,0 +1,86 @@
+.mk-client {
+  min-height: 100dvh;
+  background: #07111c;
+  color: #e7f0f8;
+}
+
+.mk-client-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #14324d;
+}
+
+.mk-client .magic-brand-logo {
+  width: min(220px, 46vw);
+  height: auto;
+  padding: 8px 10px;
+  background: #fff;
+  filter: none;
+}
+
+.mk-client-header p {
+  margin: 0;
+  color: #9fd4ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.mk-client-header h1 {
+  margin: 4px 0 0;
+  max-width: 40rem;
+  color: #f5fbff;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.mk-client-body {
+  display: grid;
+  gap: 16px;
+  width: min(760px, 100%);
+  padding: 24px;
+}
+
+.mk-client-panel {
+  padding: 18px 18px 20px;
+  border: 1px solid #1d4e7a;
+  background: #0c2744;
+}
+
+.mk-client-panel h2 {
+  margin: 0;
+  color: #f5fbff;
+  font-size: 1.05rem;
+}
+
+.mk-client-panel p {
+  margin: 8px 0 0;
+  max-width: 62ch;
+  color: #d6e8f6;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.mk-client-retry {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 16px;
+  padding: 0 16px;
+  border: 1px solid #1d4e7a;
+  background: #07111c;
+  color: #f5fbff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.mk-client-retry:hover { border-color: #5cc8ff; }
+.mk-client-retry:active { transform: scale(0.98); }
+.mk-client-retry:focus-visible { outline: 2px solid #5cc8ff; outline-offset: 3px; }

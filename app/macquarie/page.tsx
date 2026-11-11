@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ClientWelcome from "../client-welcome";
 import MacquarieClient from "./macquarie-client";
 import "./macquarie.css";
 
@@ -11,5 +12,9 @@ export const metadata: Metadata = {
 };
 
 export default function MacquariePage() {
-  return <MacquarieClient />;
+  return (
+    <ClientWelcome siteName="Macquarie Drive, Thomastown">
+      <MacquarieClient />
+    </ClientWelcome>
+  );
 }

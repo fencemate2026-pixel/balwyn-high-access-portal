@@ -11,6 +11,7 @@ import { ConfirmDialog, DayPicker, FIELD_STYLE, INPUT, type ConfirmSpec } from "
 import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
 import { MUTED, Pill, Section, TD, TH, Td, downloadCsv, stampDay } from "./site-section-ui";
 import { toCsv } from "@/lib/owner-csv";
+import { deviceClientHref } from "@/lib/client-portal";
 import { GD_SITES, SWING_DEVICE_ID, callResult, displayPhone, gdDialIn, simInfo, type GdSiteId } from "@/lib/gd-swing-model";
 
 type SUser = { local_id: number; name: string; phone: string; enabled: boolean; schedule_type: string | null; schedule_data: string | null; created_at_local: string | null };
@@ -84,7 +85,7 @@ export default function ThomastownSwingView({ fixture, device = SWING_DEVICE_ID 
   }, [device, load, siteName]);
 
   if (!data) return error ? <div className={`${GLASS_PANEL} p-4 text-sm`}><Pill tone="bad">{error}</Pill></div> : <div className="flex items-center gap-2"><LoaderCircle className="animate-spin" /> Loading {siteName}…</div>;
-  return <><Body data={data} busy={busy} send={send} siteName={siteName} dialIn={gdDialIn(device)} pulseGate={device === SWING_DEVICE_ID} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
+  return <><Body data={data} busy={busy} send={send} siteName={siteName} dialIn={gdDialIn(device)} pulseGate={device === SWING_DEVICE_ID} clientHref={deviceClientHref(device)} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
 }
 
 function commandLabel(c: SCommand) {
@@ -92,7 +93,7 @@ function commandLabel(c: SCommand) {
   return `${c.kind}${c.args.name ? ` · ${String(c.args.name)}` : ""}${c.args.local_id ? ` · #${String(c.args.local_id)}` : ""}`;
 }
 
-function Body({ data, busy, send, siteName, dialIn, pulseGate }: { data: SwingDetail; busy: boolean; send: Send; siteName: string; dialIn: string | null; pulseGate: boolean }) {
+function Body({ data, busy, send, siteName, dialIn, pulseGate, clientHref }: { data: SwingDetail; busy: boolean; send: Send; siteName: string; dialIn: string | null; pulseGate: boolean; clientHref: string | null }) {
   const now = Date.parse(data.serverTime) || Date.now();
   const seen = data.device?.last_seen ?? null;
   const [tab, setTab] = useState<"calls" | "changes">("calls");
@@ -118,6 +119,7 @@ function Body({ data, busy, send, siteName, dialIn, pulseGate }: { data: SwingDe
       <section className="gate-condition mb-4" aria-label={`${siteName} status`}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="m-0 flex items-center gap-2 text-lg"><ShieldCheck className="size-4 text-[#FF7A00]" aria-hidden="true" /> {siteName}</h2>
+          {clientHref && <a className={glassButton()} href={clientHref} title="Opens this site's page on this portal">Client page</a>}
           <span className="connection-pill"><i /> Owner control · Azure · applied by the site Pi</span>
           {pulseGate && <button type="button" className={glassButton("orange")} disabled={busy} title={lock} onClick={() => send({ kind: "gate.pulse" }, { title: "Open the gate?", body: "This queues one pulse, the same pulse an allowed phone call sends. The unit applies it on its next check-in. It does not place a phone call. It does not close the gate. Pressing again sends that same pulse again.", action: "Queue open pulse" })}><DoorOpen className="size-4" /> Open</button>}
           {pulseGate && <CmdPill c={pulseCmd} />}

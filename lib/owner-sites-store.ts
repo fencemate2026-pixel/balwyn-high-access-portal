@@ -8,9 +8,11 @@
  * that role is deliberately NOT granted the gd_* tables, so a school-portal bug
  * can never reach another client's whitelist. Callers:
  *   - app/api/owner/sites (owner session only)
+ *   - app/c/[slug] may call publicClientCard only (site name, nothing else)
  * The Macquarie resident page does not use this module. It queues changes for
  * the Azure device thomastown-sliding.
- * No other route should import this module.
+ * No other route should import this module. Do not call the write functions
+ * from app/c/[slug].
  *
  * Every write is scoped to the site being viewed (site_id filter on the row
  * itself, or the unit's site for schedules), so a request can never change a
@@ -70,6 +72,15 @@ export async function getSiteBySlug(slug: string) {
   const rows = await rest<Array<Record<string, unknown>>>(`gd_sites?slug=eq.${enc(slug)}&select=*`);
   if (!rows.length) throw new OwnerSiteInputError("Unknown site.");
   return rows[0];
+}
+
+/** Public client page. Site name only: no phones, units, secrets, or whitelist. */
+export async function publicClientCard(slug: string) {
+  if (!isSlug(slug)) throw new OwnerSiteInputError("Unknown site.");
+  const rows = await rest<Array<{ name?: unknown }>>(`gd_sites?slug=eq.${enc(slug)}&select=name`);
+  const name = typeof rows[0]?.name === "string" ? rows[0].name.trim() : "";
+  if (!name) throw new OwnerSiteInputError("Unknown site.");
+  return { slug, name };
 }
 
 export async function getSiteDetail(slug: string) {
