@@ -151,16 +151,18 @@ test("each gate shows its own label and an empty dial-in slot, and only Macquari
   assert.match(grouped, /Swing gate/);
   assert.match(grouped, /Sliding gate/);
   for (const [device, title] of [["settlement-road-swing", "Swing gate"], ["thomastown-sliding", "Sliding gate"]]) {
-    const html = renderToStaticMarkup(React.createElement(SwingView, { device, title, fixture: EMPTY }));
+    const html = renderToStaticMarkup(React.createElement(SwingView, { device, title, fixture: EMPTY, clientHref: null }));
     assert.match(html, new RegExp(title));
     assert.match(html, /Dial-in number not entered yet/);
     assert.equal(html.includes("> Open</button>"), false);
+    assert.equal(html.includes('href="/macquarie"'), false);
   }
   const macquarie = renderToStaticMarkup(React.createElement(SwingView, { device: "thomastown-swing", fixture: EMPTY }));
   assert.match(macquarie, /Macquarie Drive Thomastown/);
   assert.match(macquarie, /Dial-in number /);
   assert.equal(macquarie.includes("Dial-in number not entered yet"), false);
   assert.match(macquarie, /> Open<\/button>/);
+  assert.match(macquarie, /href="\/macquarie"/);
 });
 
 test("the public sitemap does not list this site", () => {

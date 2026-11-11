@@ -24,6 +24,15 @@ test("password entry uses existing authentication, preserves session cookie and 
   assert.match(r.headers.get("set-cookie"), /existing_session=test/); assert.equal(await r.text(), "");
 });
 
+test("a Settlement Road login from the MagicKeys page opens that site and keeps the session cookie", async () => {
+  const handler = createClientEntryHandler(async () => Response.json({ settlementSite: true }, { headers: { "set-cookie": "existing_session=settlement; HttpOnly; Secure; SameSite=Strict; Path=/" } }), () => { throw new Error("MFA must not be called"); });
+  const r = await handler(request(credentials));
+  assert.equal(r.status, 303);
+  assert.equal(r.headers.get("location"), "/settlement");
+  assert.match(r.headers.get("set-cookie"), /existing_session=settlement/);
+  assert.equal(await r.text(), "");
+});
+
 test("operator requires the existing authenticator challenge, with escaped enrollment and no password reflection", async () => {
   const handler = createClientEntryHandler(async () => Response.json({ requiresAuthenticator: true, enrollment: { secret: "TEST<KEY>", account: 'test"account' } }, { headers: { "set-cookie": "existing_mfa=challenge; HttpOnly; Secure; SameSite=Strict; Path=/" } }), async () => { throw new Error("not yet"); });
   const r = await handler(request(credentials)); const html = await r.text();

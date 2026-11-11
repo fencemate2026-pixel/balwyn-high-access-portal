@@ -71,7 +71,12 @@ export function createClientEntryHandler(emailSignIn: SignInHandler, verifySignI
     headers.delete("content-length");
     try {
       const upstream = await (verify ? verifySignIn : emailSignIn)(new Request(new URL(verify ? "/api/auth/email/verify" : "/api/auth/email", origin), { method: "POST", headers, body: JSON.stringify(body) }));
-      const result = await upstream.json() as { snapshot?: unknown; requiresAuthenticator?: boolean; enrollment?: { secret: string; account: string } | null; error?: string; restart?: boolean };
+      const result = await upstream.json() as { snapshot?: unknown; settlementSite?: boolean; requiresAuthenticator?: boolean; enrollment?: { secret: string; account: string } | null; error?: string; restart?: boolean };
+      if (upstream.ok && result.settlementSite) {
+        const redirectHeaders = new Headers({ Location: "/settlement", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+        for (const cookie of upstream.headers.getSetCookie()) redirectHeaders.append("Set-Cookie", cookie);
+        return new Response(null, { status: 303, headers: redirectHeaders });
+      }
       if (upstream.ok && result.snapshot) {
         const redirectHeaders = new Headers({ Location: "/client-login", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
         for (const cookie of upstream.headers.getSetCookie()) redirectHeaders.append("Set-Cookie", cookie);

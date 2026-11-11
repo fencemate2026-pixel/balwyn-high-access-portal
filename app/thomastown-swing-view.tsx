@@ -57,7 +57,7 @@ async function call<T>(device: GdSiteId, init?: { body: Record<string, unknown> 
 }
 
 // One screen for every Azure-backed Thomastown gate (swing, sliding): `device` picks the site and its API.
-export default function ThomastownSwingView({ fixture, device = SWING_DEVICE_ID, title }: { fixture?: SwingDetail; device?: GdSiteId; title?: string } = {}) {
+export default function ThomastownSwingView({ fixture, device = SWING_DEVICE_ID, title, clientHref }: { fixture?: SwingDetail; device?: GdSiteId; title?: string; clientHref?: string | null } = {}) {
   const [data, setData] = useState<SwingDetail | null>(fixture ?? null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -85,7 +85,8 @@ export default function ThomastownSwingView({ fixture, device = SWING_DEVICE_ID,
   }, [device, load, siteName]);
 
   if (!data) return error ? <div className={`${GLASS_PANEL} p-4 text-sm`}><Pill tone="bad">{error}</Pill></div> : <div className="flex items-center gap-2"><LoaderCircle className="animate-spin" /> Loading {siteName}…</div>;
-  return <><Body data={data} busy={busy} send={send} siteName={siteName} dialIn={gdDialIn(device)} pulseGate={device === SWING_DEVICE_ID} clientHref={deviceClientHref(device)} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
+  const pageHref = clientHref === undefined ? deviceClientHref(device) : clientHref;
+  return <><Body data={data} busy={busy} send={send} siteName={siteName} dialIn={gdDialIn(device)} pulseGate={device === SWING_DEVICE_ID} clientHref={pageHref} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
 }
 
 function commandLabel(c: SCommand) {
