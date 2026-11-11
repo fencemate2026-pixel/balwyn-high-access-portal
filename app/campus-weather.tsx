@@ -6,7 +6,7 @@ import WeatherIcon from "./weather-icon";
 
 import type { Weather } from "@/lib/weather";
 const number = (value: number | null | undefined, unit = "") => typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}${unit}` : "—";
-export default function CampusWeather() {
+export default function CampusWeather({ place = "Balwyn, Victoria", endpoint = "/api/weather", onRefresh }: { place?: string; endpoint?: string; onRefresh?: () => void } = {}) {
   const [weather, setWeather] = useState<Weather | null>(null);
   const [error, setError] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -16,7 +16,7 @@ export default function CampusWeather() {
     const load = async () => {
       controller?.abort(); controller = new AbortController();
       try {
-        const response = await fetch("/api/weather", { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
+        const response = await fetch(endpoint, { cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) });
         const body = await response.json();
         if (!response.ok || !body.current || !Array.isArray(body.days)) throw new Error("Weather unavailable");
         if (active) { setWeather(body); setError(false); }
@@ -24,13 +24,13 @@ export default function CampusWeather() {
     };
     void load(); const timer = window.setInterval(load, 600_000);
     return () => { active = false; controller?.abort(); window.clearInterval(timer); };
-  }, [revision]);
+  }, [revision, endpoint]);
   const updated = weather ? new Intl.DateTimeFormat("en-AU", { hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" }).format(new Date(weather.updatedAt)) : "";
   return <section className={`campus-glass-weather ${GLASS_PANEL} relative flex min-w-0 flex-col gap-4 overflow-hidden p-5`} aria-labelledby="campus-weather-title">
     <header className="flex items-start justify-between gap-3">
       <div>
         <h2 id="campus-weather-title" className="m-0 flex items-center gap-2 text-base font-bold text-[#F5FBFF]"><MapPin className="size-4 text-[#5CC8FF]" aria-hidden="true" /> Local weather</h2>
-        <p className="m-0 mt-1 text-sm text-[#B9CFE2]">Balwyn, Victoria</p>
+        <p className="m-0 mt-1 text-sm text-[#B9CFE2]">{place}</p>
       </div>
       {weather && <p className="m-0 text-xs text-[#8FB0CF]" role="status">{error || weather.stale ? "Last available forecast · " : "Updated "}{updated}</p>}
     </header>
@@ -55,7 +55,7 @@ export default function CampusWeather() {
         <span className="text-sm font-semibold tabular-nums text-[#F5FBFF]">{number(day.max, "°")}</span>
         <span className="text-xs tabular-nums text-[#8FB0CF]">{number(day.min, "°")}</span>
       </li>)}</ol>
-      <div className="flex items-center justify-end gap-3 text-xs text-[#8FB0CF]"><a className="text-[#5CC8FF] underline" href={weather.source === "MET Norway" ? "https://www.met.no/en" : "https://open-meteo.com/"} target="_blank" rel="noopener noreferrer">Forecast: {weather.source}</a><button type="button" className={glassButton()} aria-label="Refresh Balwyn weather" onClick={() => setRevision(value => value + 1)}><RefreshCw className="size-4" aria-hidden="true" /></button></div>
-    </> : <div className="flex min-h-32 items-center justify-between gap-3"><div><strong className="text-4xl font-bold text-[#8FB0CF]">—°</strong><p className="m-0 mt-1 text-sm text-[#FFB020]" role="status">{error ? "Forecast temporarily unavailable" : "Loading Balwyn forecast…"}</p></div>{error && <button type="button" className={glassButton()} aria-label="Retry Balwyn weather" onClick={() => setRevision((value) => value + 1)}><RefreshCw className="size-4" aria-hidden="true" /></button>}</div>}
+      <div className="flex items-center justify-end gap-3 text-xs text-[#8FB0CF]"><a className="text-[#5CC8FF] underline" href={weather.source === "MET Norway" ? "https://www.met.no/en" : "https://open-meteo.com/"} target="_blank" rel="noopener noreferrer">Forecast: {weather.source}</a><button type="button" className={glassButton()} aria-label={`Refresh ${place} weather`} onClick={() => { onRefresh?.(); setRevision(value => value + 1); }}><RefreshCw className="size-4" aria-hidden="true" /></button></div>
+    </> : <div className="flex min-h-32 items-center justify-between gap-3"><div><strong className="text-4xl font-bold text-[#8FB0CF]">—°</strong><p className="m-0 mt-1 text-sm text-[#FFB020]" role="status">{error ? "Forecast temporarily unavailable" : `Loading ${place} forecast…`}</p></div>{error && <button type="button" className={glassButton()} aria-label={`Retry ${place} weather`} onClick={() => { onRefresh?.(); setRevision((value) => value + 1); }}><RefreshCw className="size-4" aria-hidden="true" /></button>}</div>}
   </section>;
 }

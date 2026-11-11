@@ -32,8 +32,10 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
   renderer.toneMappingExposure = 1.15;
   const scene = new THREE.Scene();
   const boom = kind === "boom";
-  const camera = new THREE.PerspectiveCamera(boom ? 30 : 28, 1, .1, 40);
+  const sliding = kind === "sliding";
+  const camera = new THREE.PerspectiveCamera(boom ? 30 : sliding ? 32 : 28, 1, .1, 40);
   if (boom) { camera.position.set(-.9, 1.6, 5.7); camera.lookAt(.3, .85, 0); }
+  else if (sliding) { camera.position.set(0.35, 1.55, 6.8); camera.lookAt(0.2, 1.02, 0); }
   else { camera.position.set(1.3, 1.35, kind === "double-swing" ? 5.2 : 5.1); camera.lookAt(0, 1.05, 0); }
 
   // Reflections: a neutral studio, tinted blue by the lights below.
@@ -105,7 +107,7 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
   }
   const fadeTexture = new THREE.CanvasTexture(fade);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(9, 6), new THREE.MeshStandardMaterial({ color: 0x010409, metalness: .45, roughness: .42, transparent: true, alphaMap: fadeTexture, envMapIntensity: .18 }));
-  floor.rotation.x = -Math.PI / 2; floor.position.set(boom ? .3 : 0, 0, .4); floor.receiveShadow = true; scene.add(floor);
+  floor.rotation.x = -Math.PI / 2; floor.position.set(boom ? .3 : sliding ? 0.2 : 0, 0, .4); floor.receiveShadow = true; scene.add(floor);
 
   const leaves: THREE.Group[] = [];
   if (boom) {
@@ -130,6 +132,34 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
     box(model, .22, .03, .22, restX, .015, .2, postCap, .006);
     box(model, .08, 1.0, .08, restX, .5, .2, post, .01);
     box(model, .14, .08, .12, restX, 1.01, .2, post, .012);
+  } else if (sliding) {
+    // One leaf on an overhead track. Opening slides it aside. Travel is a picture, not a sensor.
+    const opening = 2.2;
+    const left = -opening / 2 - 0.08;
+    const right = opening / 2 + 0.08;
+    for (const x of [left, right]) {
+      box(model, 0.16, 2.05, 0.16, x, 1.05, 0, post, 0.01);
+      box(model, 0.18, 0.05, 0.18, x, 2.1, 0, postCap, 0.012);
+      basePlate(x, 0.32);
+    }
+    box(model, opening + 0.55, 0.07, 0.1, 0.2, 1.92, 0, post, 0.01);
+    const leafWidth = opening - 0.06;
+    const slideBase = left + 0.1;
+    const leaf = new THREE.Group();
+    leaf.position.set(slideBase, 0.16, 0.02);
+    leaf.userData.slideBase = slideBase;
+    model.add(leaf);
+    leaves.push(leaf);
+    box(leaf, leafWidth, 0.07, 0.05, leafWidth / 2, 0.08, 0, galvanised);
+    box(leaf, leafWidth, 0.07, 0.05, leafWidth / 2, 1.62, 0, galvanised);
+    box(leaf, 0.06, 1.58, 0.05, 0.04, 0.85, 0, galvanised);
+    box(leaf, 0.06, 1.58, 0.05, leafWidth - 0.04, 0.85, 0, galvanised);
+    for (let i = 0; i < 7; i++) box(leaf, leafWidth - 0.12, 0.07, 0.028, leafWidth / 2, 0.28 + i * 0.18, 0.02, galvanisedEdge, 0.004);
+    for (const x of [0.2, leafWidth - 0.2]) cylinder(leaf, 0.045, 0.04, x, 1.78, 0, chrome);
+    box(model, 0.38, 0.32, 0.24, right + 0.02, 0.34, 0.18, motorBody, 0.03);
+    reader(right, 1.42, 0.12);
+    cylinder(model, 0.05, 0.04, right, 2.145, 0, black);
+    cylinder(model, 0.044, 0.07, right, 2.2, 0, beacon);
   } else {
     const width = kind === "double-swing" ? 2.15 : 1.42;
     for (const x of [-width / 2 - .1, width / 2 + .1]) {
@@ -185,14 +215,20 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
   let disposed = false;
   let dirtyFrames = 2;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-  // The boom runs to the right, so opening raises it with a positive rotation.
-  const openAngle = boom ? Math.PI / 2.1 : -Math.PI / 2.5;
-  const angleFor = (target: GatePosition) => target === "open" ? openAngle : 0;
-  // Unknown feedback holds the current illustration instead of falsely closing.
-  let angle = initial === "open" || initial === "closed" ? angleFor(initial) : openAngle / 2;
+  // The boom lifts. A swing leaf rotates. A sliding leaf travels sideways on X.
+  const openTravel = sliding ? 1.85 : boom ? Math.PI / 2.1 : -Math.PI / 2.5;
+  const angleFor = (target: GatePosition) => target === "open" ? openTravel : 0;
+  // Unknown swing/boom art sits halfway. A half-open slider would look open, so it stays across the driveway.
+  let angle = sliding
+    ? (initial === "open" ? openTravel : 0)
+    : (initial === "open" || initial === "closed" ? angleFor(initial) : openTravel / 2);
   let targetAngle = initialTarget ? angleFor(initialTarget) : angle;
   let lastFrame = 0;
-  const orient = () => leaves.forEach((leaf, index) => { if (boom) leaf.rotation.z = angle; else leaf.rotation.y = angle * (index ? -1 : 1); });
+  const orient = () => leaves.forEach((leaf, index) => {
+    if (sliding) leaf.position.x = Number(leaf.userData.slideBase) + angle;
+    else if (boom) leaf.rotation.z = angle;
+    else leaf.rotation.y = angle * (index ? -1 : 1);
+  });
   const update = (next: GateVisualState, target: GatePosition | null) => {
     position = next;
     targetAngle = target ? angleFor(target) : angle;

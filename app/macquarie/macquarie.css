@@ -1,0 +1,154 @@
+/* Macquarie resident page. Dark canvas from the operations screenshot.
+   Higher specificity than corporate.css, which paints the admin workspace white. */
+.control-portal.macquarie-portal {
+  display: block;
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 100vh;
+  background: #07111c;
+  color: #e7f0f8;
+}
+/* The admin shell sets .portal-workspace { width: 0 } so it can sit beside the sidebar.
+   This page has no sidebar, so that rule collapses the dashboard to a strip. */
+.control-portal.macquarie-portal .portal-workspace {
+  display: block;
+  width: 100% !important;
+  max-width: none !important;
+  flex: none !important;
+  min-width: 0;
+}
+.control-portal.macquarie-portal .portal-workspace,
+.control-portal.macquarie-portal .workspace-content,
+.control-portal.macquarie-portal .campus-context {
+  background: #07111c !important;
+  color: #e7f0f8 !important;
+}
+@media (min-width: 900px) {
+  .control-portal.macquarie-portal .connection-pill { display: inline-flex !important; }
+  .control-portal.macquarie-portal .system-status-cluster { display: flex !important; }
+}
+.control-portal.macquarie-portal .magic-brand-logo { height: 46px; width: auto; }
+.control-portal.macquarie-portal .workspace-location { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.control-portal.macquarie-portal .macquarie-place { display: grid; min-width: 0; }
+.control-portal.macquarie-portal .macquarie-place strong { color: #fff; font-size: 14px; }
+.control-portal.macquarie-portal .header-operator { flex: 0 0 auto; }
+.control-portal.macquarie-portal .header-operator > span { max-width: none; min-width: max-content; }
+.control-portal.macquarie-portal .header-operator strong { overflow: visible; text-overflow: clip; }
+.control-portal.macquarie-portal .macquarie-place small,
+.control-portal.macquarie-portal .header-operator small { color: #b7cbe0; }
+.control-portal.macquarie-portal .macquarie-fire-info {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #8fb4d4;
+  border-radius: 8px;
+  background: transparent;
+  color: #d6e8f6;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.control-portal.macquarie-portal .macquarie-fire-info:focus-visible { outline: 2px solid #5cc8ff; outline-offset: 2px; }
+.control-portal.macquarie-portal .macquarie-gate-pill.is-online { background: #133029; color: #b7f0d0; border-color: #1f7a4d; }
+.control-portal.macquarie-portal .macquarie-signin,
+.control-portal.macquarie-portal .macquarie-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin: 16px 24px 0;
+  padding: 14px 16px;
+  background: #0c2744;
+  color: #e7f0f8;
+  border: 1px solid #1d4e7a;
+}
+.control-portal.macquarie-portal .macquarie-signin label,
+.control-portal.macquarie-portal .macquarie-panel label { display: grid; gap: 4px; color: #b7cbe0; font-size: 12px; font-weight: 700; }
+.control-portal.macquarie-portal .macquarie-signin input,
+.control-portal.macquarie-portal .macquarie-panel input {
+  min-height: 40px;
+  padding: 8px 10px;
+  background: #07111c !important;
+  color: #e7f0f8 !important;
+  border: 1px solid #1d4e7a !important;
+}
+.control-portal.macquarie-portal .macquarie-text-button {
+  background: transparent;
+  color: #9fd4ff;
+  border: 0;
+  font-weight: 700;
+}
+.control-portal.macquarie-portal .workspace-content[data-view="macquarie"] { padding: 8px 24px 48px !important; }
+.control-portal.macquarie-portal .workspace-content[data-view="macquarie"] .gate-condition-grid { grid-template-columns: minmax(0, 1fr) !important; }
+.control-portal.macquarie-portal .hardware-card {
+  background: #0c2744 !important;
+  color: #e7f0f8 !important;
+  border: 1px solid #1d4e7a !important;
+  border-radius: 16px !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+.control-portal.macquarie-portal .hardware-card :is(h3, p, span, strong, small, b, footer) { color: #e7f0f8 !important; }
+.control-portal.macquarie-portal .hardware-card header p,
+.control-portal.macquarie-portal .metric-block p,
+.control-portal.macquarie-portal .hardware-card footer { color: #b7cbe0 !important; }
+.control-portal.macquarie-portal .gate-condition > div:first-child {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 2px !important;
+  min-height: 0;
+}
+.control-portal.macquarie-portal .hardware-stage {
+  grid-template-columns: 148px minmax(0, 1fr) 210px !important;
+  height: auto !important;
+  min-height: 420px;
+  background: radial-gradient(ellipse at 50% 50%, #0757a8 0%, #063568 48%, #071b31 100%) !important;
+  border: 1px solid #00a8ff88 !important;
+  border-radius: 14px !important;
+  box-shadow: inset 0 0 35px #00a8ff1f, 0 0 18px #009cff1c !important;
+}
+.control-portal.macquarie-portal .gate-current-state {
+  width: auto !important;
+  min-height: 0 !important;
+  background: #061b32e8 !important;
+  border: 1px solid #00b7ff !important;
+  box-shadow: inset 0 0 22px #008cff17 !important;
+}
+.control-portal.macquarie-portal .gate-current-state :is(small, span) { color: #b8dcf5 !important; }
+.control-portal.macquarie-portal .gate-current-state :is(strong, b) { color: #fff !important; }
+.control-portal.macquarie-portal .orbit-help {
+  height: auto !important;
+  background: #06182ed9 !important;
+  border-color: #00a8ff8c !important;
+  color: #d1ebff !important;
+}
+.control-portal.macquarie-portal .quick-gate-controls { width: auto !important; top: auto !important; }
+.control-portal.macquarie-portal .quick-state-button { min-height: 58px; height: auto !important; font-size: 15px !important; letter-spacing: .02em; }
+.control-portal.macquarie-portal .quick-state-button span { white-space: normal; line-height: 1.1; }
+.control-portal.macquarie-portal .macquarie-metrics { background: #071a2e !important; border-color: #1d4e7a !important; }
+.control-portal.macquarie-portal .macquarie-panel {
+  margin-top: 24px;
+  padding: 20px;
+  background: #0c2744;
+  color: #e7f0f8;
+  border: 1px solid #1d4e7a;
+}
+.control-portal.macquarie-portal .macquarie-panel h2 { margin: 0 0 8px; color: #ff9a3d; font-size: 18px; }
+.control-portal.macquarie-portal .macquarie-panel h3 { margin: 0 0 8px; color: #e7f0f8; }
+.control-portal.macquarie-portal .macquarie-panel-head,
+.control-portal.macquarie-portal .macquarie-fields,
+.control-portal.macquarie-portal .macquarie-split { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; justify-content: space-between; }
+.control-portal.macquarie-portal .macquarie-split > form { flex: 1 1 280px; display: grid; gap: 10px; }
+.control-portal.macquarie-portal .macquarie-days { display: flex; flex-wrap: wrap; gap: 10px; border: 0; margin: 12px 0; padding: 0; }
+.control-portal.macquarie-portal .macquarie-days label { display: flex; align-items: center; gap: 6px; }
+.control-portal.macquarie-portal .macquarie-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.control-portal.macquarie-portal .macquarie-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.control-portal.macquarie-portal .macquarie-list button,
+.control-portal.macquarie-portal .macquarie-panel summary { color: #9fd4ff; background: transparent; border: 0; font-weight: 700; cursor: pointer; }
+.control-portal.macquarie-portal .macquarie-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.control-portal.macquarie-portal .workspace-content :is(p, li, label, h3, strong, span) { color: #e7f0f8; }
+@media (max-width: 900px) {
+  .control-portal.macquarie-portal .hardware-stage { grid-template-columns: 1fr !important; }
+  .control-portal.macquarie-portal .quick-gate-controls { width: auto !important; position: static !important; }
+  .control-portal.macquarie-portal .macquarie-metrics { grid-template-columns: 1fr !important; }
+}

@@ -32,6 +32,12 @@ function stateText(position: GateVisualState) {
   if (position === "inactive") return { state: "Inactive", detail: "Not in service" };
   return { state: "Issue", detail: "Status unknown" };
 }
+export function gateArtSrc(kind: Gate["kind"]) {
+  if (kind === "sliding") return "/gates/sliding-blue.svg";
+  if (kind === "boom") return "/gates/boom-blue.webp";
+  return `/gates/${kind}-blue.webp`;
+}
+
 export function formatGateTileAriaLabel(gateName: string, position: GateVisualState) {
   const status = stateText(position);
   return `${gateName}: ${status.state}, ${status.detail}`;
@@ -66,7 +72,7 @@ export default function GateTile({ gate, position, motion, interactive = false, 
   }, [gate.kind, interactive]);
   const tone = position === "inactive" ? "off" : position === "closed" ? "stop" : position === "open" ? "run" : "issue";
   return <span className={`gate-tile gate-model access-icon gate-state-${tone} is-${position} ${gate.kind}${ready ? " is-rendered" : ""}${interactive ? " is-interactive" : ""}`} role={interactive ? "group" : "img"} aria-label={ariaLabel ?? (detail === stateText(position).detail ? formatGateTileAriaLabel(gate.name, position) : `${formatGateTileAriaLabel(gate.name, position)}. ${detail}`)}>
-    <span className="gate-model-fallback" aria-hidden="true"><img src={`/gates/${gate.kind === "boom" ? "boom" : gate.kind}-blue.webp`} alt="" /><span>Hardware illustration · {detail}</span></span>
+    <span className="gate-model-fallback" aria-hidden="true"><img src={gateArtSrc(gate.kind)} alt="" /><span>Hardware illustration · {detail}</span></span>
     <span className="gate-model-canvas" ref={host} aria-hidden={interactive ? undefined : true} />
     <span className="gate-led-indicator" aria-hidden="true"><i /><span>{detail}</span></span>
   </span>;

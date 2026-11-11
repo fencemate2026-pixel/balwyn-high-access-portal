@@ -6,8 +6,11 @@
  * same server credential the portal already holds). The portal's own tables go
  * through the balwyn-portal-db Edge Function as the restricted balwyn_app role;
  * that role is deliberately NOT granted the gd_* tables, so a school-portal bug
- * can never reach another client's whitelist. Only the owner-gated route
- * (app/api/owner/sites) calls this module.
+ * can never reach another client's whitelist. Callers:
+ *   - app/api/owner/sites (owner session only)
+ * The Macquarie resident page does not use this module. It queues changes for
+ * the Azure device thomastown-sliding.
+ * No other route should import this module.
  *
  * Every write is scoped to the site being viewed (site_id filter on the row
  * itself, or the unit's site for schedules), so a request can never change a

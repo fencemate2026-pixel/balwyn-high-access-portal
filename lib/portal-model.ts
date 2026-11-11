@@ -12,7 +12,7 @@ export type Gate = {
   name: string;
   area: string;
   type: string;
-  kind: "single-swing" | "double-swing" | "boom";
+  kind: "single-swing" | "double-swing" | "boom" | "sliding";
   active: boolean;
   group: GroupKey;
   defaultPosition: GatePosition;

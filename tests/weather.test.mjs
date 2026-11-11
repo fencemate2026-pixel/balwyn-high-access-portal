@@ -27,6 +27,18 @@ test('malformed primary forecast falls back instead of returning empty success',
   let calls=0; const get=createWeatherService(async()=>{calls++; return Response.json({});});
   await assert.rejects(get(), /unavailable/); assert.equal(calls,2);
 });
+test('a place argument requests that location and the default stays Balwyn', async () => {
+  const time = Date.parse('2026-09-24T22:00:00Z');
+  let seen = '';
+  const thomastown = createWeatherService(async (url) => { seen = String(url); return Response.json(primary); }, () => time, { latitude: '-37.6802', longitude: '145.0144', timezone: 'Australia/Melbourne' });
+  await thomastown();
+  assert.match(seen, /latitude=-37\.6802/);
+  assert.match(seen, /longitude=145\.0144/);
+  const balwyn = createWeatherService(async (url) => { seen = String(url); return Response.json(primary); }, () => time);
+  await balwyn();
+  assert.match(seen, /latitude=-37\.8112/);
+  assert.match(seen, /longitude=145\.0774/);
+});
 test('rain chance comes from the provider and is never invented', async () => {
   const time = Date.parse('2026-09-24T22:00:00Z');
   const withRain = { ...primary, daily: { ...primary.daily, precipitation_probability_max: [40] } };

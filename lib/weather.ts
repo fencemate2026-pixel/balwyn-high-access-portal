@@ -1,4 +1,7 @@
-const LOCATION = { latitude: "-37.8112", longitude: "145.0774", timezone: "Australia/Melbourne" };
+export type WeatherPlace = { latitude: string; longitude: string; timezone: string };
+const BALWYN: WeatherPlace = { latitude: "-37.8112", longitude: "145.0774", timezone: "Australia/Melbourne" };
+/** Suburb forecast for the Macquarie Drive resident portal. Not a sensor on the gate. */
+export const THOMASTOWN_PLACE: WeatherPlace = { latitude: "-37.6802", longitude: "145.0144", timezone: "Australia/Melbourne" };
 const TTL = 10 * 60_000;
 const MAX_AGE = 60 * 60_000;
 const labels: Record<string, string> = { sun: "Clear", "sun-cloud": "Partly cloudy", cloud: "Cloudy", rain: "Rain", storm: "Thunderstorms", snow: "Snow" };
@@ -25,7 +28,7 @@ function metIcon(point: Point) {
 }
 
 /** Cache and deduplicate provider calls for all operators on this app instance. */
-export function createWeatherService(fetcher: typeof fetch = fetch, now = Date.now) {
+export function createWeatherService(fetcher: typeof fetch = fetch, now = Date.now, place: WeatherPlace = BALWYN) {
   let cached: Weather | null = null;
   let expires = 0;
   let retryAfter = 0;
@@ -33,7 +36,7 @@ export function createWeatherService(fetcher: typeof fetch = fetch, now = Date.n
   async function refresh(): Promise<Weather> {
     try {
       const url = new URL("https://api.open-meteo.com/v1/forecast");
-      url.search = new URLSearchParams({ ...LOCATION, current: "temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m", daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max", forecast_days: "7" }).toString();
+      url.search = new URLSearchParams({ ...place, current: "temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m", daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max", forecast_days: "7" }).toString();
       const response = await fetcher(url, { cache: "no-store", signal: AbortSignal.timeout(5000) });
       if (!response.ok) throw new Error("Primary forecast unavailable");
       const body = await response.json() as Meteo;
@@ -46,7 +49,7 @@ export function createWeatherService(fetcher: typeof fetch = fetch, now = Date.n
       expires = now() + TTL;
       return result;
     } catch {
-      const response = await fetcher(`https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${LOCATION.latitude}&lon=${LOCATION.longitude}`, {
+      const response = await fetcher(`https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${place.latitude}&lon=${place.longitude}`, {
         headers: { "User-Agent": "MagicKeysBalwyn/1.0 (https://rjlcommercialgroup.com)", Accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(7000),
       });
       if (!response.ok) throw new Error("Fallback forecast unavailable");
@@ -56,7 +59,7 @@ export function createWeatherService(fetcher: typeof fetch = fetch, now = Date.n
       const first = points[0]; const details = first.data.instant.details; const kind = metIcon(first);
       const groups = new Map<string, Point[]>();
       for (const point of points) {
-        const date = new Intl.DateTimeFormat("en-CA", { timeZone: LOCATION.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(point.time));
+        const date = new Intl.DateTimeFormat("en-CA", { timeZone: place.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(point.time));
         groups.set(date, [...(groups.get(date) ?? []), point]);
       }
       expires = Math.max(now() + TTL, Date.parse(response.headers.get("expires") ?? "") || 0);
@@ -82,3 +85,4 @@ export function createWeatherService(fetcher: typeof fetch = fetch, now = Date.n
   };
 }
 export const getBalwynWeather = createWeatherService();
+export const getThomastownWeather = createWeatherService(fetch, Date.now, THOMASTOWN_PLACE);

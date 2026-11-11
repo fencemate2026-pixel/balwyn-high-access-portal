@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" aria-label="Sliding gate illustration">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#063568"/>
+      <stop offset="1" stop-color="#071b31"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="55%" r="45%">
+      <stop offset="0" stop-color="#2a6cff" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#2a6cff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c5ced6"/>
+      <stop offset="0.45" stop-color="#8e99a3"/>
+      <stop offset="1" stop-color="#6d7781"/>
+    </linearGradient>
+    <linearGradient id="post" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8a95a0"/>
+      <stop offset="0.5" stop-color="#3e4750"/>
+      <stop offset="1" stop-color="#6a7580"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="500" fill="url(#sky)"/>
+  <ellipse cx="390" cy="280" rx="280" ry="160" fill="url(#glow)"/>
+  <ellipse cx="400" cy="430" rx="250" ry="28" fill="#010409" opacity="0.85"/>
+  <rect x="150" y="118" width="28" height="300" rx="3" fill="url(#post)"/>
+  <rect x="600" y="118" width="28" height="300" rx="3" fill="url(#post)"/>
+  <rect x="142" y="108" width="44" height="16" rx="2" fill="#8a95a0"/>
+  <rect x="592" y="108" width="44" height="16" rx="2" fill="#8a95a0"/>
+  <rect x="168" y="124" width="470" height="10" rx="2" fill="#5d6873"/>
+  <g>
+    <rect x="186" y="148" width="390" height="250" rx="2" fill="url(#steel)"/>
+    <g fill="#5c6770">
+      <rect x="204" y="168" width="354" height="16"/>
+      <rect x="204" y="198" width="354" height="16"/>
+      <rect x="204" y="228" width="354" height="16"/>
+      <rect x="204" y="258" width="354" height="16"/>
+      <rect x="204" y="288" width="354" height="16"/>
+      <rect x="204" y="318" width="354" height="16"/>
+      <rect x="204" y="348" width="354" height="16"/>
+    </g>
+    <rect x="198" y="156" width="10" height="230" fill="#d5dde3"/>
+    <rect x="554" y="156" width="10" height="230" fill="#d5dde3"/>
+  </g>
+  <rect x="628" y="250" width="70" height="78" rx="6" fill="#1d2228"/>
+  <rect x="646" y="268" width="34" height="22" rx="3" fill="#07090c"/>
+  <circle cx="663" cy="300" r="6" fill="#2f7bff"/>
+  <rect x="608" y="96" width="12" height="18" rx="2" fill="#07090c"/>
+  <circle cx="614" cy="90" r="8" fill="#f5bd64"/>
+</svg>
