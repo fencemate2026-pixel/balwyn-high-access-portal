@@ -96,10 +96,10 @@ export async function getDetail(c: GdClient, device = SWING_DEVICE_ID) {
   const ready = await holdsReady(c);
   const [dev, users, holds, access, changes] = await Promise.all([
     c.query("SELECT device_id, site_name, last_seen, fw_version, last_status FROM gd.devices WHERE device_id=$1", [device]),
-    c.query("SELECT local_id,name,phone,enabled,schedule_type,schedule_data,created_at_local FROM gd.users WHERE device_id=$1 ORDER BY name", [device]),
-    ready ? c.query("SELECT local_id,name,days,open_time,close_time,enabled FROM gd.hold_windows WHERE device_id=$1 ORDER BY open_time, name", [device]) : Promise.resolve({ rows: [] }),
-    c.query("SELECT local_id,occurred_at_local,user_name,method,success FROM gd.access_log WHERE device_id=$1 ORDER BY local_id DESC LIMIT 500", [device]),
-    c.query("SELECT local_id,occurred_at_local,action,detail,changed_by,source FROM gd.changes WHERE device_id=$1 ORDER BY received_at DESC, local_id DESC LIMIT 300", [device]),
+    c.query("SELECT local_id::int AS local_id,name,phone,enabled,schedule_type,schedule_data,created_at_local FROM gd.users WHERE device_id=$1 ORDER BY name", [device]),
+    ready ? c.query("SELECT local_id::int AS local_id,name,days,open_time,close_time,enabled FROM gd.hold_windows WHERE device_id=$1 ORDER BY open_time, name", [device]) : Promise.resolve({ rows: [] }),
+    c.query("SELECT local_id::int AS local_id,occurred_at_local,user_name,method,success FROM gd.access_log WHERE device_id=$1 ORDER BY local_id DESC LIMIT 500", [device]),
+    c.query("SELECT local_id::int AS local_id,occurred_at_local,action,detail,changed_by,source FROM gd.changes WHERE device_id=$1 ORDER BY received_at DESC, local_id DESC LIMIT 300", [device]),
   ]);
   return { device: dev.rows[0] ?? null, holdsReady: ready, users: users.rows, holds: holds.rows, access: access.rows, changes: changes.rows };
 }
