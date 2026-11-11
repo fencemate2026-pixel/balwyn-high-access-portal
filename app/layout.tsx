@@ -20,9 +20,9 @@ export const metadata: Metadata = {
   title: "Magic Keys",
   description: "Secure Magic Keys operations portal.",
   icons: {
-    icon: "/magic-keys-school-logo.png",
-    shortcut: "/magic-keys-school-logo.png",
-    apple: "/magic-keys-school-logo.png",
+    icon: "/magic-keys-mark-2026.png",
+    shortcut: "/magic-keys-mark-2026.png",
+    apple: "/magic-keys-mark-2026.png",
   },
 };
 

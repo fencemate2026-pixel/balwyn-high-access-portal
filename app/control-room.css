@@ -70,8 +70,8 @@ h1, h2, h3 { letter-spacing: -.025em; }
 .portal-sidebar-header { min-height: 118px; padding: 22px 22px 18px; background: transparent; border: 0; }
 .magic-sidebar-brand { display: flex; flex-direction: column; gap: 12px; width: 100%; }
 .magic-brand-logo { background: transparent; border: 0; box-shadow: none; }
-.control-portal .magic-brand-logo, .legal-shell .magic-brand-logo { filter: brightness(0) invert(.94); }
-.magic-sidebar-brand .magic-brand-logo { width: 166px; height: 66px; object-fit: contain; padding: 0; background: transparent; filter: none; border: 0; box-shadow: none; border-radius: 0; }
+.control-portal .magic-brand-logo, .legal-shell .magic-brand-logo { filter: none; }
+.magic-sidebar-brand .magic-brand-logo { width: 220px; height: auto; object-fit: contain; padding: 0; background: transparent; filter: none; border: 0; box-shadow: none; border-radius: 0; }
 .magic-sidebar-brand > span { color: #a0a3b8; font-size: 12px; letter-spacing: .15em; }
 .control-sidebar [data-sidebar="group"] { padding: 10px 14px; }
 .control-sidebar [data-sidebar="group-label"] { color: #a0a3b8; font-size: 12px; letter-spacing: .18em; height: 35px; padding-left: 13px; }
@@ -287,7 +287,8 @@ h1, h2, h3 { letter-spacing: -.025em; }
 .magic-login-heading h1, .magic-login label, .legal-card h1, .legal-card h2 { color: var(--text-primary); }
 .magic-login :is(p, small), .legal-card p { color: var(--text-secondary); }
 .magic-login .magic-login-brand { background: transparent !important; }
-.magic-login-brand .magic-brand-logo, .magic-login-partners .partner-crest { background: transparent; filter: brightness(0) invert(.94); }
+.magic-login-brand .magic-brand-logo { background: transparent; filter: none; }
+.magic-login-partners .partner-crest { background: transparent; filter: brightness(0) invert(.94); }
 .magic-login-partners .partner-rjl { background: transparent; filter: drop-shadow(0 1px 1px #bcd4eb55); }
 .magic-login .magic-login-panel h1 { color: var(--text-primary) !important; }
 .magic-login .magic-login-panel :is(p, label), .magic-login .magic-login-approval, .magic-login .magic-login-legal :is(a, span) { color: var(--text-secondary) !important; }

@@ -11,13 +11,14 @@
   top: 50% !important;
   right: auto !important;
   bottom: auto !important;
-  width: min(56%, 920px) !important;
+  width: min(70%, 420px) !important;
   max-width: none !important;
   height: auto !important;
-  max-height: 34vh !important;
+  max-height: 46vh !important;
   transform: translate(-50%, -50%) !important;
   object-fit: contain !important;
   object-position: center center !important;
+  filter: none !important;
   padding: 0 !important;
   margin: 0 !important;
   z-index: 2 !important;

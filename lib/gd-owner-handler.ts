@@ -2,7 +2,8 @@
 // session whose email is PORTAL_OWNER_EMAIL, else 404 (the page's existence is not disclosed); every change
 // also needs an exact same-origin request. No PIN or unlock step for the owner (6 Nov 2026, Jarrod).
 // Changes are QUEUED here and applied by the Pi; the Pi decides, and the screen shows Applied / Failed
-// as the Pi reports it. Nothing here can move the gate relay.
+// as the Pi reports it. gate.pulse queues one relay pulse for Macquarie Drive Thomastown.
+// This process does not pulse the relay. The Pi does, on its next check-in.
 import { GdUnavailableError, gdTransaction } from "@/lib/gd-db";
 import { swingCommandInput, type GdSiteId } from "@/lib/gd-swing-model";
 import { enqueueCommand, getDetail, listCommands } from "@/lib/gd-swing-store";

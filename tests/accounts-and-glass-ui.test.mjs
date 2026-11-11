@@ -25,6 +25,9 @@ test("the sign-in badge keeps the Magic Keys logo and has no school line under i
   const html = renderToStaticMarkup(React.createElement(DemoLogin));
   const badge = html.slice(html.indexOf("login-school-badge"), html.indexOf("access-login-card"));
   assert.match(badge, /magic-brand-logo/);
+  assert.match(html, /magic-keys-logo-2026\.webp/);
+  assert.doesNotMatch(html, /magic-keys-school-logo/);
+  assert.doesNotMatch(html, /src="\/magic-keys-logo\.png"/);
   assert.doesNotMatch(badge, /BALWYN HIGH SCHOOL/);
   assert.doesNotMatch(html, /balwyn-crest/);
   assert.doesNotMatch(html, /CAMPUS ACCESS PORTAL/);

@@ -34,11 +34,12 @@
   aspect-ratio: 463 / 984;
 }
 
-/* Logo: same artwork, nudged left and a little smaller so it ends at 66% of the
-   panel and the face (right-hand 33%) never covers it. Phones override this below. */
+/* Logo: the 2026 mark is 300 px wide. Cap the stage near that so the blue stays sharp.
+   Nudged left so it ends before the face (right-hand 33%). Phones override this below. */
 .access-login-school-blue .access-login-brand-stage .magic-wide-wordmark {
   left: 40% !important;
-  width: min(52%, 880px) !important;
+  width: min(52%, 420px) !important;
+  filter: none !important;
 }
 
 /* ---- 3. Animation layers ------------------------------------------------- */

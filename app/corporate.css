@@ -132,7 +132,7 @@
 .control-portal .control-sidebar [data-sidebar="sidebar"] { background: var(--cw-navy) !important; }
 .control-portal .portal-sidebar-header { padding: 20px 16px 12px !important; border-bottom: 1px solid rgba(255,255,255,.08); }
 .control-portal .magic-sidebar-brand { display: flex; justify-content: center; }
-.control-portal .magic-sidebar-brand .magic-brand-logo { width: 176px !important; height: auto !important; filter: none !important; }
+.control-portal .magic-sidebar-brand .magic-brand-logo { width: 220px !important; max-width: 100% !important; height: auto !important; filter: none !important; }
 .control-portal .control-sidebar [data-sidebar="group"] { padding: 12px 12px 4px !important; }
 .control-portal .control-sidebar [data-sidebar="group-label"] { height: 28px !important; padding: 0 12px !important; margin-bottom: 4px; color: #8fb0cf !important; font-size: 11px !important; font-weight: 700 !important; letter-spacing: .12em !important; text-transform: uppercase; }
 .control-portal .control-sidebar [data-sidebar="menu"] { gap: 4px !important; }
@@ -291,10 +291,9 @@
 .control-portal .workspace-content input:is([type="time"], [type="date"]) { font-size: 13px !important; padding-inline: 8px !important; }
 
 /* ------------------------------------------------------ brand + legal pages
- * The 2026 logo artwork is 300 x 110 px: never show it wider than ~340 px, or
- * it goes soft. Legal pages are dark: no white box behind the logo, light text. */
-.access-login-brand-stage .magic-wide-wordmark { width: min(340px, 40%) !important; }
-.legal-brand img, .legal-brand > .magic-brand-logo { background: transparent !important; padding: 0 !important; border-radius: 0 !important; filter: none !important; width: 180px !important; height: auto !important; }
+ * The 2026 logo artwork is 300 x 110 px. Keep it near that width so the blue stays sharp. */
+.access-login-brand-stage .magic-wide-wordmark { width: min(420px, 70%) !important; }
+.legal-brand img, .legal-brand > .magic-brand-logo { background: transparent !important; padding: 0 !important; border-radius: 0 !important; filter: none !important; width: 300px !important; height: auto !important; }
 .legal-brand, .legal-brand strong { color: #f5fbff !important; }
 .legal-brand small, .legal-back { color: #9fc0da !important; }
 

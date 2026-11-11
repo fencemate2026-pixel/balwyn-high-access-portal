@@ -27,7 +27,7 @@
   .control-portal.macquarie-portal .connection-pill { display: inline-flex !important; }
   .control-portal.macquarie-portal .system-status-cluster { display: flex !important; }
 }
-.control-portal.macquarie-portal .magic-brand-logo { height: 46px; width: auto; }
+.control-portal.macquarie-portal .magic-brand-logo { height: 72px; width: auto; filter: none; }
 .control-portal.macquarie-portal .workspace-location { display: flex; align-items: center; gap: 16px; min-width: 0; }
 .control-portal.macquarie-portal .macquarie-place { display: grid; min-width: 0; }
 .control-portal.macquarie-portal .macquarie-place strong { color: #fff; font-size: 14px; }

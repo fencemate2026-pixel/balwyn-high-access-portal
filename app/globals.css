@@ -1755,7 +1755,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 /* Shared original logo artwork, rendered on transparent backing. */
 .logo-filter-definitions { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 .magic-brand-logo { display: block; width: 100%; height: auto; object-fit: contain; background: transparent; }
-.public-brand > .magic-brand-logo, .legal-brand > .magic-brand-logo { width: 180px; height: 75px; flex: 0 0 auto; }
+.public-brand > .magic-brand-logo, .legal-brand > .magic-brand-logo { width: 300px; height: auto; flex: 0 0 auto; }
 .brand-page > .public-nav { width: 100%; padding-inline: max(20px, calc((100% - 1180px) / 2)); background: #f2f7fd; border-color: #cfdeeb; }
 .brand-page .public-brand, .brand-page .public-brand strong { color: #092742; }
 .brand-page .public-brand small { color: #45647c; }
@@ -1775,7 +1775,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .magic-sidebar-brand { background: transparent; border: 0; border-radius: 0; box-shadow: none; padding: 5px 0; }
 .magic-sidebar-brand > .magic-brand-logo { width: 100%; height: 92px; }
 .magic-sidebar-brand span { color: #315a70; }
-.demo-auth-brand > .magic-brand-logo { width: 180px; height: 74px; flex: 0 0 auto; }
+.demo-auth-brand > .magic-brand-logo { width: 300px; height: auto; flex: 0 0 auto; }
 .demo-login-loading > .magic-brand-logo { width: min(520px, 86vw); height: auto; }
 
 /* The supplied login composition: blue access panel, wide white brand canvas. */
@@ -2146,7 +2146,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .plan-upgrade-gate { grid-template-columns: 1fr; gap: 20px; }
 }
 @media (max-width: 620px) {
-  .public-brand > .magic-brand-logo, .legal-brand > .magic-brand-logo { width: 140px; height: 58px; }
+  .public-brand > .magic-brand-logo, .legal-brand > .magic-brand-logo { width: 220px; height: auto; }
   .brand-hero-layout { width: calc(100% - 32px); }
   .brand-hero .brand-intro h1 { font-size: clamp(2.2rem, 9vw, 3.4rem); }
   .plan-summary { align-items: flex-start; flex-direction: column; padding: 20px; }

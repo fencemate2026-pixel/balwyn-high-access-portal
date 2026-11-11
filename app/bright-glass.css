@@ -51,8 +51,7 @@
           mask-image: linear-gradient(90deg, transparent 0, #000 14%);
 }
 
-/* Logo badge: no white box. BrandLogo's inline colour mapping (white ink, bright blue key) now applies,
-   because login-fix.css no longer forces filter:none on these two logos. */
+/* Logo badge: no white box. The 2026 mark is already full colour. Do not invert it. */
 .login-school-badge {
   background: transparent; border: 0; box-shadow: none; padding: 6px 0 0;
 }
@@ -295,8 +294,9 @@
 /* Top brand treatment: original Magic Keys colours, full Balwyn mark, RJL in sidebar footer. */
 .control-portal .magic-sidebar-brand { gap: 0; }
 .control-portal .magic-sidebar-brand .magic-brand-logo {
-  width: 176px;
-  height: 62px;
+  width: 220px;
+  max-width: 100%;
+  height: auto;
   object-fit: contain;
   filter: none !important;
 }
@@ -544,7 +544,7 @@
 .access-login-school-blue .access-login-brand-stage .magic-wide-wordmark {
   left: 43% !important;
   top: 50% !important;
-  width: min(46%, 720px) !important;
+  width: min(70%, 420px) !important;
   transform: translate(-50%, -50%) !important;
   filter: none !important;
   z-index: 4 !important;

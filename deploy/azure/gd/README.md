@@ -1,6 +1,6 @@
 # Thomastown swing gate: Azure `gd` schema (STAGED, NOT APPLIED)
 
-What this is: a copy of the Thomastown swing gate's callers, call log and change log in Azure, plus a queue of changes the owner makes in the portal. The Pi's own database stays the boss. The Pi pushes data out and asks for queued changes over HTTPS. Nothing here can open the gate.
+What this is: a copy of the Thomastown swing gate's callers, call log and change log in Azure, plus a queue of changes the owner makes in the portal. The Pi's own database stays the boss. The Pi pushes data out and asks for queued changes over HTTPS. The portal does not pulse a relay. `gate.pulse` only asks the Macquarie Drive Thomastown Pi to pulse once.
 
 Nothing in this folder has been run against a live database. It was tested only against a throwaway PostgreSQL-compatible database (`tests/thomastown-swing.test.mjs`).
 
@@ -74,3 +74,10 @@ The Pi reads whichever SIM is fitted (ICCID, and the number on it if any); if th
 2. Deploy the portal. A Pi that has not been updated keeps showing the legacy number for the swing gate.
 3. Update the Pi package (separate approval; restarts `thomgate`, which briefly drops caller detection).
 Rollback: `005_sim_number_rollback.sql`.
+
+## Open pulse (added 12 Nov 2026, STAGED, NOT APPLIED)
+One button on the Macquarie Drive Thomastown owner page queues `gate.pulse`. The Pi pulses the relay once, the same pulse an allowed phone call uses. It does not place a call. A second press queues another pulse. Close is not a separate command.
+1. Apply `007_gate_pulse.sql` as the database admin (after 001): widens the command kinds to include `gate.pulse`. Until then the page loads and Open is refused with a plain message.
+2. Deploy the portal.
+3. Update the Pi package (separate approval). Until that software is on the Pi, the Pi rejects the command as an unknown action and the portal shows Failed.
+Rollback: `007_gate_pulse_rollback.sql`.

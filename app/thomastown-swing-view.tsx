@@ -84,10 +84,15 @@ export default function ThomastownSwingView({ fixture, device = SWING_DEVICE_ID 
   }, [device, load, siteName]);
 
   if (!data) return error ? <div className={`${GLASS_PANEL} p-4 text-sm`}><Pill tone="bad">{error}</Pill></div> : <div className="flex items-center gap-2"><LoaderCircle className="animate-spin" /> Loading {siteName}…</div>;
-  return <><Body data={data} busy={busy} send={send} siteName={siteName} dialIn={gdDialIn(device)} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
+  return <><Body data={data} busy={busy} send={send} siteName={siteName} dialIn={gdDialIn(device)} pulseGate={device === SWING_DEVICE_ID} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
 }
 
-function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy: boolean; send: Send; siteName: string; dialIn: string | null }) {
+function commandLabel(c: SCommand) {
+  if (c.kind === "gate.pulse") return "Open pulse";
+  return `${c.kind}${c.args.name ? ` · ${String(c.args.name)}` : ""}${c.args.local_id ? ` · #${String(c.args.local_id)}` : ""}`;
+}
+
+function Body({ data, busy, send, siteName, dialIn, pulseGate }: { data: SwingDetail; busy: boolean; send: Send; siteName: string; dialIn: string | null; pulseGate: boolean }) {
   const now = Date.parse(data.serverTime) || Date.now();
   const seen = data.device?.last_seen ?? null;
   const [tab, setTab] = useState<"calls" | "changes">("calls");
@@ -106,6 +111,7 @@ function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy:
   const lock = busy ? "Working…" : undefined;
   const sim = simInfo(data.device?.last_status);
   const simCmd = useMemo(() => data.commands.find((c) => c.kind === "sim.number"), [data.commands]);
+  const pulseCmd = useMemo(() => data.commands.find((c) => c.kind === "gate.pulse"), [data.commands]);
 
   return (
     <div className="mildura-view">
@@ -113,6 +119,8 @@ function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy:
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="m-0 flex items-center gap-2 text-lg"><ShieldCheck className="size-4 text-[#FF7A00]" aria-hidden="true" /> {siteName}</h2>
           <span className="connection-pill"><i /> Owner control · Azure · applied by the site Pi</span>
+          {pulseGate && <button type="button" className={glassButton("orange")} disabled={busy} title={lock} onClick={() => send({ kind: "gate.pulse" }, { title: "Open the gate?", body: "This queues one pulse, the same pulse an allowed phone call sends. The unit applies it on its next check-in. It does not place a phone call. It does not close the gate. Pressing again sends that same pulse again.", action: "Queue open pulse" })}><DoorOpen className="size-4" /> Open</button>}
+          {pulseGate && <CmdPill c={pulseCmd} />}
         </div>
         <div className="flex flex-wrap gap-2">
           <Pill tone={data.online ? "ok" : "bad"}>{data.online ? "Online" : "Offline"} · last seen {ago(seen, now)}</Pill>
@@ -183,7 +191,7 @@ function Body({ data, busy, send, siteName, dialIn }: { data: SwingDetail; busy:
       <Section n={4} icon={ClipboardList} title="Changes sent to the Pi" right={<span className="text-xs text-muted-foreground">Pending → Applied / Failed, as reported by the Pi</span>}>
         {data.commands.length ? <div className="max-h-[260px] overflow-auto"><table className="w-full border-collapse">
           <thead><tr><th className={TH}>When</th><th className={TH}>Change</th><th className={TH}>By</th><th className={TH}>Result</th></tr></thead>
-          <tbody>{data.commands.map((c) => <tr key={c.id}><Td className="tabular-nums">{ago(c.created_at, now)}</Td><Td>{c.kind}{c.args.name ? ` · ${String(c.args.name)}` : ""}{c.args.local_id ? ` · #${String(c.args.local_id)}` : ""}</Td><Td className={MUTED}>{c.actor_email}</Td><td className={TD}><CmdPill c={c} />{c.error ? <small className={`ml-2 ${MUTED}`}>{c.error}</small> : null}</td></tr>)}</tbody></table></div>
+          <tbody>{data.commands.map((c) => <tr key={c.id}><Td className="tabular-nums">{ago(c.created_at, now)}</Td><Td>{commandLabel(c)}</Td><Td className={MUTED}>{c.actor_email}</Td><td className={TD}><CmdPill c={c} />{c.error ? <small className={`ml-2 ${MUTED}`}>{c.error}</small> : null}</td></tr>)}</tbody></table></div>
           : <span className={`text-sm ${MUTED}`}>No changes sent yet.</span>}
       </Section>
     </div>

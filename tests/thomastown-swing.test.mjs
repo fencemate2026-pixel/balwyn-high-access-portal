@@ -77,6 +77,9 @@ test("owner commands are validated: Australian numbers only, schedules in the Pi
   assert.throws(() => model.swingCommandInput({ kind: "user.update", local_id: 3, clientKey: KEY }), /Nothing to change/);
   assert.throws(() => model.swingCommandInput({ kind: "user.delete", local_id: -1, clientKey: KEY }), /Unknown entry/);
   assert.equal(model.swingCommandInput({ kind: "user.enable", local_id: 3, enabled: false, clientKey: KEY }).summary, "Disable caller #3");
+  const pulse = model.swingCommandInput({ kind: "gate.pulse", clientKey: KEY });
+  assert.deepEqual(pulse.args, {});
+  assert.equal(pulse.summary, "Open the gate (one pulse)");
   assert.equal(model.displayPhone("0412345678"), "0412 345 678");
 });
 

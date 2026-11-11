@@ -116,6 +116,9 @@ test("a change queued for the sliding gate reaches only the sliding Pi", async (
   assert.equal((await (await post("thomastown-sliding", await signed({ action: "ack", id: got.commands[0].id, ok: true }))).json()).recorded, true);
   assert.equal((await ownerPost(slidingOwner, "thomastown-sliding", { kind: "user.add", name: "x", phone: "bad", clientKey: KEY }, "owner@example.test")).status, 400);
   assert.equal((await ownerPost(slidingOwner, "thomastown-sliding", { kind: "user.add", name: "x", phone: "0455111222", clientKey: KEY }, "staff@example.test")).status, 404);
+  const pulse = await ownerPost(slidingOwner, "thomastown-sliding", { kind: "gate.pulse", clientKey: "44444444-4444-4444-8444-444444444444" });
+  assert.equal(pulse.status, 400);
+  assert.match((await pulse.json()).error ?? "", /cannot be opened from the portal/);
 });
 
 test("the owner list carries both Azure gate sites", () => {

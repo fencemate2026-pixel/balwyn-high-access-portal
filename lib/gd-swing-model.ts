@@ -31,7 +31,7 @@ const GD_DIAL_IN: Partial<Record<GdSiteId, string>> = {
 };
 export const gdDialIn = (site: GdSiteId): string | null => GD_DIAL_IN[site] ?? null;
 export const isGdSiteId = (v: unknown): v is GdSiteId => typeof v === "string" && Object.prototype.hasOwnProperty.call(GD_SITES, v);
-export const SWING_KINDS = ["user.add", "user.update", "user.delete", "user.enable", "hold.add", "hold.update", "hold.delete", "hold.enable", "sim.number"] as const;
+export const SWING_KINDS = ["user.add", "user.update", "user.delete", "user.enable", "hold.add", "hold.update", "hold.delete", "hold.enable", "sim.number", "gate.pulse"] as const;
 export type SwingKind = typeof SWING_KINDS[number];
 /** A command the Pi has not collected within this time is dropped, never applied late. */
 export const COMMAND_TTL_MINUTES = 15;
@@ -153,6 +153,9 @@ export function swingCommandInput(body: Record<string, unknown>): SwingCommandIn
       args = { iccid, number: phoneLocal(body.number) };
       summary = `Set the gate's dial-in number to ${displayPhone(String(args.number))}`; break;
     }
+    case "gate.pulse":
+      args = {};
+      summary = "Open the gate (one pulse)"; break;
   }
   return { kind: k, args, clientKey, summary };
 }

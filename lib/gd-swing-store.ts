@@ -19,8 +19,17 @@ export async function holdsReady(c: GdClient): Promise<boolean> {
 
 /** True once deploy/azure/gd/005_sim_number.sql has been applied (the command-kind CHECK allows sim.number). */
 export async function simReady(c: GdClient): Promise<boolean> {
+  return (await commandKinds(c)).includes("sim.number");
+}
+
+async function commandKinds(c: GdClient): Promise<string> {
   const r = await c.query("SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint WHERE conname = 'commands_kind_check' AND conrelid = 'gd.commands'::regclass");
-  return String(r.rows[0]?.d ?? "").includes("sim.number");
+  return String(r.rows[0]?.d ?? "");
+}
+
+/** True once deploy/azure/gd/007_gate_pulse.sql has been applied (the command-kind CHECK allows gate.pulse). */
+export async function pulseReady(c: GdClient): Promise<boolean> {
+  return (await commandKinds(c)).includes("gate.pulse");
 }
 
 /** Single-use nonce. Returns false when it was seen before (a replay). Old nonces are cleared first. */
@@ -112,6 +121,8 @@ export async function listCommands(c: GdClient, device = SWING_DEVICE_ID) {
 export async function enqueueCommand(c: GdClient, input: SwingCommandInput, actorEmail: string, device = SWING_DEVICE_ID) {
   if (input.kind.startsWith("hold.") && !(await holdsReady(c))) throw new OwnerSiteInputError("Hold windows are not set up on the server yet.");
   if (input.kind === "sim.number" && !(await simReady(c))) throw new OwnerSiteInputError("Saving the SIM number is not set up on the server yet.");
+  if (input.kind === "gate.pulse" && device !== SWING_DEVICE_ID) throw new OwnerSiteInputError("This unit cannot be opened from the portal.");
+  if (input.kind === "gate.pulse" && !(await pulseReady(c))) throw new OwnerSiteInputError("Opening from the portal is not set up on the server yet.");
   const seen = await c.query(`SELECT ${COMMAND_COLUMNS} FROM gd.commands WHERE device_id=$1 AND client_key=$2`, [device, input.clientKey]);
   if (seen.rowCount) return { command: seen.rows[0], duplicate: true };
   const made = await c.query(
