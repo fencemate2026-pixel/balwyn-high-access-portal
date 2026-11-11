@@ -35,7 +35,7 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
   const sliding = kind === "sliding";
   const camera = new THREE.PerspectiveCamera(boom ? 30 : sliding ? 32 : 28, 1, .1, 40);
   if (boom) { camera.position.set(-.9, 1.6, 5.7); camera.lookAt(.3, .85, 0); }
-  else if (sliding) { camera.position.set(0.35, 1.55, 6.8); camera.lookAt(0.2, 1.02, 0); }
+  else if (sliding) { camera.position.set(1.2, 1.52, 7.2); camera.lookAt(0.4, 1.05, 0); }
   else { camera.position.set(1.3, 1.35, kind === "double-swing" ? 5.2 : 5.1); camera.lookAt(0, 1.05, 0); }
 
   // Reflections: a neutral studio, tinted blue by the lights below.
@@ -110,6 +110,7 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
   floor.rotation.x = -Math.PI / 2; floor.position.set(boom ? .3 : sliding ? 0.2 : 0, 0, .4); floor.receiveShadow = true; scene.add(floor);
 
   const leaves: THREE.Group[] = [];
+  let slideTravel = 0;
   if (boom) {
     // Cabinet on the left, boom running right to a rest post (as in boom-blue.webp).
     const cx = -1.05;
@@ -144,6 +145,7 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
     }
     box(model, opening + 0.55, 0.07, 0.1, 0.2, 1.92, 0, post, 0.01);
     const leafWidth = opening - 0.06;
+    slideTravel = leafWidth;
     const slideBase = left + 0.1;
     const leaf = new THREE.Group();
     leaf.position.set(slideBase, 0.16, 0.02);
@@ -216,7 +218,7 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
   let dirtyFrames = 2;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
   // The boom lifts. A swing leaf rotates. A sliding leaf travels sideways on X.
-  const openTravel = sliding ? 1.85 : boom ? Math.PI / 2.1 : -Math.PI / 2.5;
+  const openTravel = sliding ? slideTravel : boom ? Math.PI / 2.1 : -Math.PI / 2.5;
   const angleFor = (target: GatePosition) => target === "open" ? openTravel : 0;
   // Unknown swing/boom art sits halfway. A half-open slider would look open, so it stays across the driveway.
   let angle = sliding
@@ -253,7 +255,7 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
     if (!flashing && angle === target && --dirtyFrames <= 0) renderer.setAnimationLoop(null);
   };
   function wake() { if (visible && !document.hidden && !disposed) renderer.setAnimationLoop(frame); }
-  const orbit = interactive ? createGateOrbit(camera, renderer.domElement, () => { dirtyFrames = 3; wake(); }) : null;
+  const orbit = interactive ? createGateOrbit(camera, renderer.domElement, () => { dirtyFrames = 3; wake(); }, sliding ? { x: 0.4, y: 1.02, z: 0 } : undefined) : null;
   const resize = () => {
     const width = host.clientWidth, height = host.clientHeight;
     if (!width || !height) return;

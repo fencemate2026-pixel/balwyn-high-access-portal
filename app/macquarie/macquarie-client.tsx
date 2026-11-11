@@ -7,7 +7,7 @@ import CampusWeather from "../campus-weather";
 import { campusDate, shiftDate, weekStart } from "../campus-calendar";
 import GateTile from "../gate-tile";
 import { GLASS_FOCUS, GLASS_PANEL, GLASS_TILE, glassButton } from "../glass-ui";
-import type { Gate, GateVisualState } from "@/lib/portal-model";
+import type { Gate, GatePosition, GateVisualState } from "@/lib/portal-model";
 
 type WindowItem = { id: string; name: string; openTime: string; closeTime: string; days: number[]; spanDays: number; enabled: boolean };
 type Caller = { id: string; name: string; phone: string; enabled: boolean };
@@ -75,6 +75,7 @@ export default function MacquarieClient() {
   const [callerPhone, setCallerPhone] = useState("");
   const [personName, setPersonName] = useState("");
   const [personEmail, setPersonEmail] = useState("");
+  const [picture, setPicture] = useState<GatePosition | null>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setToday(campusDate()), 60_000);
@@ -103,7 +104,19 @@ export default function MacquarieClient() {
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => shiftDate(start, index)), [start]);
   const gate = { ...GATE, name: sliding?.name || "Sliding gate" };
   const position: GateVisualState = sliding?.held ? "open" : "unknown";
-  const ariaLabel = sliding?.held
+  const pictureTarget: GatePosition | null = picture ?? (sliding?.held ? "open" : null);
+  const pictureLabel = picture === "open"
+    ? "Open picture · preview, not a position sensor"
+    : picture === "closed"
+    ? "Close picture · preview, not a position sensor"
+    : sliding?.held
+    ? "Held open by a schedule"
+    : "Position unknown";
+  const ariaLabel = picture === "open"
+    ? `${gate.name} open picture. The leaf slides aside. This is a preview, not a position sensor.`
+    : picture === "closed"
+    ? `${gate.name} close picture. The leaf slides across the opening. This is a preview, not a position sensor.`
+    : sliding?.held
     ? `${gate.name} held open by a schedule. The picture is the hold, not a position sensor.`
     : `${gate.name} position unknown. This gate has no open or closed sensor.`;
   const age = sliding?.ageSeconds ?? null;
@@ -242,16 +255,16 @@ export default function MacquarieClient() {
                 <span className={`telemetry-badge tone-${sliding?.online ? "green" : "amber"}`}><i className="signal-dot" />{sliding?.online ? "Controller reporting" : "No recent report"}</span>
               </header>
               <div className="hardware-stage relative mx-3 mt-2">
-                <GateTile gate={gate} position={position} motion={{ target: sliding?.held ? "open" : null, label: sliding?.held ? "Held open by a schedule" : "Position unknown" }} interactive ariaLabel={ariaLabel} />
+                <GateTile gate={gate} position={position} motion={{ target: pictureTarget, label: pictureLabel }} interactive ariaLabel={ariaLabel} />
                 <span className="hardware-view-label"><span className="size-1.5 rounded-full bg-[#5CC8FF]" /> 3D hardware view</span>
-                <div className="quick-gate-controls" aria-label={`${gate.name} hold controls`}>
-                  <button type="button" className="quick-state-button quick-open" disabled={!canChange} onClick={(event) => { event.stopPropagation(); void send("/api/macquarie", { action: "hold.now" }); }}><span>HOLD OPEN</span></button>
-                  <button type="button" className="quick-state-button quick-closed" disabled={!canChange} onClick={(event) => { event.stopPropagation(); void send("/api/macquarie", { action: "hold.end" }); }}><span>END HOLD</span></button>
+                <div className="quick-gate-controls" aria-label={`${gate.name} picture controls`}>
+                  <button type="button" className={`quick-state-button quick-open ${pictureTarget === "open" ? "is-current" : ""}`} aria-label={`Show ${gate.name} open`} onClick={(event) => { event.stopPropagation(); setPicture("open"); logClick("gate-picture", "OPEN"); }}><span>OPEN</span></button>
+                  <button type="button" className={`quick-state-button quick-closed ${pictureTarget === "closed" ? "is-current" : ""}`} aria-label={`Show ${gate.name} closed`} onClick={(event) => { event.stopPropagation(); setPicture("closed"); logClick("gate-picture", "CLOSE"); }}><span>CLOSE</span></button>
                 </div>
                 <aside className={`gate-current-state state-${position}`}>
                   <small>CURRENT STATE</small>
                   <strong><i aria-hidden="true" /><span>{sliding?.held ? "HELD OPEN" : "UNKNOWN"}</span></strong>
-                  <span>Position</span><b>{sliding?.held ? "Schedule hold" : "No position sensor"}</b>
+                  <span>Position</span><b>{pictureLabel}</b>
                   <span>Health</span><b>{sliding?.online ? "Reporting" : "No recent report"}</b>
                 </aside>
                 <div className="orbit-help"><span><MousePointer2 aria-hidden="true" /> Drag to rotate</span><span>Wheel to zoom</span><span>Right-drag to pan</span><span><RotateCcw aria-hidden="true" /> Double-click reset</span></div>
@@ -261,7 +274,7 @@ export default function MacquarieClient() {
                 <div className="metric-block px-4"><span><Activity aria-hidden="true" /> Heartbeat</span><strong>{age === null ? "—" : age > 3600 ? ">1h" : age}{age !== null && age <= 3600 ? <small>s</small> : null}</strong><p>{age === null ? "Awaiting heartbeat" : age <= 90 ? "Since last report" : "Stale feedback"}</p></div>
                 <div className="metric-block px-4"><span><ShieldCheck aria-hidden="true" /> Safety input</span><strong className="!text-base !leading-8">Pending</strong><p>No position sensor</p></div>
               </div>
-              <footer className="px-5 py-4 text-[11px]">Ending a hold turns that window off. It does not pulse the gate.</footer>
+              <footer className="px-5 py-4 text-[11px]">OPEN and CLOSE move this picture the same way as the other gates. This gate has no position sensor. Hold open saves a hold time. It does not pulse the gate.</footer>
             </article>
           </div>
         </section>

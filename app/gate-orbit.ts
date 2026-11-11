@@ -2,9 +2,9 @@ import type { PerspectiveCamera } from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 /** Camera interaction only: this module has no gate-command or network access. */
-export function createGateOrbit(camera: PerspectiveCamera, canvas: HTMLCanvasElement, onChange: () => void) {
+export function createGateOrbit(camera: PerspectiveCamera, canvas: HTMLCanvasElement, onChange: () => void, lookAt: { x: number; y: number; z: number } = { x: 0, y: 1.02, z: 0 }) {
   const controls = new OrbitControls(camera, canvas);
-  controls.target.set(0, 1.02, 0);
+  controls.target.set(lookAt.x, lookAt.y, lookAt.z);
   controls.cursor.copy(controls.target);
   controls.minDistance = 3.5;
   controls.maxDistance = 12;
