@@ -15,6 +15,7 @@ import MilduraSiteView from "./mildura-site-view";
 import ThomastownSwingView from "./thomastown-swing-view";
 import { isGdSiteId, type GdSiteId } from "@/lib/gd-swing-model";
 import { ConfirmDialog, FIELD_STYLE, INPUT, type ConfirmSpec } from "./mildura-controls";
+import { clientPageHref } from "@/lib/client-portal";
 import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
 import { Empty, MUTED, Navy, Pill, Section, TD, TH, Td, downloadCsv, stampDay } from "./site-section-ui";
 import { RESULT_LABELS, UNIT_ONLINE_SECONDS, WHITELIST_IMPORT_MAX, localAu, showsNoSites } from "@/lib/owner-sites-model";
@@ -208,13 +209,17 @@ function SiteBody(p: BodyProps) {
   const { detail, now, busy, act, ask } = p;
   const active = detail.whitelist.filter((w) => w.enabled).length;
   const mapQuery = detail.site.address ? `${detail.site.name}, ${detail.site.address}` : "";
+  const clientHref = clientPageHref(detail.site.slug);
   return (
     <div className="mildura-view">
       {/* 1. Header and site status */}
       <section className="gate-condition mb-4" aria-label={`${detail.site.name} status`}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="m-0 flex items-center gap-2 text-lg"><ShieldCheck className="size-4 text-[#FF7A00]" aria-hidden="true" /> {detail.site.name}</h2>
-          <span className="connection-pill"><i /> Owner control · saves to Supabase</span>
+          <span className="flex flex-wrap items-center gap-2">
+            {clientHref && <a className={glassButton()} href={clientHref} title="Opens this site's page on this portal">Client page</a>}
+            <span className="connection-pill"><i /> Owner control · saves to Supabase</span>
+          </span>
         </div>
         <Navy>
           <div className="flex flex-wrap items-center justify-between gap-3">

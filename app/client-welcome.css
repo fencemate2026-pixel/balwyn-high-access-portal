@@ -1,0 +1,210 @@
+/* Welcome. The mark arrives, one beam crosses it, the rail locks, then the site is there.
+   Signature: a single light sweep across the real Magic Keys wordmark.
+   Constraint: the existing logo artwork only. No second logo, no gate button, no purple.
+   DESIGN_VARIANCE 4. MOTION_INTENSITY 7. VISUAL_DENSITY 3.
+   Motion is transform and opacity only. */
+
+.mk-welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  overflow: hidden;
+  padding: 24px 20px 32px;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 42%, rgba(12, 39, 68, 0.95), transparent 70%),
+    #07111c;
+  color: #e7f0f8;
+}
+
+.mk-welcome.is-leaving {
+  animation: mk-welcome-leave 0.42s ease forwards;
+}
+
+@keyframes mk-welcome-leave {
+  to { opacity: 0; }
+}
+
+.mk-welcome-stage {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  justify-self: center;
+  width: min(520px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mk-welcome-glow {
+  position: absolute;
+  top: 8px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(92, 200, 255, 0.34), transparent 68%);
+  animation: mk-welcome-glow 2.2s ease-out 0.15s both;
+  pointer-events: none;
+}
+
+@keyframes mk-welcome-glow {
+  from { opacity: 0; transform: scale(0.72); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.mk-welcome-mark {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  animation: mk-welcome-rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.mk-welcome .magic-brand-logo {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  background: transparent;
+  filter: none;
+  border: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 719px) {
+  .mk-welcome-stage {
+    width: calc(100vw - 48px);
+    max-width: calc(100vw - 48px);
+  }
+
+  .mk-welcome-mark,
+  .mk-welcome .magic-brand-logo {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+.mk-welcome-beam {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mk-welcome-beam::after {
+  content: "";
+  position: absolute;
+  top: -8%;
+  bottom: -8%;
+  width: 22%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+  transform: translateX(-180%);
+  animation: mk-welcome-sweep 1.05s cubic-bezier(0.4, 0, 0.2, 1) 0.55s both;
+}
+
+@keyframes mk-welcome-sweep {
+  to { transform: translateX(480%); }
+}
+
+.mk-welcome-rail {
+  width: min(240px, 54vw);
+  height: 2px;
+  margin-top: 18px;
+  background: #ff7a00;
+  transform-origin: left center;
+  transform: scaleX(0);
+  animation: mk-welcome-rail 0.5s cubic-bezier(0.16, 1, 0.3, 1) 1.15s both;
+}
+
+@keyframes mk-welcome-rail {
+  to { transform: scaleX(1); }
+}
+
+.mk-welcome-kicker,
+.mk-welcome-site {
+  margin: 0;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.mk-welcome-kicker {
+  margin-top: 18px;
+  color: #9fd4ff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  animation: mk-welcome-rise 0.55s ease 1.25s both;
+}
+
+.mk-welcome-site {
+  margin-top: 8px;
+  width: min(16rem, calc(100vw - 64px));
+  max-width: min(16rem, calc(100vw - 64px));
+  min-width: 0;
+  padding-inline: 0;
+  color: #f5fbff;
+  font-size: 1.25rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  animation: mk-welcome-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) 1.4s both;
+}
+
+@media (min-width: 720px) {
+  .mk-welcome-site {
+    width: 100%;
+    max-width: 100%;
+    font-size: 1.85rem;
+  }
+}
+
+.mk-welcome-go {
+  margin-top: 28px;
+  min-width: 8.5rem;
+  min-height: 44px;
+  padding: 0 22px;
+  border: 1px solid #1d4e7a;
+  border-radius: 0;
+  background: #0c2744;
+  color: #f5fbff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  animation: mk-welcome-rise 0.5s ease 1.6s both;
+}
+
+.mk-welcome-go:hover { border-color: #5cc8ff; }
+.mk-welcome-go:active { transform: scale(0.98); }
+.mk-welcome-go:focus-visible { outline: 2px solid #5cc8ff; outline-offset: 3px; }
+
+@keyframes mk-welcome-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+.mk-welcome-app { min-height: 100dvh; }
+.mk-welcome-app:focus { outline: none; }
+.mk-welcome-app:focus-visible { outline: 2px solid #5cc8ff; outline-offset: -2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-welcome.is-leaving,
+  .mk-welcome-glow,
+  .mk-welcome-mark,
+  .mk-welcome-beam::after,
+  .mk-welcome-rail,
+  .mk-welcome-kicker,
+  .mk-welcome-site,
+  .mk-welcome-go {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
