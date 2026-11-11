@@ -71,7 +71,7 @@ h1, h2, h3 { letter-spacing: -.025em; }
 .magic-sidebar-brand { display: flex; flex-direction: column; gap: 12px; width: 100%; }
 .magic-brand-logo { background: transparent; border: 0; box-shadow: none; }
 .control-portal .magic-brand-logo, .legal-shell .magic-brand-logo { filter: none; }
-.magic-sidebar-brand .magic-brand-logo { width: 220px; height: auto; object-fit: contain; padding: 0; background: transparent; filter: none; border: 0; box-shadow: none; border-radius: 0; }
+.magic-sidebar-brand .magic-brand-logo { width: 248px; height: auto; object-fit: contain; padding: 8px 10px; background: #ffffff; filter: none; border: 0; box-shadow: none; border-radius: 10px; box-sizing: border-box; }
 .magic-sidebar-brand > span { color: #a0a3b8; font-size: 12px; letter-spacing: .15em; }
 .control-sidebar [data-sidebar="group"] { padding: 10px 14px; }
 .control-sidebar [data-sidebar="group-label"] { color: #a0a3b8; font-size: 12px; letter-spacing: .18em; height: 35px; padding-left: 13px; }

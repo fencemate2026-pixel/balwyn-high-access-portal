@@ -23,7 +23,7 @@
 .access-login-shell { width: min(1480px, 100%); min-height: 100svh; margin: 0 auto; padding: 30px clamp(24px, 5vw, 76px) 24px; display: flex; flex-direction: column; }
 .access-login-header { min-height: 72px; padding-bottom: 22px; border-bottom: 1px solid #7397bd20; }
 .access-login-brand { display: block; flex-shrink: 0; border-radius: 5px; }
-.access-login-brand .magic-brand-logo { display: block; width: 320px; height: auto; padding: 0; background: transparent; filter: none; border: 0; box-shadow: none; border-radius: 0; }
+.access-login-brand .magic-brand-logo { display: block; width: 440px; height: auto; padding: 6px 8px; background: #ffffff; filter: none; border: 0; box-shadow: none; border-radius: 8px; }
 .access-login-school img { width: 31px; height: 44px; object-fit: contain; filter: brightness(0) invert(.9); }
 .access-login-school span { display: grid; gap: 6px; }
 .access-login-school small { font-size: 9px; line-height: 1.4; color: #94a9c1; letter-spacing: .17em; }

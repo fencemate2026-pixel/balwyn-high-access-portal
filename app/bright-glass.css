@@ -51,9 +51,11 @@
           mask-image: linear-gradient(90deg, transparent 0, #000 14%);
 }
 
-/* Logo badge: no white box. The 2026 mark is already full colour. Do not invert it. */
+/* Logo badge: white plate. The lockup is black MAGIC and blue KEYS. A dark panel
+   would hide the black word. Do not invert the image. */
 .login-school-badge {
-  background: transparent; border: 0; box-shadow: none; padding: 6px 0 0;
+  width: min(100%, 520px);
+  background: #ffffff; border: 0; box-shadow: none; padding: 14px 16px 12px; border-radius: 12px;
 }
 .login-school-badge > span { color: var(--mk-text-2); letter-spacing: .14em; }
 
@@ -294,11 +296,15 @@
 /* Top brand treatment: original Magic Keys colours, full Balwyn mark, RJL in sidebar footer. */
 .control-portal .magic-sidebar-brand { gap: 0; }
 .control-portal .magic-sidebar-brand .magic-brand-logo {
-  width: 220px;
+  width: 248px;
   max-width: 100%;
   height: auto;
   object-fit: contain;
   filter: none !important;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 8px 10px;
+  box-sizing: border-box;
 }
 .control-portal .workspace-school-brand {
   display: inline-flex;
@@ -544,7 +550,7 @@
 .access-login-school-blue .access-login-brand-stage .magic-wide-wordmark {
   left: 43% !important;
   top: 50% !important;
-  width: min(70%, 420px) !important;
+  width: min(70%, 760px) !important;
   transform: translate(-50%, -50%) !important;
   filter: none !important;
   z-index: 4 !important;

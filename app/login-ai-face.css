@@ -34,11 +34,11 @@
   aspect-ratio: 463 / 984;
 }
 
-/* Logo: the 2026 mark is 300 px wide. Cap the stage near that so the blue stays sharp.
-   Nudged left so it ends before the face (right-hand 33%). Phones override this below. */
+/* Logo: the supplied lockup is 1601 px wide. The stage is white, so MAGIC stays
+   black and KEYS stays blue. Show it large, and keep it clear of the face. */
 .access-login-school-blue .access-login-brand-stage .magic-wide-wordmark {
-  left: 40% !important;
-  width: min(52%, 420px) !important;
+  left: 38% !important;
+  width: min(62%, 760px) !important;
   filter: none !important;
 }
 
@@ -78,7 +78,7 @@
   }
   .access-login-school-blue .access-login-brand-stage .magic-wide-wordmark {
     left: 38% !important;
-    width: min(340px, 44%) !important;
+    width: min(520px, 88%) !important;
   }
   .access-login-school-blue .access-login-brand-stage .magic-wide-ai-head,
   .access-login-school-blue .access-login-brand-stage .magic-ai-fx {

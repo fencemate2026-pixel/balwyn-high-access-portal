@@ -1755,7 +1755,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 /* Shared original logo artwork, rendered on transparent backing. */
 .logo-filter-definitions { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
 .magic-brand-logo { display: block; width: 100%; height: auto; object-fit: contain; background: transparent; }
-.public-brand > .magic-brand-logo, .legal-brand > .magic-brand-logo { width: 300px; height: auto; flex: 0 0 auto; }
+.public-brand > .magic-brand-logo, .legal-brand > .magic-brand-logo { width: 400px; height: auto; flex: 0 0 auto; }
 .brand-page > .public-nav { width: 100%; padding-inline: max(20px, calc((100% - 1180px) / 2)); background: #f2f7fd; border-color: #cfdeeb; }
 .brand-page .public-brand, .brand-page .public-brand strong { color: #092742; }
 .brand-page .public-brand small { color: #45647c; }
