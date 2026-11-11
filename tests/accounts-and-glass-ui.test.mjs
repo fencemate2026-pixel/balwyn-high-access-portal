@@ -20,6 +20,14 @@ test("staff accounts open for administrators without the settings password, and 
   assert.match(html, /Loading accounts/);
 });
 
+test("the sign-in badge keeps the Magic Keys logo and has no school line under it", async () => {
+  const { default: DemoLogin } = await vite.ssrLoadModule("/app/demo-login.tsx");
+  const html = renderToStaticMarkup(React.createElement(DemoLogin));
+  const badge = html.slice(html.indexOf("login-school-badge"), html.indexOf("access-login-card"));
+  assert.match(badge, /magic-brand-logo/);
+  assert.doesNotMatch(badge, /BALWYN HIGH SCHOOL/);
+});
+
 test("setup page never renders the one-time token on the server", async () => {
   const { default: Form } = await vite.ssrLoadModule("/app/setup/setup-password-form.tsx");
   const html = renderToStaticMarkup(React.createElement(Form));

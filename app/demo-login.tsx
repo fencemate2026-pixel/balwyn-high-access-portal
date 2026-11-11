@@ -310,7 +310,7 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
           <section className="access-login-panel" aria-labelledby="magic-login-title">
             <div className="login-school-badge">
               <BrandLogo tone="dark" />
-              <span>{generalClient ? "SECURE CLIENT ACCESS" : "BALWYN HIGH SCHOOL"}</span>
+              {generalClient ? <span>SECURE CLIENT ACCESS</span> : null}
             </div>
             <div className="access-login-card has-form">
               <div className="access-login-lock flex items-center justify-center" aria-hidden="true"><LockKeyhole /></div>
