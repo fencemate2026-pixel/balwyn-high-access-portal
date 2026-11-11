@@ -300,7 +300,7 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
           {generalClient ? <div className="access-login-school"><span><small>SECURE CLIENT ACCESS</small><strong>MagicKeys</strong></span></div> : <div className="access-login-school flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element -- local transparent school crest */}
             <img src="/balwyn-crest-clear.png" alt="" width={530} height={752} />
-            <span><small>CAMPUS ACCESS PORTAL</small><strong>Balwyn High School</strong></span>
+            <span><small>CAMPUS ACCESS PORTAL</small></span>
           </div>}
         </header>
 
@@ -317,7 +317,7 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
               <p className="access-login-kicker">{generalClient ? "MAGICKEYS CLIENT LOGIN" : "CAMPUS ACCESS PORTAL"}</p>
               <div className="access-login-heading">
                 <h1 id="magic-login-title">{authenticator ? "Verify your sign-in" : googleOnly ? "Continue with Google" : "Welcome back."}</h1>
-                <p>{authenticator ? "Enter the six-digit code from your authenticator app." : generalClient ? "Sign in to your secure MagicKeys workspace." : "Sign in to your Balwyn High School workspace."}</p>
+                {(authenticator || generalClient) ? <p>{authenticator ? "Enter the six-digit code from your authenticator app." : "Sign in to your secure MagicKeys workspace."}</p> : null}
               </div>
 
               {(!googleOnly || authenticator) && <form className="access-login-form" onSubmit={handleEmailSignIn} aria-busy={submitting}>

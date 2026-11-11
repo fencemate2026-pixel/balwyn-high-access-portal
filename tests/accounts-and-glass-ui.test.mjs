@@ -26,6 +26,10 @@ test("the sign-in badge keeps the Magic Keys logo and has no school line under i
   const badge = html.slice(html.indexOf("login-school-badge"), html.indexOf("access-login-card"));
   assert.match(badge, /magic-brand-logo/);
   assert.doesNotMatch(badge, /BALWYN HIGH SCHOOL/);
+  assert.match(html, /balwyn-crest-clear\.png/);
+  assert.match(html, /CAMPUS ACCESS PORTAL/);
+  assert.doesNotMatch(html, /Balwyn High School/);
+  assert.doesNotMatch(html, /Sign in to your Balwyn High School workspace/);
 });
 
 test("setup page never renders the one-time token on the server", async () => {
