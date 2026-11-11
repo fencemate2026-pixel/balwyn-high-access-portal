@@ -76,6 +76,9 @@ export default function MacquarieClient() {
   const [personName, setPersonName] = useState("");
   const [personEmail, setPersonEmail] = useState("");
   const [picture, setPicture] = useState<GatePosition | null>(null);
+  const [screenWindows, setScreenWindows] = useState<WindowItem[]>([]);
+  const [screenCallers, setScreenCallers] = useState<Caller[]>([]);
+  const [screenPeople, setScreenPeople] = useState<PortalEmail[]>([]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setToday(campusDate()), 60_000);
@@ -100,7 +103,12 @@ export default function MacquarieClient() {
 
   const signedIn = Boolean(data?.signedIn && data.viewer);
   const sliding = data?.sliding ?? null;
-  const canChange = Boolean(signedIn && sliding && !busy);
+  const windows = signedIn ? (data?.windows ?? []) : screenWindows;
+  const callers = signedIn ? (data?.callers ?? []) : screenCallers;
+  const people = signedIn ? (data?.portalUsers ?? []) : screenPeople;
+  const canHold = !busy && (!signedIn || Boolean(sliding));
+  const canCallers = !busy && (!signedIn || Boolean(sliding && data?.callersWritable));
+  const canPeople = !busy && (!signedIn || !data?.usersNote);
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => shiftDate(start, index)), [start]);
   const gate = { ...GATE, name: sliding?.name || "Sliding gate" };
   const position: GateVisualState = sliding?.held ? "open" : "unknown";
@@ -200,6 +208,7 @@ export default function MacquarieClient() {
         <button type="button" className={glassButton("orange")} disabled={busy} onClick={(event) => void askCode(event)}>Email me a code</button>
         <button type="submit" className={glassButton()} disabled={busy || code.trim().length !== 6}>Sign in</button>
       </form>}
+      {!signedIn && <p className="macquarie-note">The controls are on so you can check this page. OPEN and CLOSE move the picture. A hold, a caller, or a sign-in stays on this screen until you sign in.</p>}
 
       {notice && <p className="macquarie-note" role="status">{notice}</p>}
       {data?.linkNote && <p className="macquarie-note" role="status">{data.linkNote}</p>}
@@ -216,14 +225,14 @@ export default function MacquarieClient() {
               <button type="button" className={glassButton()} aria-label="Previous week" onClick={() => { setStart(shiftDate(start, -7)); logClick("week-prev"); }}><ChevronLeft className="size-4" aria-hidden="true" /></button>
               <button type="button" className={glassButton()} onClick={() => { setStart(weekStart(today)); logClick("day-select", "Today"); }}>Today</button>
               <button type="button" className={glassButton()} aria-label="Next week" onClick={() => { setStart(shiftDate(start, 7)); logClick("week-next"); }}><ChevronRight className="size-4" aria-hidden="true" /></button>
-              <button type="button" className={glassButton("orange")} disabled={!signedIn || busy} onClick={() => { setShowHold(true); logClick("hold-form"); }}>Hold open</button>
+              <button type="button" className={glassButton("orange")} disabled={!canHold} onClick={() => { setShowHold(true); logClick("hold-form"); }}>Hold open</button>
             </div>
           </header>
           <div className="-mx-1 flex flex-1 overflow-x-auto px-1 pb-1">
             <ol className="m-0 grid w-full min-w-[640px] list-none grid-cols-7 gap-2 p-0">
               {days.map((date) => {
                 const weekday = weekdayNumber(date);
-                const items = (data?.windows ?? []).filter((window) => window.enabled && window.days.includes(weekday));
+                const items = windows.filter((window) => window.enabled && window.days.includes(weekday));
                 const isToday = date === today;
                 return <li key={date}><button type="button" className={`${GLASS_TILE} ${GLASS_FOCUS} flex h-full min-h-[118px] w-full flex-col items-start gap-1 p-3 text-left ${isToday ? "border-[#FF7A00]" : ""} ${selected === date ? "border-[#5CC8FF]" : ""}`} aria-pressed={selected === date} aria-current={isToday ? "date" : undefined} onClick={() => { setSelected(selected === date ? null : date); logClick("day-select", date); }}>
                   <span className="text-xs font-bold uppercase tracking-wide text-[#B9CFE2]">{dateLabel(date, { weekday: "short" })}</span>
@@ -235,8 +244,8 @@ export default function MacquarieClient() {
           </div>
           {selected && <div className={`${GLASS_TILE} p-4 text-sm text-[#F5FBFF]`}>
             <strong>{dateLabel(selected, { weekday: "long", day: "numeric", month: "long" })}</strong>
-            <ul className="m-0 mt-2 list-none p-0">{(data?.windows ?? []).filter((window) => window.days.includes(weekdayNumber(selected))).map((window) => <li key={window.id}>{window.enabled ? "" : "Off · "}{window.openTime}–{window.closeTime} {window.name}{window.spanDays > 0 ? ` +${window.spanDays} days` : ""}</li>)}</ul>
-            {(data?.windows ?? []).every((window) => !window.days.includes(weekdayNumber(selected))) && <p className="m-0 mt-2 text-[#8FB0CF]">No hold</p>}
+            <ul className="m-0 mt-2 list-none p-0">{windows.filter((window) => window.days.includes(weekdayNumber(selected))).map((window) => <li key={window.id}>{window.enabled ? "" : "Off · "}{window.openTime}–{window.closeTime} {window.name}{window.spanDays > 0 ? ` +${window.spanDays} days` : ""}</li>)}</ul>
+            {windows.every((window) => !window.days.includes(weekdayNumber(selected))) && <p className="m-0 mt-2 text-[#8FB0CF]">No hold</p>}
           </div>}
         </section>
         <CampusWeather place="Thomastown, Victoria" endpoint="/api/macquarie/weather" onRefresh={() => logClick("weather")} />
@@ -279,36 +288,75 @@ export default function MacquarieClient() {
           </div>
         </section>
 
-        {showHold && <form className="macquarie-panel" onSubmit={(event) => { event.preventDefault(); void send("/api/macquarie", { action: "hold.save", name: holdName, openTime, closeTime, days: holdDays }); }}>
+        {showHold && <form className="macquarie-panel" onSubmit={(event) => {
+          event.preventDefault();
+          if (!signedIn) {
+            const id = `screen-hold-${screenWindows.length + 1}`;
+            setScreenWindows((rows) => [...rows, { id, name: holdName, openTime, closeTime, days: [...holdDays], spanDays: 0, enabled: true }]);
+            setNotice("Hold shown on this page so you can check it. Sign in before it is saved to the gate.");
+            return;
+          }
+          void send("/api/macquarie", { action: "hold.save", name: holdName, openTime, closeTime, days: holdDays });
+        }}>
           <h2>Hold the sliding gate open</h2>
           <div className="macquarie-fields">
-            <label>Name<input value={holdName} onChange={(event) => setHoldName(event.target.value)} required disabled={!canChange} /></label>
-            <label>Opens<input type="time" value={openTime} onChange={(event) => setOpenTime(event.target.value)} required disabled={!canChange} /></label>
-            <label>Closes<input type="time" value={closeTime} onChange={(event) => setCloseTime(event.target.value)} required disabled={!canChange} /></label>
+            <label>Name<input value={holdName} onChange={(event) => setHoldName(event.target.value)} required disabled={!canHold} /></label>
+            <label>Opens<input type="time" value={openTime} onChange={(event) => setOpenTime(event.target.value)} required disabled={!canHold} /></label>
+            <label>Closes<input type="time" value={closeTime} onChange={(event) => setCloseTime(event.target.value)} required disabled={!canHold} /></label>
           </div>
-          <fieldset className="macquarie-days"><legend>Days</legend>{DAY_NAMES.map((name, index) => <label key={name}><input type="checkbox" checked={holdDays.includes(index + 1)} disabled={!canChange} onChange={(event) => setHoldDays((current) => event.target.checked ? [...current, index + 1].sort() : current.filter((day) => day !== index + 1))} />{name}</label>)}</fieldset>
-          <button type="submit" className={glassButton("orange")} disabled={!canChange || holdDays.length === 0}>Save window</button>
-          <ul className="macquarie-list">{(data?.windows ?? []).map((window) => <li key={window.id}><span>{window.enabled ? "" : "Off · "}{window.name} {window.openTime}–{window.closeTime} {window.days.map((day) => DAY_NAMES[day - 1]).join(" ")}{window.spanDays > 0 ? ` +${window.spanDays} days` : ""}</span><button type="button" disabled={!canChange} onClick={() => void send("/api/macquarie", { action: "hold.delete", id: window.id })}>Remove</button></li>)}</ul>
+          <fieldset className="macquarie-days"><legend>Days</legend>{DAY_NAMES.map((name, index) => <label key={name}><input type="checkbox" checked={holdDays.includes(index + 1)} disabled={!canHold} onChange={(event) => setHoldDays((current) => event.target.checked ? [...current, index + 1].sort() : current.filter((day) => day !== index + 1))} />{name}</label>)}</fieldset>
+          <button type="submit" className={glassButton("orange")} disabled={!canHold || holdDays.length === 0}>Save window</button>
+          <ul className="macquarie-list">{windows.map((window) => <li key={window.id}><span>{window.enabled ? "" : "Off · "}{window.name} {window.openTime}–{window.closeTime} {window.days.map((day) => DAY_NAMES[day - 1]).join(" ")}{window.spanDays > 0 ? ` +${window.spanDays} days` : ""}</span><button type="button" disabled={!canHold} onClick={() => {
+            if (!signedIn) { setScreenWindows((rows) => rows.filter((row) => row.id !== window.id)); setNotice("Removed from this page. The gate was not changed."); return; }
+            void send("/api/macquarie", { action: "hold.delete", id: window.id });
+          }}>Remove</button></li>)}</ul>
         </form>}
 
         <section className="macquarie-panel" aria-labelledby="macquarie-users-title">
           <header className="macquarie-panel-head"><h2 id="macquarie-users-title">People</h2><button type="button" className={glassButton()} onClick={() => logClick("users-form")}>User form</button></header>
           <p>Add or remove people who can dial the sliding gate, and people who can sign in to this page.</p>
           <div className="macquarie-split">
-            <form onSubmit={(event) => { event.preventDefault(); void send("/api/macquarie", { action: "caller.add", name: callerName, phone: callerPhone }).then((payload) => { if (payload?.signedIn) { setCallerName(""); setCallerPhone(""); } }); }}>
+            <form onSubmit={(event) => {
+              event.preventDefault();
+              if (!signedIn) {
+                setScreenCallers((rows) => [...rows, { id: `screen-caller-${rows.length + 1}`, name: callerName, phone: callerPhone, enabled: true }]);
+                setCallerName(""); setCallerPhone("");
+                setNotice("Caller shown on this page so you can check it. Sign in before it is saved to the gate.");
+                return;
+              }
+              void send("/api/macquarie", { action: "caller.add", name: callerName, phone: callerPhone }).then((payload) => { if (payload?.signedIn) { setCallerName(""); setCallerPhone(""); } });
+            }}>
               <h3>Gate callers</h3>
               {signedIn && data?.callersWritable === false && <p>Caller numbers stay with RJL while another gate shares this site.</p>}
-              <label>Name<input value={callerName} onChange={(event) => setCallerName(event.target.value)} disabled={!canChange || !data?.callersWritable} required /></label>
-              <label>Mobile<input value={callerPhone} onChange={(event) => setCallerPhone(event.target.value)} inputMode="tel" autoComplete="tel" disabled={!canChange || !data?.callersWritable} required /></label>
-              <button type="submit" className={glassButton("orange")} disabled={!canChange || !data?.callersWritable}>Add caller</button>
-              <ul className="macquarie-list">{(data?.callers ?? []).map((caller) => <li key={caller.id}><span>{caller.name} · {caller.phone}{caller.enabled ? "" : " · off"}</span>{data?.callersWritable && <button type="button" disabled={!canChange} onClick={() => { if (window.confirm(`Remove ${caller.name} from the gate callers?`)) void send("/api/macquarie", { action: "caller.delete", id: caller.id }); }}>Remove</button>}</li>)}</ul>
+              <label>Name<input value={callerName} onChange={(event) => setCallerName(event.target.value)} disabled={!canCallers} required /></label>
+              <label>Mobile<input value={callerPhone} onChange={(event) => setCallerPhone(event.target.value)} inputMode="tel" autoComplete="tel" disabled={!canCallers} required /></label>
+              <button type="submit" className={glassButton("orange")} disabled={!canCallers}>Add caller</button>
+              <ul className="macquarie-list">{callers.map((caller) => <li key={caller.id}><span>{caller.name} · {caller.phone}{caller.enabled ? "" : " · off"}</span>{(signedIn ? data?.callersWritable : true) && <button type="button" disabled={!canCallers} onClick={() => {
+                if (!window.confirm(`Remove ${caller.name} from the gate callers?`)) return;
+                if (!signedIn) { setScreenCallers((rows) => rows.filter((row) => row.id !== caller.id)); setNotice("Removed from this page. The gate was not changed."); return; }
+                void send("/api/macquarie", { action: "caller.delete", id: caller.id });
+              }}>Remove</button>}</li>)}</ul>
             </form>
-            <form onSubmit={(event) => { event.preventDefault(); void send("/api/macquarie", { action: "portal-user.add", name: personName, email: personEmail }).then((payload) => { if (payload?.signedIn) { setPersonName(""); setPersonEmail(""); } }); }}>
+            <form onSubmit={(event) => {
+              event.preventDefault();
+              if (!signedIn) {
+                setScreenPeople((rows) => [...rows, { email: personEmail, displayName: personName, kept: false }]);
+                setPersonName(""); setPersonEmail("");
+                setNotice("Sign-in shown on this page so you can check it. Sign in before it is saved.");
+                return;
+              }
+              void send("/api/macquarie", { action: "portal-user.add", name: personName, email: personEmail }).then((payload) => { if (payload?.signedIn) { setPersonName(""); setPersonEmail(""); } });
+            }}>
               <h3>Portal sign-in</h3>
-              <label>Name<input value={personName} onChange={(event) => setPersonName(event.target.value)} disabled={!signedIn || busy || Boolean(data?.usersNote)} required /></label>
-              <label>Email<input type="email" value={personEmail} onChange={(event) => setPersonEmail(event.target.value)} disabled={!signedIn || busy || Boolean(data?.usersNote)} required /></label>
-              <button type="submit" className={glassButton("orange")} disabled={!signedIn || busy || Boolean(data?.usersNote)}>Add sign-in</button>
-              <ul className="macquarie-list">{(data?.portalUsers ?? []).map((person) => <li key={person.email}><span>{person.displayName} · {person.email}{person.kept ? " · kept by RJL" : ""}</span>{!person.kept && <button type="button" disabled={!signedIn || busy} onClick={() => { if (!window.confirm(`Remove ${person.email} from sign-in?`)) return; const own = person.email.toLowerCase() === data?.viewer?.email.toLowerCase(); void send("/api/macquarie", { action: "portal-user.delete", email: person.email }).then((payload) => { if (own && payload?.signedIn) void signOut(); }); }}>Remove</button>}</li>)}</ul>
+              <label>Name<input value={personName} onChange={(event) => setPersonName(event.target.value)} disabled={!canPeople} required /></label>
+              <label>Email<input type="email" value={personEmail} onChange={(event) => setPersonEmail(event.target.value)} disabled={!canPeople} required /></label>
+              <button type="submit" className={glassButton("orange")} disabled={!canPeople}>Add sign-in</button>
+              <ul className="macquarie-list">{people.map((person) => <li key={person.email}><span>{person.displayName} · {person.email}{person.kept ? " · kept by RJL" : ""}</span>{!person.kept && <button type="button" disabled={!canPeople} onClick={() => {
+                if (!window.confirm(`Remove ${person.email} from sign-in?`)) return;
+                if (!signedIn) { setScreenPeople((rows) => rows.filter((row) => row.email !== person.email)); setNotice("Removed from this page. Sign-in was not changed."); return; }
+                const own = person.email.toLowerCase() === data?.viewer?.email.toLowerCase();
+                void send("/api/macquarie", { action: "portal-user.delete", email: person.email }).then((payload) => { if (own && payload?.signedIn) void signOut(); });
+              }}>Remove</button>}</li>)}</ul>
             </form>
           </div>
         </section>

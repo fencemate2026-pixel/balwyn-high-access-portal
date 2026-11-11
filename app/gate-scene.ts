@@ -35,7 +35,7 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
   const sliding = kind === "sliding";
   const camera = new THREE.PerspectiveCamera(boom ? 30 : sliding ? 32 : 28, 1, .1, 40);
   if (boom) { camera.position.set(-.9, 1.6, 5.7); camera.lookAt(.3, .85, 0); }
-  else if (sliding) { camera.position.set(1.2, 1.52, 7.2); camera.lookAt(0.4, 1.05, 0); }
+  else if (sliding) { camera.position.set(2.05, 1.62, 8.6); camera.lookAt(0.85, 0.82, 0); }
   else { camera.position.set(1.3, 1.35, kind === "double-swing" ? 5.2 : 5.1); camera.lookAt(0, 1.05, 0); }
 
   // Reflections: a neutral studio, tinted blue by the lights below.
@@ -107,7 +107,16 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
   }
   const fadeTexture = new THREE.CanvasTexture(fade);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(9, 6), new THREE.MeshStandardMaterial({ color: 0x010409, metalness: .45, roughness: .42, transparent: true, alphaMap: fadeTexture, envMapIntensity: .18 }));
-  floor.rotation.x = -Math.PI / 2; floor.position.set(boom ? .3 : sliding ? 0.2 : 0, 0, .4); floor.receiveShadow = true; scene.add(floor);
+  floor.rotation.x = -Math.PI / 2; floor.position.set(boom ? .3 : sliding ? 1.1 : 0, 0, .4); floor.receiveShadow = true; scene.add(floor);
+  if (sliding) {
+    floor.geometry.dispose();
+    floor.geometry = new THREE.PlaneGeometry(12, 6);
+    key.shadow.camera.left = -4;
+    key.shadow.camera.right = 6.5;
+    key.shadow.camera.top = 4;
+    key.shadow.camera.bottom = -3;
+    key.shadow.camera.updateProjectionMatrix();
+  }
 
   const leaves: THREE.Group[] = [];
   let slideTravel = 0;
@@ -134,34 +143,54 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
     box(model, .08, 1.0, .08, restX, .5, .2, post, .01);
     box(model, .14, .08, .12, restX, 1.01, .2, post, .012);
   } else if (sliding) {
-    // One leaf on an overhead track. Opening slides it aside. Travel is a picture, not a sensor.
-    const opening = 2.2;
-    const left = -opening / 2 - 0.08;
-    const right = opening / 2 + 0.08;
-    for (const x of [left, right]) {
-      box(model, 0.16, 2.05, 0.16, x, 1.05, 0, post, 0.01);
-      box(model, 0.18, 0.05, 0.18, x, 2.1, 0, postCap, 0.012);
-      basePlate(x, 0.32);
+    // Cantilever slider: timber leaf, triangular tail, and a ground track.
+    // OPEN slides the leaf and the tail aside. Travel is a picture, not a sensor.
+    const panelW = 2.2;
+    const panelH = 1.48;
+    const tail = 1.42;
+    const timber = new THREE.MeshStandardMaterial({ color: 0xc6a36a, roughness: 0.74, metalness: 0.04 });
+    const timberDeep = new THREE.MeshStandardMaterial({ color: 0xa8844e, roughness: 0.8, metalness: 0.04 });
+    const trackStart = -1.45;
+    const trackEnd = 4.7;
+    box(model, trackEnd - trackStart, 0.045, 0.09, (trackStart + trackEnd) / 2, 0.03, 0, galvanisedEdge, 0.004);
+    const guideX = 1.02;
+    basePlate(guideX, 0.34);
+    box(model, 0.12, 1.72, 0.12, guideX, 0.9, 0, post, 0.01);
+    box(model, 0.16, 0.05, 0.16, guideX, 1.78, 0, postCap, 0.01);
+    for (const y of [0.28, 1.42]) {
+      const roller = cylinder(model, 0.035, 0.1, guideX, y, 0.07, chrome);
+      roller.rotation.x = Math.PI / 2;
     }
-    box(model, opening + 0.55, 0.07, 0.1, 0.2, 1.92, 0, post, 0.01);
-    const leafWidth = opening - 0.06;
-    slideTravel = leafWidth;
-    const slideBase = left + 0.1;
+    box(model, 0.28, 0.22, 0.2, guideX + 0.22, 0.18, 0.16, motorBody, 0.02);
+    box(model, 0.16, 0.08, 0.08, guideX + 0.22, 0.28, 0.2, postCap, 0.01);
+    cylinder(model, 0.05, 0.04, guideX, 1.82, 0, black);
+    cylinder(model, 0.044, 0.07, guideX, 1.875, 0, beacon);
+    slideTravel = panelW * 0.92;
+    const slideBase = -1.2;
     const leaf = new THREE.Group();
-    leaf.position.set(slideBase, 0.16, 0.02);
+    leaf.position.set(slideBase, 0.08, 0.02);
     leaf.userData.slideBase = slideBase;
     model.add(leaf);
     leaves.push(leaf);
-    box(leaf, leafWidth, 0.07, 0.05, leafWidth / 2, 0.08, 0, galvanised);
-    box(leaf, leafWidth, 0.07, 0.05, leafWidth / 2, 1.62, 0, galvanised);
-    box(leaf, 0.06, 1.58, 0.05, 0.04, 0.85, 0, galvanised);
-    box(leaf, 0.06, 1.58, 0.05, leafWidth - 0.04, 0.85, 0, galvanised);
-    for (let i = 0; i < 7; i++) box(leaf, leafWidth - 0.12, 0.07, 0.028, leafWidth / 2, 0.28 + i * 0.18, 0.02, galvanisedEdge, 0.004);
-    for (const x of [0.2, leafWidth - 0.2]) cylinder(leaf, 0.045, 0.04, x, 1.78, 0, chrome);
-    box(model, 0.38, 0.32, 0.24, right + 0.02, 0.34, 0.18, motorBody, 0.03);
-    reader(right, 1.42, 0.12);
-    cylinder(model, 0.05, 0.04, right, 2.145, 0, black);
-    cylinder(model, 0.044, 0.07, right, 2.2, 0, beacon);
+    box(leaf, panelW + tail, 0.07, 0.06, (panelW + tail) / 2, 0.08, 0, galvanised);
+    box(leaf, panelW, 0.07, 0.06, panelW / 2, panelH, 0, galvanised);
+    box(leaf, 0.06, panelH, 0.06, 0.04, panelH / 2, 0, galvanised);
+    box(leaf, 0.06, panelH, 0.06, panelW / 2, panelH / 2, 0, galvanised);
+    box(leaf, 0.06, panelH, 0.06, panelW - 0.04, panelH / 2, 0, galvanised);
+    const slats = 18;
+    for (let i = 0; i < slats; i++) {
+      const x = 0.12 + (i + 0.5) * ((panelW - 0.24) / slats);
+      if (Math.abs(x - panelW / 2) < 0.05) continue;
+      box(leaf, 0.055, panelH - 0.16, 0.02, x, panelH / 2, 0.025, i % 4 === 0 ? timberDeep : timber, 0.002);
+    }
+    const rise = panelH - 0.08;
+    const brace = box(leaf, Math.hypot(tail, rise), 0.055, 0.05, panelW + tail / 2, (panelH + 0.08) / 2, 0, galvanised, 0.004);
+    brace.rotation.z = -Math.atan2(rise, tail);
+    box(leaf, 0.05, 0.32, 0.05, panelW + tail - 0.04, 0.24, 0, galvanised);
+    for (const x of [0.28, panelW * 0.72, panelW + tail * 0.55]) {
+      const wheel = cylinder(leaf, 0.045, 0.05, x, 0.02, 0, post);
+      wheel.rotation.x = Math.PI / 2;
+    }
   } else {
     const width = kind === "double-swing" ? 2.15 : 1.42;
     for (const x of [-width / 2 - .1, width / 2 + .1]) {
@@ -255,7 +284,7 @@ export function createGateScene(host: HTMLElement, kind: Gate["kind"], initial: 
     if (!flashing && angle === target && --dirtyFrames <= 0) renderer.setAnimationLoop(null);
   };
   function wake() { if (visible && !document.hidden && !disposed) renderer.setAnimationLoop(frame); }
-  const orbit = interactive ? createGateOrbit(camera, renderer.domElement, () => { dirtyFrames = 3; wake(); }, sliding ? { x: 0.4, y: 1.02, z: 0 } : undefined) : null;
+  const orbit = interactive ? createGateOrbit(camera, renderer.domElement, () => { dirtyFrames = 3; wake(); }, sliding ? { x: 0.85, y: 0.85, z: 0 } : undefined) : null;
   const resize = () => {
     const width = host.clientWidth, height = host.clientHeight;
     if (!width || !height) return;
