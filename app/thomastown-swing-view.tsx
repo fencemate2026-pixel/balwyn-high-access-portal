@@ -12,7 +12,9 @@ import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
 import { MUTED, Pill, Section, TD, TH, Td, downloadCsv, stampDay } from "./site-section-ui";
 import { toCsv } from "@/lib/owner-csv";
 import { deviceClientHref } from "@/lib/client-portal";
-import { GD_SITES, SWING_DEVICE_ID, callResult, displayPhone, gdDialIn, simInfo, type GdSiteId } from "@/lib/gd-swing-model";
+import { GD_SITES, SLIDING_DEVICE_ID, SWING_DEVICE_ID, callResult, displayPhone, gdDialIn, simInfo, type GdSiteId } from "@/lib/gd-swing-model";
+import OperableGate from "./operable-gate";
+import type { Gate } from "@/lib/portal-model";
 
 type SUser = { local_id: number; name: string; phone: string; enabled: boolean; schedule_type: string | null; schedule_data: string | null; created_at_local: string | null };
 type SHold = { local_id: number; name: string; days: number[]; open_time: string; close_time: string; enabled: boolean };
@@ -86,7 +88,8 @@ export default function ThomastownSwingView({ fixture, device = SWING_DEVICE_ID,
 
   if (!data) return error ? <div className={`${GLASS_PANEL} p-4 text-sm`}><Pill tone="bad">{error}</Pill></div> : <div className="flex items-center gap-2"><LoaderCircle className="animate-spin" /> Loading {siteName}…</div>;
   const pageHref = clientHref === undefined ? deviceClientHref(device) : clientHref;
-  return <><Body data={data} busy={busy} send={send} siteName={siteName} dialIn={gdDialIn(device)} pulseGate={device === SWING_DEVICE_ID} clientHref={pageHref} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
+  const kind: Gate["kind"] = device === SLIDING_DEVICE_ID ? "sliding" : "single-swing";
+  return <><Body data={data} busy={busy} send={send} siteName={siteName} dialIn={gdDialIn(device)} pulseGate={device === SWING_DEVICE_ID} clientHref={pageHref} kind={kind} />{confirm && <ConfirmDialog spec={confirm} onClose={(ok) => { confirm.resolve(ok); setConfirm(null); }} />}</>;
 }
 
 function commandLabel(c: SCommand) {
@@ -94,7 +97,7 @@ function commandLabel(c: SCommand) {
   return `${c.kind}${c.args.name ? ` · ${String(c.args.name)}` : ""}${c.args.local_id ? ` · #${String(c.args.local_id)}` : ""}`;
 }
 
-function Body({ data, busy, send, siteName, dialIn, pulseGate, clientHref }: { data: SwingDetail; busy: boolean; send: Send; siteName: string; dialIn: string | null; pulseGate: boolean; clientHref: string | null }) {
+function Body({ data, busy, send, siteName, dialIn, pulseGate, clientHref, kind }: { data: SwingDetail; busy: boolean; send: Send; siteName: string; dialIn: string | null; pulseGate: boolean; clientHref: string | null; kind: Gate["kind"] }) {
   const now = Date.parse(data.serverTime) || Date.now();
   const seen = data.device?.last_seen ?? null;
   const [tab, setTab] = useState<"calls" | "changes">("calls");
@@ -135,6 +138,7 @@ function Body({ data, busy, send, siteName, dialIn, pulseGate, clientHref }: { d
           {sim.state === "unread" && <Pill tone="mute">Reading the SIM…</Pill>}
           {data.device?.fw_version && <Pill tone="mute">sync {data.device.fw_version}</Pill>}
         </div>
+        <OperableGate name={siteName} kind={kind} area={siteName} livePulse={pulseGate} />
         {sim.state === "needs_number" && <SimNumberForm iccid={sim.iccid} busy={busy} send={send} cmd={simCmd} />}
         {sim.state === "ok" && <SimNumberForm iccid={sim.iccid} busy={busy} send={send} cmd={simCmd} current={sim.number} source={sim.source} />}
         {!data.online && <p role="status" className="mt-3 text-sm text-[#fbbf24]">The {siteName} unit is not reporting. Changes stay queued until it reconnects and expire after 15 minutes. Check that each change shows Applied.</p>}

@@ -1,4 +1,5 @@
 import BrandLogo from "../../brand-logo";
+import OperableGate from "../../operable-gate";
 
 export default function ClientSite({ name, state, slug }: { name: string; state: "waiting" | "unavailable"; slug: string }) {
   return (
@@ -29,7 +30,8 @@ export default function ClientSite({ name, state, slug }: { name: string; state:
             </section>
             <section className="mk-client-panel" aria-labelledby="mk-client-gate">
               <h2 id="mk-client-gate">Gate</h2>
-              <p>This page does not open the gate. Where the unit is commissioned, an allowed phone opens it by calling the unit.</p>
+              <OperableGate name={name} kind="single-swing" area={name} />
+              <p>OPEN and CLOSE move the picture. They do not pulse the unit. Where the unit is commissioned, an allowed phone opens it by calling the unit.</p>
             </section>
           </>
         )}

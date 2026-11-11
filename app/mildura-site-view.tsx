@@ -15,6 +15,7 @@ import { FIELD_STYLE, INPUT } from "./mildura-controls";
 import { toCsv } from "@/lib/owner-csv";
 import { UNIT_ONLINE_SECONDS } from "@/lib/owner-sites-model";
 import { MILDURA_ADDRESS, accessBreakdown, gateStatus, healthTiles, usageByDay, type MirrorAccess, type MirrorStatus } from "@/lib/mildura-view-model";
+import OperableGate from "./operable-gate";
 
 type MUser = { local_id: number; name: string; enabled: boolean; schedule_type: string | null; schedule_data: unknown; created_at_local: string | null };
 type MSchedule = { local_id: number; name: string; days: unknown; open_time: string; close_time: string; enabled: boolean };
@@ -104,6 +105,7 @@ function MilduraBody({ data }: { data: MirrorDetail }) {
           <h2 className="m-0 flex items-center gap-2 text-lg"><ShieldCheck className="size-4 text-[#FF7A00]" aria-hidden="true" /> {SITE_NAME}</h2>
           <span className="connection-pill"><i /> Owner control · via Pi command queue</span>
         </div>
+        <OperableGate name={SITE_NAME} kind="boom" area="Mildura" />
         <Navy>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">

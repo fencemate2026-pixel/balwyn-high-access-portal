@@ -156,6 +156,11 @@ test("each gate shows its own label and an empty dial-in slot, and only Macquari
     assert.match(html, /Dial-in number not entered yet/);
     assert.equal(html.includes("> Open</button>"), false);
     assert.equal(html.includes('href="/macquarie"'), false);
+    assert.match(html, />OPEN<\/span>/);
+    assert.match(html, />CLOSE<\/span>/);
+    assert.match(html, /They do not pulse the unit/);
+    assert.doesNotMatch(html, /queues one pulse/);
+    assert.match(html, device === "thomastown-sliding" ? /src="\/gates\/sliding-blue\.svg"/ : /src="\/gates\/single-swing-blue\.webp"/);
   }
   const macquarie = renderToStaticMarkup(React.createElement(SwingView, { device: "thomastown-swing", fixture: EMPTY }));
   assert.match(macquarie, /Macquarie Drive Thomastown/);
@@ -163,6 +168,9 @@ test("each gate shows its own label and an empty dial-in slot, and only Macquari
   assert.equal(macquarie.includes("Dial-in number not entered yet"), false);
   assert.match(macquarie, /> Open<\/button>/);
   assert.match(macquarie, /href="\/macquarie"/);
+  assert.match(macquarie, /src="\/gates\/single-swing-blue\.webp"/);
+  assert.match(macquarie, /The Open button queues one pulse on the live unit/);
+  assert.match(macquarie, />OPEN<\/span>/);
 });
 
 test("the public sitemap does not list this site", () => {
