@@ -1,4 +1,5 @@
 import { assertSameOrigin, getAdminSettingsAccess, requireOperator } from "@/lib/portal-auth";
+import { isSettlementMember } from "@/lib/settlement-access";
 import { resolveEmergencyCommand } from "@/lib/emergency-policy";
 import { PROTECTED_SETTINGS_ACTIONS } from "@/lib/protected-settings";
 import {
@@ -23,6 +24,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const auth = await requireOperator(request, "viewer");
   if (!auth.user) return auth.response;
+  // This login sees 337–339 Settlement Road only. The operations snapshot stays with the owner.
+  if (auth.user.isOwner !== true && isSettlementMember(auth.user.email)) {
+    return Response.json({ error: "Not found.", code: "settlement_site" }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  }
   try {
     return Response.json({ snapshot: await getPortalSnapshot(auth.user) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
@@ -35,6 +40,9 @@ export async function POST(request: Request) {
   if (!assertSameOrigin(request)) return Response.json({ error: "Request rejected." }, { status: 403 });
   const auth = await requireOperator(request, "operator");
   if (!auth.user) return auth.response;
+  if (auth.user.isOwner !== true && isSettlementMember(auth.user.email)) {
+    return Response.json({ error: "Not found.", code: "settlement_site" }, { status: 404, headers: { "Cache-Control": "no-store" } });
+  }
 
   try {
     const body = await request.json() as Record<string, unknown>;

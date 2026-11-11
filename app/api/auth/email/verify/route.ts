@@ -4,6 +4,7 @@ import { isSameOriginSignInRequest } from "@/lib/google-signin";
 import { getPortalSnapshot, recordActivity } from "@/lib/portal-store";
 import { reserveSignInAttempt, SignInRateLimitError } from "@/lib/signin-rate-limit";
 import { readSignInBody } from "@/lib/signin-request";
+import { isSettlementMember } from "@/lib/settlement-access";
 
 export async function POST(request: Request) {
   const headers = new Headers({ "Cache-Control": "no-store" });
@@ -22,6 +23,13 @@ export async function POST(request: Request) {
     if (!identity) return Response.json({ error: "This operator account is no longer available.", restart: true }, { status: 401, headers });
     await reserveSignInAttempt(getSql(), await signInRateKey(`email:mfa:${challenge.user.accountId ?? challenge.user.displayName.toLowerCase()}`));
     if (!await verifyAuthenticatorCode(challenge.user, body.code)) return Response.json({ error: "That code was not accepted. Enter the current code from your authenticator." }, { status: 401, headers });
+    if (challenge.user.isOwner !== true && isSettlementMember(challenge.user.email)) {
+      headers.append("Set-Cookie", await createSessionCookie(challenge.user, identity));
+      headers.append("Set-Cookie", clearMfaChallengeCookie());
+      await recordAccountSignIn(challenge.user);
+      await recordActivity(challenge.user, "Signed in", "Email, password and authenticator code (Settlement Road site)", "access");
+      return Response.json({ settlementSite: true }, { headers });
+    }
     // getPortalSnapshot seeds a brand-new portal itself; the separate seeding
     // query was an extra round trip on every sign-in.
     // The sign-in is also written to the permanent activity log (same round trip).

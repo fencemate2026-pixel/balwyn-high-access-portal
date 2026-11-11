@@ -175,7 +175,14 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(12000)]);
     // A slow or expired session must never hold up available sign-in methods.
     void fetch("/api/portal", { cache: "no-store", signal })
-      .then(async (response) => response.ok ? response.json() as Promise<{ snapshot: PortalSnapshot }> : null)
+      .then(async (response) => {
+        const body = await response.json().catch(() => null) as { snapshot?: PortalSnapshot; code?: string } | null;
+        if (response.status === 403 && body?.code === "settlement_site") {
+          window.location.assign("/settlement");
+          return null;
+        }
+        return response.ok ? body : null;
+      })
       .then((portal) => {
         if (active && restoreSessionRef.current && portal?.snapshot) setSnapshot(portal.snapshot);
       }).catch(() => { /* Sign-in remains available when session restoration fails. */ });
@@ -240,9 +247,10 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
         method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(authenticator ? { code } : { email, password }), signal: AbortSignal.timeout(20000),
       });
-      const body = await result.json() as { snapshot?: PortalSnapshot; requiresAuthenticator?: boolean; enrollment?: Enrollment | null; error?: string; restart?: boolean };
+      const body = await result.json() as { snapshot?: PortalSnapshot; settlementSite?: boolean; requiresAuthenticator?: boolean; enrollment?: Enrollment | null; error?: string; restart?: boolean };
       if (body.restart) { setAuthenticator(false); setEnrollment(null); setCode(""); }
       if (!result.ok) throw new Error(body.error || "Sign-in could not be completed.");
+      if (body.settlementSite) { window.location.assign("/settlement"); return; }
       if (body.snapshot) { setSnapshot(body.snapshot); setEnrollment(null); setCode(""); }
       else if (body.requiresAuthenticator) { setAuthenticator(true); setEnrollment(body.enrollment ?? null); setPassword(""); }
       else throw new Error("Sign-in could not be completed. Please try again.");

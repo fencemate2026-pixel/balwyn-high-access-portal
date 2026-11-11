@@ -5,6 +5,7 @@ import { recordActivity, getPortalSnapshot } from "@/lib/portal-store";
 import { isSameOriginSignInRequest } from "@/lib/google-signin";
 import { reserveSignInAttempts, SignInRateLimitError } from "@/lib/signin-rate-limit";
 import { readSignInBody } from "@/lib/signin-request";
+import { isSettlementMember } from "@/lib/settlement-access";
 
 export async function POST(request: Request) {
   const headers = new Headers({ "Cache-Control": "no-store" });
@@ -31,6 +32,15 @@ export async function POST(request: Request) {
     ]);
     const user = siteUser ?? accountUser;
     if (!user) return Response.json({ error: "The email or password was not recognised. Use an approved operator account." }, { status: 401, headers });
+    // Settlement Road members never receive the operations snapshot. They sign in to that site only.
+    if (user.isOwner !== true && isSettlementMember(user.email)) {
+      const identity = await credentialIdentity(user);
+      if (!identity) return Response.json({ error: "This account is not available." }, { status: 401, headers });
+      headers.append("Set-Cookie", await createSessionCookie(user, identity));
+      await recordAccountSignIn(user);
+      await recordActivity(user, "Signed in", "Email and password (Settlement Road site)", "access");
+      return Response.json({ settlementSite: true }, { headers });
+    }
     // View-only per-person accounts sign in with the password alone: they cannot
     // open gates or change anything. Operators and administrators always get the
     // authenticator step below.

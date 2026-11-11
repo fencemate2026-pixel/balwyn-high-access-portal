@@ -13,7 +13,9 @@ import { toast } from "sonner";
 import { OWNER_SITES_CSS } from "./owner-sites-css";
 import MilduraSiteView from "./mildura-site-view";
 import ThomastownSwingView from "./thomastown-swing-view";
+import SettlementSiteView from "./settlement-site-view";
 import { isGdSiteId, type GdSiteId } from "@/lib/gd-swing-model";
+import { SETTLEMENT_SITE_ID } from "@/lib/settlement-site";
 import { ConfirmDialog, FIELD_STYLE, INPUT, type ConfirmSpec } from "./mildura-controls";
 import { clientPageHref } from "@/lib/client-portal";
 import { GLASS_PANEL, GLASS_TILE, glassButton } from "./glass-ui";
@@ -79,8 +81,9 @@ export default function OwnerSitesPanel({ onOpenPortal, selectedId, hideList = f
   // The chosen site: the sidebar's choice when it supplies one, otherwise the panel's own.
   const picked = selectedId ?? slugState;
   const linked = links.find((l): l is Extract<OwnerSiteLink, { kind: "external" }> => l.id === picked && l.kind === "external") ?? null;
-  const swing: GdSiteId | null = isGdSiteId(picked) ? picked : null;       // Azure-backed view, not a Supabase gd_* site
-  const slug = linked || swing ? null : picked;
+  const settlement = picked === SETTLEMENT_SITE_ID;
+  const swing: GdSiteId | null = !settlement && isGdSiteId(picked) ? picked : null;       // Azure-backed view, not a Supabase gd_* site
+  const slug = linked || swing || settlement ? null : picked;
 
   const ask: Ask = useCallback((spec) => new Promise<boolean>((resolve) => setConfirm({ ...spec, resolve })), []);
 
@@ -157,7 +160,7 @@ export default function OwnerSitesPanel({ onOpenPortal, selectedId, hideList = f
   }, [detail, actingName, loadSites]);
 
   if (!sites) return <div className="os-row"><LoaderCircle className="animate-spin" /> Loading sites…</div>;
-  if (showsNoSites(sites.length, swing !== null || linked !== null)) return <p>No sites yet.</p>;
+  if (showsNoSites(sites.length, swing !== null || linked !== null || settlement)) return <p>No sites yet.</p>;
 
   const dot = (s: SiteRow) => !s.gd_units.length ? "" : s.gd_units.some((u) => !online(u, now)) ? "bad"
     : s.gd_units.some((u) => u.applied_version < s.config_version || u.lockdown) ? "warn" : "ok";
@@ -189,7 +192,7 @@ export default function OwnerSitesPanel({ onOpenPortal, selectedId, hideList = f
             </a>)}
       </nav>}
       <div>
-        {swing ? <ThomastownSwingView key={swing} device={swing} /> : linked ? <LinkedSitePanel link={linked} /> : slug === "mildura" ? <MilduraSiteView /> : !detail ? <div className="os-row"><LoaderCircle className="animate-spin" /> Loading…</div>
+        {settlement ? <SettlementSiteView /> : swing ? <ThomastownSwingView key={swing} device={swing} /> : linked ? <LinkedSitePanel link={linked} /> : slug === "mildura" ? <MilduraSiteView /> : !detail ? <div className="os-row"><LoaderCircle className="animate-spin" /> Loading…</div>
           : <SiteBody detail={detail} now={now} busy={busy} act={act} ask={ask} importRows={importRows} actingName={actingName} setActing={setActing}
               logTab={logTab} setLogTab={(t) => { setLogTab(t); }} calls={calls} changes={changes} callUnit={callUnit} setCallUnit={setCallUnit}
               callResult={callResult} setCallResult={setCallResult} reloadCalls={() => slug && loadCalls(slug)} />}

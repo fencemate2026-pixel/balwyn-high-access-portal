@@ -57,13 +57,13 @@ async function call<T>(device: GdSiteId, init?: { body: Record<string, unknown> 
 }
 
 // One screen for every Azure-backed Thomastown gate (swing, sliding): `device` picks the site and its API.
-export default function ThomastownSwingView({ fixture, device = SWING_DEVICE_ID }: { fixture?: SwingDetail; device?: GdSiteId } = {}) {
+export default function ThomastownSwingView({ fixture, device = SWING_DEVICE_ID, title }: { fixture?: SwingDetail; device?: GdSiteId; title?: string } = {}) {
   const [data, setData] = useState<SwingDetail | null>(fixture ?? null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<(ConfirmSpec & { resolve: (ok: boolean) => void }) | null>(null);
 
-  const siteName = GD_SITES[device].name;
+  const siteName = title || GD_SITES[device].name;
   const load = useCallback(async () => {
     try { setData(await call<SwingDetail>(device)); setError(""); } catch (e) { setError((e as Error).message); }
   }, [device]);
@@ -129,6 +129,7 @@ function Body({ data, busy, send, siteName, dialIn, pulseGate, clientHref }: { d
           <Pill tone="mute">{data.users.length} callers · {data.users.filter((u) => u.enabled).length} enabled</Pill>
           {sim.state === "ok" && <Pill tone="ok"><Phone className="mr-1 inline size-3" aria-hidden="true" />Dial-in number {displayPhone(sim.number)}</Pill>}
           {sim.state === "unsupported" && dialIn && <Pill tone="ok"><Phone className="mr-1 inline size-3" aria-hidden="true" />Dial-in number {displayPhone(dialIn)}</Pill>}
+          {sim.state === "unsupported" && !dialIn && <Pill tone="mute"><Phone className="mr-1 inline size-3" aria-hidden="true" />Dial-in number not entered yet</Pill>}
           {sim.state === "nosim" && <Pill tone="bad">No SIM detected in the unit</Pill>}
           {sim.state === "unread" && <Pill tone="mute">Reading the SIM…</Pill>}
           {data.device?.fw_version && <Pill tone="mute">sync {data.device.fw_version}</Pill>}

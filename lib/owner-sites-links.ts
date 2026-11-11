@@ -29,20 +29,14 @@ export const OWNER_SITE_LINKS: readonly OwnerSiteLink[] = [
     view: "dashboard",
   },
   {
-    id: "settlement-road-swing",
-    name: "Settlement Road Swing Gate",
-    detail: "Azure · callers stored here, no dial-in number yet",
+    id: "settlement-road",
+    name: "337 - 339 SETTLEMENT ROAD, THOMASTOWN",
+    detail: "Plan 819859Q · swing gate and sliding gate, each with its own dial-in number and caller list",
     kind: "view",
   },
   {
     id: "thomastown-swing",
     name: "Macquarie Drive Thomastown",
-    detail: "Azure · callers, every call, changes",
-    kind: "view",
-  },
-  {
-    id: "thomastown-sliding",
-    name: "Thomastown sliding gate",
     detail: "Azure · callers, every call, changes",
     kind: "view",
   },

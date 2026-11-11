@@ -90,11 +90,12 @@ test("the owner lists sites and the key hash never reaches the browser", async (
   // with the owner-only list, so they never ship to school staff.
   // 4 Nov 2026: Mildura reports through gd_sites (read-only mirror), so it is no longer an external link.
   // 6 Nov 2026: the Thomastown swing gate (Azure, owner-only view) joins the owner list.
-  assert.deepEqual(listed.links.map((l) => l.id), ["balwyn", "settlement-road-swing", "thomastown-swing", "thomastown-sliding"]);
+  assert.deepEqual(listed.links.map((l) => l.id), ["balwyn", "settlement-road", "thomastown-swing"]);
   assert.equal(listed.links.find((l) => l.id === "balwyn").name, "Operations portal");
-  assert.equal(listed.links.find((l) => l.id === "settlement-road-swing").name, "Settlement Road Swing Gate");
+  assert.equal(listed.links.find((l) => l.id === "settlement-road").name, "337 - 339 SETTLEMENT ROAD, THOMASTOWN");
+  assert.match(listed.links.find((l) => l.id === "settlement-road").detail, /819859Q/);
   assert.equal(listed.links.find((l) => l.id === "thomastown-swing").name, "Macquarie Drive Thomastown");
-  assert.equal(listed.links.find((l) => l.id === "thomastown-sliding").name, "Thomastown sliding gate");
+  assert.equal(listed.links.some((l) => l.id === "settlement-road-swing" || l.id === "thomastown-sliding"), false);
   const detail = await (await get("?site=thomastown")).json();
   assert.equal(detail.units[0].has_device_key, true);
   assert.equal("secret_hash" in detail.units[0], false);

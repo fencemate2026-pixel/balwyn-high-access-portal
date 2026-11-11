@@ -1,4 +1,4 @@
-// Owner → thomastown-swing (Azure). All logic is shared: lib/gd-owner-handler.ts (owner-only, 404 otherwise).
+// Owner → thomastown-swing (Azure). Shared logic: lib/gd-owner-handler.ts. A Settlement Road member is 404 here.
 import { handleOwnerGet, handleOwnerPost } from "@/lib/gd-owner-handler";
 import { SWING_DEVICE_ID } from "@/lib/gd-swing-model";
 
