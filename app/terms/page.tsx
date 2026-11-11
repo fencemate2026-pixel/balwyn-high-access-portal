@@ -3,7 +3,7 @@ import LegalPage from "../legal-page";
 
 export const metadata: Metadata = {
   title: "Terms of Use | Magic Keys",
-  description: "Terms governing authorised use of the Magic Keys Balwyn High School operations portal.",
+  description: "Terms governing authorised use of the Magic Keys operations portal.",
 };
 
 export default function TermsPage() {

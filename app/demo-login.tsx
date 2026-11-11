@@ -14,7 +14,7 @@ import { GOOGLE_SIGN_IN_ORIGIN, GOOGLE_SIGN_IN_URL } from "@/lib/google-signin-o
 
 // Gate rendering and operator tools are only needed after authentication.
 const DashboardClient = dynamic(() => import("./dashboard-client"), {
-  loading: () => <main className="login-workspace-loading" role="status"><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /><h1>Opening your workspace…</h1><p>You’re signed in. Loading campus controls.</p></main>,
+  loading: () => <main className="login-workspace-loading" role="status"><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /><h1>Opening your workspace…</h1><p>You’re signed in. Loading your workspace.</p></main>,
 });
 const OperatorHelpDock = dynamic(() => import("./operator-help-dock"));
 
@@ -297,15 +297,11 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
       <div className="access-login-shell">
         <header className="access-login-header flex items-center justify-between gap-6">
           <Link href="/" className="access-login-brand" aria-label="Magic Keys home"><BrandLogo /></Link>
-          {generalClient ? <div className="access-login-school"><span><small>SECURE CLIENT ACCESS</small><strong>MagicKeys</strong></span></div> : <div className="access-login-school flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element -- local transparent school crest */}
-            <img src="/balwyn-crest-clear.png" alt="" width={530} height={752} />
-            <span><small>CAMPUS ACCESS PORTAL</small></span>
-          </div>}
+          {generalClient ? <div className="access-login-school"><span><small>SECURE CLIENT ACCESS</small><strong>MagicKeys</strong></span></div> : <div className="access-login-school"><span><small>SECURE ACCESS</small><strong>Magic Keys</strong></span></div>}
         </header>
 
         <div className="access-login-layout grid items-center">
-          <section className="access-login-brand-stage" aria-label={generalClient ? "MagicKeys — secure client access" : "Magic Keys — secure access, safer schools"}><BrandArtwork fillHeight /></section>
+          <section className="access-login-brand-stage" aria-label={generalClient ? "MagicKeys — secure client access" : "Magic Keys — secure access"}><BrandArtwork fillHeight /></section>
 
           <section className="access-login-panel" aria-labelledby="magic-login-title">
             <div className="login-school-badge">
@@ -314,10 +310,10 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
             </div>
             <div className="access-login-card has-form">
               <div className="access-login-lock flex items-center justify-center" aria-hidden="true"><LockKeyhole /></div>
-              <p className="access-login-kicker">{generalClient ? "MAGICKEYS CLIENT LOGIN" : "CAMPUS ACCESS PORTAL"}</p>
+              <p className="access-login-kicker">{generalClient ? "MAGICKEYS CLIENT LOGIN" : "SECURE ACCESS"}</p>
               <div className="access-login-heading">
                 <h1 id="magic-login-title">{authenticator ? "Verify your sign-in" : googleOnly ? "Continue with Google" : "Welcome back."}</h1>
-                {(authenticator || generalClient) ? <p>{authenticator ? "Enter the six-digit code from your authenticator app." : "Sign in to your secure MagicKeys workspace."}</p> : null}
+                <p>{authenticator ? "Enter the six-digit code from your authenticator app." : generalClient ? "Sign in to your secure MagicKeys workspace." : "Sign in to your Magic Keys workspace."}</p>
               </div>
 
               {(!googleOnly || authenticator) && <form className="access-login-form" onSubmit={handleEmailSignIn} aria-busy={submitting}>
@@ -337,7 +333,7 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
                 </>}
               </form>}
 
-              {help && <div id="login-help" className="access-login-help" role="region" aria-label="Sign-in help" tabIndex={-1} ref={helpRef}><strong>Forgotten your password?</strong><p>{generalClient ? "Ask your portal administrator for a new setup link." : "Ask your school’s portal administrator for a new setup link."} It lets you choose a new password and stops the old one working. Google and Microsoft passwords are managed by those providers.</p></div>}
+              {help && <div id="login-help" className="access-login-help" role="region" aria-label="Sign-in help" tabIndex={-1} ref={helpRef}><strong>Forgotten your password?</strong><p>Ask your portal administrator for a new setup link. It lets you choose a new password and stops the old one working. Google and Microsoft passwords are managed by those providers.</p></div>}
               {error && <p className="access-login-error" role="alert">{error}</p>}
               {!authenticator && <>
                 {!providers && !error && <p className="access-login-loading flex items-center justify-center gap-3" role="status"><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Loading sign-in options…</p>}
@@ -345,7 +341,7 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
                 {!googleOnly && (providers?.google || providers?.microsoft) && <div className="access-login-divider"><span>{providers?.google && providers?.microsoft ? "or use an approved Google or Microsoft account" : providers?.google ? "or use an approved Google account" : "or use an approved Microsoft account"}</span></div>}
                 <div className="access-login-providers" aria-busy={preparing || submitting}>
                   {providers?.google && (googlePortalLink ? <a className="access-login-provider access-login-google-link" href={generalClient ? `${GOOGLE_SIGN_IN_ORIGIN}/client-login?method=google` : GOOGLE_SIGN_IN_URL} target="_top"><GoogleMark />Continue with Google<ArrowRight aria-hidden="true" /></a> : googleConfig ? <div ref={googleButtonRef} className="access-login-google" aria-label="Sign in with Google" /> : <button className="access-login-provider" type="button" disabled={preparing || submitting} onClick={() => void refreshGoogleSignIn()}><GoogleMark />{preparing ? "Loading Google…" : "Sign in with Google"}{preparing ? <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}</button>)}
-                  {googlePortalLink && <p className="access-login-provider-note">{generalClient ? "You’ll continue on the secure MagicKeys portal." : "You’ll continue on the school’s Magic Keys portal."}</p>}
+                  {googlePortalLink && <p className="access-login-provider-note">{generalClient ? "You’ll continue on the secure MagicKeys portal." : "You’ll continue on the Magic Keys portal."}</p>}
                   {googleError && <p className="access-login-error" role="alert">{googleError}</p>}
                   {!googleOnly && providers?.microsoft && <button className="access-login-provider access-login-microsoft" type="button" onClick={() => void handleMicrosoftSignIn()} disabled={submitting}><span className="access-login-microsoft-icon" aria-hidden="true"><i /><i /><i /><i /></span>Sign in with Microsoft<ArrowRight aria-hidden="true" /></button>}
                   {!googleOnly && providers?.azure && <a className="access-login-provider" href={`/.auth/login/google?post_login_redirect_uri=${AZURE_RETURN}`}><GoogleMark />Sign in with Google (Azure)<ArrowRight aria-hidden="true" /></a>}
@@ -355,7 +351,7 @@ export default function DemoLogin({ generalClient = false, preferredProvider }: 
               </>}
 
               {googleOnly && <Link className="access-login-text-button" href="/client-login">Use email or username instead</Link>}
-              <div className="access-login-assurance"><ShieldCheck aria-hidden="true" /><span>Access for approved accounts only.<small>{generalClient ? "Your workspace. Protected." : "Your school. Protected."}</small></span><Check aria-hidden="true" /></div>
+              <div className="access-login-assurance"><ShieldCheck aria-hidden="true" /><span>Access for approved accounts only.<small>Your workspace. Protected.</small></span><Check aria-hidden="true" /></div>
               <button className="access-login-help-toggle flex items-center justify-center gap-2" type="button" aria-expanded={help} aria-controls={help ? "login-help" : undefined} onClick={() => setHelp(!help)}><HelpCircle aria-hidden="true" />Need help signing in?</button>
               
             </div>

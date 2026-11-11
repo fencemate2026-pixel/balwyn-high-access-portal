@@ -11,7 +11,7 @@ export default function LegalPage({ eyebrow, title, summary, sections, updated =
       <header className="legal-topbar">
         <Link href="/" className="legal-brand" aria-label="Return to Magic Keys sign in">
           <BrandLogo tone="dark" />
-          <span><small>Balwyn High School</small><strong>Secure operations portal</strong></span>
+          <span><small>Magic Keys</small><strong>Secure operations portal</strong></span>
         </Link>
         <Link href="/" className="legal-back"><ArrowLeft /> Sign in</Link>
       </header>

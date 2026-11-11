@@ -26,17 +26,23 @@ test("the sign-in badge keeps the Magic Keys logo and has no school line under i
   const badge = html.slice(html.indexOf("login-school-badge"), html.indexOf("access-login-card"));
   assert.match(badge, /magic-brand-logo/);
   assert.doesNotMatch(badge, /BALWYN HIGH SCHOOL/);
-  assert.match(html, /balwyn-crest-clear\.png/);
-  assert.match(html, /CAMPUS ACCESS PORTAL/);
-  assert.doesNotMatch(html, /Balwyn High School/);
-  assert.doesNotMatch(html, /Sign in to your Balwyn High School workspace/);
+  assert.doesNotMatch(html, /balwyn-crest/);
+  assert.doesNotMatch(html, /CAMPUS ACCESS PORTAL/);
+  assert.doesNotMatch(html, /Balwyn High/);
+  assert.doesNotMatch(html, /Your school/);
+  assert.doesNotMatch(html, /safer schools/);
+  assert.doesNotMatch(html, /campus controls/);
+  assert.match(html, /SECURE ACCESS/);
+  assert.match(html, /Sign in to your Magic Keys workspace/);
 });
 
 test("setup page never renders the one-time token on the server", async () => {
   const { default: Form } = await vite.ssrLoadModule("/app/setup/setup-password-form.tsx");
   const html = renderToStaticMarkup(React.createElement(Form));
   assert.doesNotMatch(html, /token=/);
-  assert.match(html, /CAMPUS ACCESS PORTAL/);
+  assert.match(html, /SECURE ACCESS/);
+  assert.doesNotMatch(html, /BALWYN HIGH SCHOOL/);
+  assert.doesNotMatch(html, /CAMPUS ACCESS PORTAL/);
 });
 
 test("glass gauge shows real values and a dash when there is no reading", async () => {

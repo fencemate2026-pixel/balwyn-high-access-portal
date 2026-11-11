@@ -3,7 +3,7 @@ import LegalPage from "../legal-page";
 
 export const metadata: Metadata = {
   title: "Privacy Policy | Magic Keys",
-  description: "How the Magic Keys Balwyn High School operations portal handles personal information.",
+  description: "How the Magic Keys operations portal handles personal information.",
 };
 
 /*

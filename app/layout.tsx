@@ -17,8 +17,8 @@ import EmergencyVoiceGuard from "./emergency-voice-guard";
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#0b131e" };
 
 export const metadata: Metadata = {
-  title: "Magic Keys – Balwyn High School",
-  description: "Secure Magic Keys operations portal for Balwyn High School access points.",
+  title: "Magic Keys",
+  description: "Secure Magic Keys operations portal.",
   icons: {
     icon: "/magic-keys-school-logo.png",
     shortcut: "/magic-keys-school-logo.png",

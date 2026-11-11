@@ -52,9 +52,9 @@ export default function SetupPasswordForm() {
   return (
     <main className="access-login access-login-school-blue mk-setup min-h-svh antialiased">
       <section className="access-login-panel mk-setup-panel" aria-labelledby="setup-title">
-        <div className="login-school-badge"><BrandLogo tone="dark" /><span>BALWYN HIGH SCHOOL</span></div>
+        <div className="login-school-badge"><BrandLogo tone="dark" /></div>
         <div className="access-login-card has-form">
-          <p className="access-login-kicker">CAMPUS ACCESS PORTAL</p>
+          <p className="access-login-kicker">SECURE ACCESS</p>
           {doneEmail ? <>
             <div className="access-login-heading"><h1 id="setup-title">Password saved.</h1><p>You can now sign in as <strong>{doneEmail}</strong>. This setup link no longer works.</p></div>
             <Link className="access-login-submit" href="/login">Go to sign in<ArrowRight aria-hidden="true" /></Link>
