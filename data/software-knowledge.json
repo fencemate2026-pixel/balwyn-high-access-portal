@@ -157,36 +157,54 @@
   },
   {
     "id": "guide-27",
+    "title": "Fire and smoke reference pictures",
+    "source": "SOFTWARE_HELP.md",
+    "text": "## Fire and smoke reference pictures\nAsk Magic Keys can explain a labelled set of still photos kept for fire and smoke work that is still in development. The set has 2,700 training photos and 300 test photos. Training has 900 fire, 900 smoke and 900 ordinary scenes. The test group has 100 of each. Every photo is a JPEG. Nothing in the set draws a box around the flame or the smoke. The only label is the folder the photo is in: fire, smoke, or an ordinary scene.\n\nThese are photographs people chose to take of a fire or of smoke. They are close, bright and centred. They are not pictures of this school's grounds, gates or corridors, and they are not recordings of students or staff. One frame of a far-off smouldering bin, a red vest, a sunset or a sunlit car roof can look alike. The set answers staff questions about what the reference pictures contain. The set's author reports about 85 percent correct on those 300 test pictures with a ResNet50 picture network. That figure has not been checked here. In the author's own examples one smoke picture was only about 0.45 sure, while another was almost certain. It is not a certified fire detector. It has not been scored on this school's cameras. A likeness to one of these photos does not start evacuation, open a gate or close a gate. Use the fire / evacuation button only when an authorised person has decided to, and follow the school's emergency plan and the fire indicator panel."
+  },
+  {
+    "id": "guide-28",
+    "title": "Camera research on fire, smoke and weapons",
+    "source": "SOFTWARE_HELP.md",
+    "text": "## Camera research on fire, smoke and weapons\nAsk Magic Keys can also explain two external research projects. Neither is installed as this school's fire system. Neither may open a gate, close a gate, start evacuation or clear an emergency. A camera result is something a person looks at. The fire indicator panel, the school's incident controller and Triple Zero stay in charge.\n\nThe first project looks at a still photo, a video or a live camera for fire and smoke only. It draws a box and shows how sure it is. It can brighten a dim or hazy picture before it looks. On a live camera it can send one email with a snapshot, then wait 60 seconds before another email, so one continuing event does not fill an inbox. That email is a notice to a person. It is not an input to the fire panel, and it does not move a gate.\n\nThe second project is one watcher for 21 kinds of thing in the same view: a short gun, a long gun, a knife, fire, smoke, a phone, and ordinary objects such as a person, a car, a bag or an umbrella. On the author's own held-out test of 2,470 pictures and 6,780 marked objects, using a strict cutoff, the author reports recall and precision of: short gun 0.81 and 0.96, long gun 0.71 and 0.97, phone 0.80 and 0.98, knife 0.58 and 0.90, fire 0.58 and 0.96, smoke 0.50 and 0.95. Overall precision on that test was 0.91. That means few false alarms on the author's test. It does not mean the same result on this school's cameras. Those figures are the author's report. They have not been repeated here.\n\nThat project learned mostly from clear, close, staged pictures. On a blurred, wide or compressed camera view it misses more often, especially small objects. A broom, a pen, fog and steam were not in the pictures it learned from, so those mistakes are not measured. Magic Keys does not call a student, a staff member or a visitor armed or a threat because a camera said so. Recording rules stay as written under CCTV and zones."
+  },
+  {
+    "id": "guide-29",
+    "title": "Colour alarm, fighting and incident notes",
+    "source": "SOFTWARE_HELP.md",
+    "text": "## Colour alarm, fighting and incident notes\nAsk Magic Keys can explain three further research projects. None of them is installed. None of them may open a gate, close a gate, start evacuation or clear an emergency.\n\nOne project does not learn from photos. It turns a picture into hue, saturation and lightness, keeps only the pixels in a fire-like colour range, and can play an alarm sound. A sunset, a red vest, a brake light or a stage light can fall in that same range. Colour alone is not a fire.\n\nA larger research description lists fire, smoke, weapons, people, vehicles and someone entering a marked area. It saves a screenshot and a time, then a language model drafts an incident note. The sample note in that description, about smoke at a warehouse entrance, is an illustration. It is not an event at this school. Magic Keys does not recognise faces or number plates.\n\nAnother research screen looks at an uploaded video or a camera link for guns, knives, fire, smoke and fighting. It can keep a list of alerts with the time, the kind of alert and how sure it was. Magic Keys does not decide that a person is violent, armed or a threat from a camera. A person, the fire indicator panel and Triple Zero stay in charge."
+  },
+  {
+    "id": "guide-30",
     "title": "Safety protocol",
     "source": "SOFTWARE_HELP.md",
     "text": "## Safety protocol\nSafety protocol is the school emergency safety protocol for the portal. Magic Keys supports trained staff; it does not replace the school's Emergency Management Plan, the fire indicator panel, emergency services, onsite judgement or physical emergency controls. Its six principles are: 01 Named human authority (only the school's authorised incident controller activates, changes or clears an emergency mode; staff call Triple Zero when required); 02 Independent manual fallback (physical alarms, keys, releases and local controls still work if the portal, power, internet, cameras or a controller is unavailable); 03 No camera-only decisions; 04 Movement is locally protected (safety beams, edges, loops and obstruction sensing have the final say, and a fault blocks the command); 05 Only approved guidance (screens show routes from the school-approved emergency plan only); 06 Test, record and review. The Stop rule: if information conflicts, a safety input is unhealthy, confirmation is missing or the real situation is uncertain, stop automation, use the approved manual procedure and follow authorised staff and emergency services. On the core plan this page shows Please contact RJL for access."
   },
   {
-    "id": "guide-28",
+    "id": "guide-31",
     "title": "Plans and upgrades",
     "source": "SOFTWARE_HELP.md",
     "text": "## Plans and upgrades\nGate Operations is the core plan. Magic Keys Advanced adds CCTV & zones, Emergency guidance and related modules. An administrator can press Upgrade plan in System settings or Discuss your school's upgrade on Campus overview to contact RJL. Upgrading does not connect cameras or other equipment by itself; installation is arranged with RJL."
   },
   {
-    "id": "guide-29",
+    "id": "guide-32",
     "title": "Alerts bell, system state and controller status",
     "source": "SOFTWARE_HELP.md",
     "text": "## Alerts bell, system state and controller status\nThe header shows System state (No emergency active, or the emergency in progress), Controller status (All systems ready, or Commissioning while gates are still being set up) and the alerts bell. If a gate shows Attention required or Controller offline for more than a few minutes, check the gate and contact RJL."
   },
   {
-    "id": "guide-30",
+    "id": "guide-33",
     "title": "Reporting a fault or getting support",
     "source": "SOFTWARE_HELP.md",
     "text": "## Reporting a fault or getting support\nFor gate faults, damage, a gate that will not open or close, the portal not loading or showing an error, or anything that looks unsafe: make the area safe first, then contact RJL Commercial Group at info@rjlcommercialgroup.com. Include the gate name, the time and what happened. The activity log time stamps help RJL find the problem quickly. For account or password problems, ask your school's portal administrator first."
   },
   {
-    "id": "guide-31",
+    "id": "guide-34",
     "title": "Using the help chat",
     "source": "SOFTWARE_HELP.md",
     "text": "## Using the help chat\nAsk Magic Keys answers questions about using the portal: where things are, what a screen means and the steps to follow. It cannot press buttons, open gates, change settings, reset passwords or see cameras. It does not know live gate positions. Questions are recorded (without your email address) so RJL can improve the help, and may be reviewed by RJL; see the privacy policy. Do not type passwords, codes or personal details into the chat. For anything the chat cannot answer, contact your portal administrator or RJL."
   },
   {
-    "id": "guide-32",
+    "id": "guide-35",
     "title": "Privacy, cookies and security",
     "source": "SOFTWARE_HELP.md",
     "text": "## Privacy, cookies and security\nThe Privacy policy and Terms of use are linked at the bottom of the sign-in page. They explain what information Magic Keys keeps (such as account details, the activity log, stadium hire bookings and help questions), why, where it is stored and who to contact with a privacy question. Your browser needs cookies enabled: Magic Keys uses a secure sign-in cookie to keep you signed in, and connections to the portal are encrypted. The cookies are not used for advertising or tracking. Never share your password or authenticator codes with anyone, including in this chat."
