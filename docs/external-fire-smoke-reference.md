@@ -4,7 +4,7 @@ These notes are for people building the portal. Ask Magic Keys does not read thi
 
 Nothing here is installed as the school's detector. A camera result must not open a gate, close a gate, start evacuation, or replace the fire indicator panel or a person. Do not call a student, staff member or visitor armed or a threat because a model said so.
 
-The photo zip is not in this repository. It is 320,963,592 bytes, SHA-256 `d69852219c08c3a102e7df929f0e950eb17613c0324e61255a77eb80b386dc97`, and it lives on the workstation at `C:\Users\User\Downloads\FIRE-SMOKE-DATASET.zip`. GitHub rejects a single file over 100 MB, and the zip contains no licence. Do not commit the zip or the photos until the licence is known.
+The photo zip is attached to the release [fire-smoke-dataset-1](https://github.com/fencemate2026-pixel/balwyn-high-access-portal/releases/tag/fire-smoke-dataset-1). The asset is 320,963,592 bytes, SHA-256 `d69852219c08c3a102e7df929f0e950eb17613c0324e61255a77eb80b386dc97`. A normal Git commit cannot hold it because GitHub rejects a file over 100 MB. A Git LFS push was rejected because the account's LFS budget is already used up. The zip contains no licence file. The same file is also on the workstation at `C:\Users\User\Downloads\FIRE-SMOKE-DATASET.zip`.
 
 ## Photo set
 
