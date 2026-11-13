@@ -4,7 +4,7 @@ These notes are for people building the portal. Ask Magic Keys does not read thi
 
 Nothing here is installed as the school's detector. A camera result must not open a gate, close a gate, start evacuation, or replace the fire indicator panel or a person. Do not call a student, staff member or visitor armed or a threat because a model said so.
 
-The photo zip is attached to the release [fire-smoke-dataset-1](https://github.com/fencemate2026-pixel/balwyn-high-access-portal/releases/tag/fire-smoke-dataset-1). The asset is 320,963,592 bytes, SHA-256 `d69852219c08c3a102e7df929f0e950eb17613c0324e61255a77eb80b386dc97`. A normal Git commit cannot hold it because GitHub rejects a file over 100 MB. A Git LFS push was rejected because the account's LFS budget is already used up. The zip contains no licence file. The same file is also on the workstation at `C:\Users\User\Downloads\FIRE-SMOKE-DATASET.zip`.
+The photo zip is attached to the release [fire-smoke-dataset-1](https://github.com/fencemate2026-pixel/balwyn-high-access-portal/releases/tag/fire-smoke-dataset-1). The asset is 320,963,592 bytes, SHA-256 `d69852219c08c3a102e7df929f0e950eb17613c0324e61255a77eb80b386dc97`. A normal Git commit cannot hold it because GitHub rejects a file over 100 MB. A Git LFS push was rejected because the account's LFS budget is already used up. The zip contains no licence file. On 14 November 2026 that zip was not in Downloads. The copy that was opened is the Git LFS object for this SHA-256, 320,963,592 bytes, in the Balwyn checkout's Git LFS store. It is the same size as the release asset. Six training pictures were read from that object. The other pictures in the set were not opened.
 
 ## Photo set
 
@@ -15,7 +15,18 @@ Counted from the zip on 14 November 2026. 3,000 JPEG files and no other files. T
 | Train | 900 | 900 | 900 | 2,700 |
 | Test | 100 | 100 | 100 | 300 |
 
-The folder name for an ordinary scene is `Neutral`. Photos are named `image_0.jpg` and so on. They are close, bright, centred photographs of fire and smoke. They are not pictures of this school. A model that learns only from them will miss a small fire far from the camera and can fire on a red vest, a sunset or a sunlit car roof.
+The folder name for an ordinary scene is `Neutral`. Photos are named `image_0.jpg` and so on. They are not pictures of this school. A model that learns only from them will miss a small fire far from the camera and can fire on a red vest, a sunset or a sunlit car roof.
+
+Six training pictures were opened on 14 November 2026. These are the only pictures from the set that were looked at. They are examples, not a description of all 3,000 files, and they are not this school's grounds.
+
+- Train/Fire/image_0.jpg: a vehicle burning at night, with blue and red lights.
+- Train/Fire/image_1.jpg: a large fire and thick black smoke beside a road, with power lines, a billboard, an overpass and a raised ladder.
+- Train/Smoke/image_0.jpg: white vapour rising from industrial cooling towers and chimneys under a blue sky. The folder label is smoke. The picture is industrial vapour, not a school fire.
+- Train/Smoke/image_1.jpg: a light-coloured utility vehicle on a street, with a white cloud around the back wheels, in front of a brick building.
+- Train/Neutral/image_0.jpg: a kitchen with an oven, a rangehood, a fridge and a sink. No flame and no smoke.
+- Train/Neutral/image_1.jpg: a dining area with a table, chairs, cupboards and a window. No flame and no smoke.
+
+Weapon stills and weapon clips were not shown to the assistant. The gun-action zip was not opened for this.
 
 This layout matches the published [DeepQuestAI Fire-Smoke-Dataset](https://github.com/DeepQuestAI/Fire-Smoke-Dataset) release, whose download is also named `FIRE-SMOKE-DATASET.zip`: 1,000 images in each class, 900 for training and 100 for testing. The local file was not re-downloaded, so this note does not claim the bytes are identical to that release. The repository listing has no licence file. The README says a ResNet50 model reached 85% on the test split. That claim has not been checked here. The same README's own examples include a smoke picture scored at about 0.446, next to another smoke picture scored at about 0.997.
 
@@ -37,4 +48,4 @@ These are references only. They are not installed. A match must not call a stude
 - [gun-detection-datasets](https://github.com/deepcam-cn/gun-detection-datasets) — LinkSprite / DeepCam description of about 51,000 annotated detection images and about 51,000 classification images. The README says sources include the movie firearms catalogue IMFDB, images from other papers, a couple of thousand frames from cameras in a private office, and negative samples from their own deployment mistakes. Citation requested: Delong Qi, Weijun Tan, Zhifu Liu, Qi Yao and Jingfeng Liu, arXiv:2105.01058 (2021). The README forbids further distribution without written permission from LinkSprite. The images are not in this repository. Access is by email to the address published in that README.
 - [OD-WeaponDetection](https://github.com/ari-dasci/OD-WeaponDetection) — University of Granada weapon-detection open data, CC BY-SA 4.0. The README lists pistol classification, pistol detection, knife classification, knife detection, and weapons placed next to similar handled objects. The pictures are linked from that repository and a public drive file. They were not copied here. The README names Fransco Pérez Hernández and Alberto Castillo Lamas as the contacts. That spelling of the first name is the one printed in the README.
 
-The same facts, without web addresses, are in `SOFTWARE_HELP.md` under "Fire and smoke reference pictures", "Camera research on fire, smoke and weapons", "Colour alarm, fighting and incident notes", and "Pistol, knife and gun-action references". The assistant can quote that text. It still cannot see the photos or the clips.
+The same facts, without web addresses, are in `SOFTWARE_HELP.md` under "Fire and smoke reference pictures", "Camera research on fire, smoke and weapons", "Colour alarm, fighting and incident notes", "Pistol, knife and gun-action references", and "Looking at a photo or a short clip". The assistant can quote that text. It can look at a photo, or at up to three moments from a short clip, when a signed-in operator attaches one in the help chat. It does not watch the live cameras. It does not keep the picture. Weapon media is not loaded for it to learn from. The six observations above are the pictures that were inspected.

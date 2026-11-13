@@ -39,7 +39,7 @@ export default function TermsPage() {
       },
       {
         title: "Help chat",
-        content: <p>Ask Magic Keys explains how to use the portal from the staff guide. Its answers may be incomplete or wrong and are not safety, legal or emergency advice; follow school procedures and on-screen confirmations. It cannot operate gates or change settings. Do not enter passwords or personal information. Questions are recorded and may be reviewed by RJL as described in the <a href="/privacy">Privacy Policy</a>.</p>,
+        content: <p>Ask Magic Keys explains how to use the portal from the staff guide. Its answers may be incomplete or wrong and are not safety, legal or emergency advice; follow school procedures and on-screen confirmations. It cannot operate gates or change settings. A photo or a short clip attached in the chat is sent for that answer and is not kept. What it says about a picture can be wrong, and a picture does not start an emergency. Do not enter passwords or personal information. Questions are recorded and may be reviewed by RJL as described in the <a href="/privacy">Privacy Policy</a>.</p>,
       },
       {
         title: "Stadium hire bookings",

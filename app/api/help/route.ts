@@ -32,7 +32,8 @@ export const dynamic = 'force-dynamic';
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 const runtime = () => env as unknown as Record<string, string | undefined>;
 const GENERIC_ISSUE = 'The AI assistant is not available right now, so this answer comes from the staff guide.';
-const MAX_BODY = 20000;
+// Three still pictures, each checked again at 500 KB decoded. The clip itself is never uploaded.
+const MAX_BODY = 2_600_000;
 
 export async function GET(request: Request) {
   const auth = await requireOperator(request, 'viewer');
@@ -99,7 +100,8 @@ export async function POST(request: Request) {
   await recordHelpEvent({
     role: user.role,
     page: input.page,
-    question: input.question,
+    // The stored question is text. Picture bytes are not written to the help log.
+    question: input.frames.length ? `${input.question} [${input.frames.length === 1 ? "photo attached" : `${input.frames.length} pictures attached`}]` : input.question,
     status,
     mode,
     articleId: sources[0]?.id ?? null,

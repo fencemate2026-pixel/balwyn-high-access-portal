@@ -143,4 +143,40 @@
 .operator-help-panel header button { border: 1px solid #ffffff66; background: #ffffff20; }
 .operator-help-item.is-assistant { background: #eaf0fadb; border: 1px solid #d7e1f3; box-shadow: inset 0 1px 0 #fff; }
 .operator-help-item.is-user { background: linear-gradient(125deg, #1268ce, #5754cf); box-shadow: inset 0 1px 0 #ffffff30; }
-.operator-help-panel form { background: #f7faffd9; }
+.operator-help-panel form { background: #f7faffd9; flex-wrap: wrap; }
+.operator-help-file {
+  position: relative;
+  flex-basis: 100%;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: 0.55rem;
+  background: #edf4ff;
+  color: #175aa4;
+  font-weight: 700;
+  cursor: pointer;
+}
+.operator-help-panel .operator-help-file input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  flex: none;
+}
+.operator-help-file:focus-within { outline: 3px solid #ffab00; outline-offset: 2px; }
+.operator-help-note { flex-basis: 100%; margin: 0; color: #203957; }
+.operator-help-note.is-error { color: #9b1c1c; }
+.operator-help-panel form button.operator-help-clear {
+  margin-left: 0.6rem;
+  padding: 0;
+  background: transparent;
+  color: #175aa4;
+  text-decoration: underline;
+}

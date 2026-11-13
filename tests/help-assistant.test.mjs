@@ -39,9 +39,12 @@ test("the help index is the staff guide only, and every topic is free of interna
     assert.equal(guard.leaksInternalDetail(passage.text), null, passage.title);
   }
   const titles = index.map((p) => p.title);
-  for (const needed of ["Gate cycle counter", "Recording a completed service", "Stadium hire bookings", "Fire / evacuation button", "Opening or closing a gate", "Using the help chat", "Fire and smoke reference pictures", "Camera research on fire, smoke and weapons", "Colour alarm, fighting and incident notes", "Pistol, knife and gun-action references"]) {
+  for (const needed of ["Gate cycle counter", "Recording a completed service", "Stadium hire bookings", "Fire / evacuation button", "Opening or closing a gate", "Using the help chat", "Fire and smoke reference pictures", "Camera research on fire, smoke and weapons", "Colour alarm, fighting and incident notes", "Pistol, knife and gun-action references", "Looking at a photo or a short clip"]) {
     assert.ok(titles.includes(needed), needed);
   }
+  assert.equal(search.findHelp("how do I start a fire evacuation")[0]?.title, "Fire / evacuation button");
+  assert.equal(search.findHelp("attach a short clip")[0]?.title, "Looking at a photo or a short clip");
+  assert.equal(search.findHelp("watch a video")[0]?.title, "Looking at a photo or a short clip");
 });
 
 test("the index build refuses a guide that contains internal detail", () => {
@@ -243,6 +246,111 @@ test("GET never names the AI provider and only serves staff-guide articles", asy
   assert.ok(list.topics.every((topic) => Object.keys(topic).join() === "id,title"));
   assert.equal((await get("?article=doc-3")).status, 404);
   assert.equal((await get("?article=guide-2")).status, 200);
+});
+
+const tinyJpeg = Buffer.from([0xff, 0xd8, 0xff, 0x00, 0xd9]).toString("base64");
+
+function askWith(cookie, body) {
+  return new Request(`${origin}/api/help`, {
+    method: "POST",
+    headers: { Origin: origin, "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json", Cookie: cookie },
+    body: JSON.stringify({ page: "dashboard", ...body }),
+  });
+}
+
+test("a text question stays text, and an attached picture is sent only on the latest turn", async (t) => {
+  const { pg, cookie, aiCalls } = await routeFixture(t, () => Response.json({ content: [{ type: "text", text: "I can see a gate and no flame." }] }));
+  assert.equal((await help.POST(ask("How do I open a gate?", cookie))).status, 200);
+  assert.equal(typeof aiCalls[0].body.messages.at(-1).content, "string");
+  assert.equal(aiCalls[0].body.model, "claude-haiku-4-5-20251001");
+
+  const history = [
+    { role: "user", content: "How do I open a gate?" },
+    { role: "assistant", content: "Use the gate card." },
+  ];
+  const response = await help.POST(askWith(cookie, {
+    question: "What does this show?",
+    history,
+    frames: [{ mediaType: "image/jpeg", data: tinyJpeg }],
+  }));
+  const text = await response.text();
+  assert.equal(response.status, 200);
+  assert.equal(text.includes(tinyJpeg), false);
+  const sent = aiCalls[1].body;
+  assert.equal(sent.model, "claude-haiku-4-5-20251001");
+  assert.equal(typeof sent.messages[0].content, "string");
+  assert.equal(typeof sent.messages[1].content, "string");
+  const latest = sent.messages.at(-1).content;
+  assert.equal(latest.at(-1).type, "text");
+  assert.equal(latest.at(-1).text, "What does this show?");
+  assert.equal(latest[0].type, "image");
+  assert.equal(latest[0].source.type, "base64");
+  assert.equal(latest[0].source.media_type, "image/jpeg");
+  assert.equal(latest[0].source.data, tinyJpeg);
+  assert.match(sent.system, /1 picture/);
+  const logged = (await pg.query("SELECT question FROM help_events")).rows.map((row) => row.question);
+  assert.equal(logged.includes("What does this show? [photo attached]"), true);
+  assert.equal(logged.some((question) => question.includes(tinyJpeg)), false);
+
+  Object.assign(env, { AI_PROVIDER: "openai", OPENAI_API_KEY: "test-openai-key" });
+  await help.POST(askWith(cookie, {
+    question: "What does this show?",
+    history,
+    frames: [{ mediaType: "image/jpeg", data: tinyJpeg }],
+  }));
+  const openai = aiCalls[2].body;
+  assert.equal(aiCalls[2].url, "https://api.openai.com/v1/responses");
+  assert.equal(openai.model, "gpt-4.1-mini");
+  const turn = openai.input.at(-1).content;
+  assert.equal(turn[0].type, "input_image");
+  assert.equal(turn[0].image_url, `data:image/jpeg;base64,${tinyJpeg}`);
+  assert.equal(turn.at(-1).type, "input_text");
+  assert.equal(typeof openai.input[1].content, "string");
+});
+
+test("too many pictures, or a picture that is not a photo, are refused before any AI call", async (t) => {
+  const { cookie, aiCalls } = await routeFixture(t, () => Response.json({ content: [{ type: "text", text: "no" }] }));
+  const frames = Array.from({ length: 4 }, () => ({ mediaType: "image/jpeg", data: tinyJpeg }));
+  const tooMany = await help.POST(askWith(cookie, { question: "What does this show?", history: [], frames }));
+  assert.equal(tooMany.status, 400);
+  assert.match(await tooMany.text(), /at most three pictures/);
+  const bad = await help.POST(askWith(cookie, {
+    question: "What does this show?",
+    history: [],
+    frames: [{ mediaType: "image/jpeg", data: Buffer.from("not-a-photo!!").toString("base64") }],
+  }));
+  assert.equal(bad.status, 400);
+  assert.equal(aiCalls.length, 0);
+});
+
+test("a text-only help connection does not receive picture bytes", async (t) => {
+  const { cookie, alerts } = await routeFixture(t);
+  Object.assign(env, {
+    AI_PROVIDER: "foundry",
+    FOUNDRY_API_KEY: "test-foundry-key",
+    FOUNDRY_AGENT_ID: "agent-1",
+    FOUNDRY_PROJECT_ENDPOINT: "https://foundry.example.invalid",
+  });
+  const realFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push(String(url));
+    return realFetch(url, init);
+  };
+  t.after(() => { globalThis.fetch = realFetch; });
+  const response = await help.POST(askWith(cookie, {
+    question: "What does this show?",
+    history: [],
+    frames: [{ mediaType: "image/jpeg", data: tinyJpeg }],
+  }));
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.match(body.answer, /cannot look at a picture or a clip/);
+  assert.equal(body.issue, undefined);
+  assert.equal(calls.some((url) => /anthropic|openai|foundry/i.test(url)), false);
+  await new Promise((r) => setTimeout(r, 200));
+  const rows = (await alerts()).filter((row) => row.kind === "system_issue");
+  assert.equal(rows.length, 0);
 });
 
 test("a probing turn earlier in the chat is still forwarded, even if the latest question is harmless", async (t) => {
