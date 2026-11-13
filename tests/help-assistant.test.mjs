@@ -39,7 +39,7 @@ test("the help index is the staff guide only, and every topic is free of interna
     assert.equal(guard.leaksInternalDetail(passage.text), null, passage.title);
   }
   const titles = index.map((p) => p.title);
-  for (const needed of ["Gate cycle counter", "Recording a completed service", "Stadium hire bookings", "Fire / evacuation button", "Opening or closing a gate", "Using the help chat", "Fire and smoke reference pictures", "Camera research on fire, smoke and weapons", "Colour alarm, fighting and incident notes"]) {
+  for (const needed of ["Gate cycle counter", "Recording a completed service", "Stadium hire bookings", "Fire / evacuation button", "Opening or closing a gate", "Using the help chat", "Fire and smoke reference pictures", "Camera research on fire, smoke and weapons", "Colour alarm, fighting and incident notes", "Pistol, knife and gun-action references"]) {
     assert.ok(titles.includes(needed), needed);
   }
 });

@@ -140,6 +140,17 @@ A larger research description lists fire, smoke, weapons, people, vehicles and s
 
 Another research screen looks at an uploaded video or a camera link for guns, knives, fire, smoke and fighting. It can keep a list of alerts with the time, the kind of alert and how sure it was. Magic Keys does not decide that a person is violent, armed or a threat from a camera. A person, the fire indicator panel and Triple Zero stay in charge.
 
+## Pistol, knife and gun-action references
+Ask Magic Keys can explain four further reference collections used while weapon detection is still in development. None of them is installed. None of them may open a gate, close a gate, or clear an emergency. Magic Keys does not call a student, a staff member or a visitor armed or a threat because a picture matched one of these collections.
+
+One public-domain collection has 2,973 still pictures for finding a pistol in a photo. Each picture was stretched to a square of 416 by 416, and no extra altered copies were added. It has not been scored on this school's cameras. The pictures are not stored in the portal.
+
+A video collection kept on the project workstation has 398 clips: 141 labelled handgun, 139 labelled machine gun, and 118 with no gun. A clip can include a frame-by-frame label. The clips are staged research actions from 2023, not recordings of this school. The licence does not allow commercial reuse, so the clips are not published from this portal.
+
+Another description offers about 51,000 pictures with boxes drawn on guns, and about 51,000 more for sorting gun from not-gun. Many come from a movie firearms catalogue and were checked by a person. A couple of thousand come from cameras in a private office. The owner does not allow the pictures to be passed on. They are not in this portal.
+
+A further collection, shared so others may reuse it if they give credit and share alike, has separate picture sets for a pistol and for a knife. Some sets only sort whether a weapon is present. Some draw a box. One set places weapons next to ordinary handled objects that can look similar. Those pictures are not this school's cameras.
+
 ## Safety protocol
 Safety protocol is the school emergency safety protocol for the portal. Magic Keys supports trained staff; it does not replace the school's Emergency Management Plan, the fire indicator panel, emergency services, onsite judgement or physical emergency controls. Its six principles are: 01 Named human authority (only the school's authorised incident controller activates, changes or clears an emergency mode; staff call Triple Zero when required); 02 Independent manual fallback (physical alarms, keys, releases and local controls still work if the portal, power, internet, cameras or a controller is unavailable); 03 No camera-only decisions; 04 Movement is locally protected (safety beams, edges, loops and obstruction sensing have the final say, and a fault blocks the command); 05 Only approved guidance (screens show routes from the school-approved emergency plan only); 06 Test, record and review. The Stop rule: if information conflicts, a safety input is unhealthy, confirmation is missing or the real situation is uncertain, stop automation, use the approved manual procedure and follow authorised staff and emergency services. On the core plan this page shows Please contact RJL for access.
 
