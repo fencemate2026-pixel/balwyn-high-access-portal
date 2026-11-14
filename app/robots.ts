@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: ["/", "/privacy", "/terms"],
-      disallow: ["/login", "/api/"],
+      disallow: ["/login", "/api/", "/classroom"],
     },
     sitemap: "https://magickeys-balwyn-portal.com/sitemap.xml",
   };

@@ -264,7 +264,6 @@ function EmergencyAlertPanel({
   pending,
   failed,
   canClear,
-  projectorAccess,
 }: {
   mode: Exclude<SystemMode, "normal">;
   onClear: () => void;
@@ -272,7 +271,7 @@ function EmergencyAlertPanel({
   pending: number;
   failed: number;
   canClear: boolean;
-  projectorAccess: boolean;
+  projectorAccess?: boolean;
 }) {
   const fire = mode === "fire";
   const Icon = fire ? Flame : ShieldAlert;
@@ -287,7 +286,7 @@ function EmergencyAlertPanel({
         <span><CheckCircle2 /><span><strong>{confirmed} physically confirmed</strong><small>Independent position feedback received</small></span></span>
         <span><Zap /><span><strong>{pending} awaiting confirmation</strong><small>Queued or being completed by controllers</small></span></span>
         <span><AlertTriangle /><span><strong>{failed} require attention</strong><small>Offline, blocked or faulted controllers</small></span></span>
-        {fire && <span><MonitorUp /><span><strong>{projectorAccess ? "Projector link not yet commissioned" : "Projector broadcasts require a plan upgrade"}</strong><small>{projectorAccess ? "No broadcast is claimed without system feedback" : "Advanced feature · locked on this plan"}</small></span></span>}
+        {fire && <span><MonitorUp /><span><strong>Classroom screen: go to the school oval</strong><small>Open /classroom on each projector. It shows the route only while that page is open.</small></span></span>}
       </div>
       <p>{fire ? "Evacuate by the nearest safe exit and follow the school emergency plan." : "Move inside, secure the area and await an authorised all-clear."}</p>
       <footer>
@@ -1102,8 +1101,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
                   <div className={`cctv-evacuation-display ${systemMode === "fire" ? "is-active" : ""}`}>
                     <div><BrandLogo /><span>Projector and staff display</span></div>
                     <span className="evacuation-display-icon"><MonitorUp /></span>
-                    <span><small>{systemMode === "fire" ? "Fire priority active" : "Evacuation guidance"}</small><strong>{systemMode === "fire" ? "Awaiting confirmed safe route" : "No route published"}</strong><em>Assembly point and route must match the approved emergency plan.</em></span>
-                    <Badge variant="outline">{systemMode === "fire" ? "Hold for verification" : "Not commissioned"}</Badge>
+                    <span><small>{systemMode === "fire" ? "Fire priority active" : "Evacuation guidance"}</small><strong>{systemMode === "fire" ? "Classroom screens: go to the school oval" : "No route published"}</strong><em>Assembly point and route must match the approved emergency plan.</em></span>
+                    <Badge variant="outline">{systemMode === "fire" ? "On the classroom page" : "Standby"}</Badge>
                   </div>
                 </article>
               </div>
@@ -1114,7 +1113,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
                   <div className="cctv-verification-list">
                     <span><Camera /><span><strong>CCTV endpoints</strong><small>Secure stream addresses and credentials required</small></span><em>Not connected</em></span>
                     <span><MapPin /><span><strong>School zone map</strong><small>Emergency plan and assembly points require approval</small></span><em>Review required</em></span>
-                    <span><MonitorUp /><span><strong>Projector guidance</strong><small>No broadcast without verified system feedback</small></span><em>Not commissioned</em></span>
+                    <span><MonitorUp /><span><strong>Projector guidance</strong><small>{systemMode === "fire" ? "The classroom page is showing the route" : "Open /classroom on each projector"}</small></span><em>{systemMode === "fire" ? "Showing" : "Waiting"}</em></span>
                     <span><ClipboardList /><span><strong>Evidence retention</strong><small>Policy, permissions and retention period required</small></span><em>Not configured</em></span>
                   </div>
                 </article>
@@ -1192,7 +1191,7 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
           {activeView === "activity" && <section className="activity-panel"><div className="view-panel-heading"><div><h2>Permanent activity record</h2><small>Operator requests, settings and controller acknowledgements</small></div><div className="activity-heading-actions"><Badge variant="outline"><UserRound /> {user.displayName}</Badge><Button variant="outline" disabled={!activity.length} onClick={exportActivity}><Download /> Export CSV</Button></div></div>{activity.length === 0 ? <div className="activity-empty"><Activity /><h3>No activity recorded yet</h3><p>Authorised commands, controller acknowledgements, automation changes and schedule saves will appear here.</p></div> : <div className="activity-list">{activity.map((record) => <article key={record.id}><span className="activity-record-icon"><Activity /></span><div><strong>{record.action}</strong><p>{record.detail}</p><small>{record.actorName} · {record.category}</small></div><time>{activityTime(record.createdAt)}</time></article>)}</div>}</section>}
 
           {activeView === "guidance" && adminUnlocked && advancedFeaturesEnabled && <section className="dynamic-guidance-workspace">
-            <div className="guidance-command-header"><div><small>Dynamic Emergency Guidance</small><h2>Verified directions, updated as conditions change</h2><p>The portal can prepare a guidance preview from confirmed hazards, available exits and the school’s approved route library. A trained incident controller must verify it before distribution.</p></div><span className="guidance-commission-state"><i /> Simulation only · not commissioned</span></div>
+            <div className="guidance-command-header"><div><small>Dynamic Emergency Guidance</small><h2>Verified directions, updated as conditions change</h2><p>The portal can prepare a guidance preview from confirmed hazards, available exits and the school’s approved route library. A trained incident controller must verify it before distribution.</p></div><span className="guidance-commission-state"><i /> {systemMode === "fire" ? "Classroom page is showing the oval route" : "Classroom screens update when fire evacuation is approved."}</span></div>
             <OperationsRoomConcept variant="emergency" />
             <article className={`ptz-tracking-console ${ptzTrackingActive ? "is-tracking" : ""}`}>
               <div className="ptz-tracking-heading"><span><Camera /></span><div><small>AI PTZ camera integration</small><h3>{ptzTrackingActive ? `Tracking simulated ${guidanceIncident === "fire" ? "fire / smoke movement" : guidanceIncident === "security" ? "threat movement" : "hazard movement"}` : "Hazard tracking mesh ready for commissioning"}</h3><p>The required Hikvision TandemVu cameras can hand off a verified hazard between zones, update its last known direction and notify the route engine when a corridor becomes unsafe.</p></div><Button variant={ptzTrackingActive ? "outline" : "default"} onClick={() => setPtzTrackingActive((active) => !active)}>{ptzTrackingActive ? <><VideoOff /> Stop simulation</> : <><Camera /> Run tracking simulation</>}</Button></div>
@@ -1237,8 +1236,8 @@ export default function DashboardClient({ user, initialData, signOutHref = "/", 
             </div>
 
             <article className="guidance-distribution-panel">
-              <div><MonitorUp /><span><small>3 · Authorise and distribute</small><strong>Projectors · staff screens · authorised mobile devices</strong><p>Every screen receives the same timestamped instruction, affected zone and approved assembly point. Guidance is withdrawn or revised when the verified incident state changes.</p></span></div>
-              <div className="guidance-distribution-actions"><Badge variant="outline">No live endpoints connected</Badge><Button disabled><ShieldCheck /> Publish verified guidance</Button></div>
+              <div><MonitorUp /><span><small>3 · Authorise and distribute</small><strong>Classroom screen</strong><p>During a fire evacuation, every browser open to the classroom screen shows the same instruction: go to the school oval and stay off the central path. A projector shows it only while that page is open. This preview does not publish a different route.</p></span></div>
+              <div className="guidance-distribution-actions"><Badge variant="outline">{systemMode === "fire" ? "Showing on the classroom page" : "Shows when fire evacuation is approved"}</Badge><Button disabled><ShieldCheck /> Publish verified guidance</Button><Button variant="outline" asChild><a href="/classroom" target="_blank" rel="noreferrer">Open classroom screen</a></Button></div>
             </article>
             <div className="guidance-fallback"><Radio /><span><strong>Uncertainty fallback</strong><small>If the hazard location, route status, connectivity or approval is uncertain, the portal does not publish a route. Screens direct people to follow trained staff, local alarms and the school’s approved emergency procedure.</small></span></div>
             <OperationsRoomConcept variant="projector" />

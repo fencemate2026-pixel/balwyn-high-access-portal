@@ -74,7 +74,7 @@ export const EXAMPLE_ROUTE: GuidanceRoute = {
   totalMetres: 125,
 };
 
-export default function GuidanceProjection({ route }: { route: GuidanceRoute }) {
+export default function GuidanceProjection({ route, live = false }: { route: GuidanceRoute; live?: boolean }) {
   const tone = TONE[route.status];
   const Icon = route.status === "ok" ? ShieldCheck : route.status === "refuge" ? TriangleAlert : Ban;
 
@@ -164,8 +164,8 @@ export default function GuidanceProjection({ route }: { route: GuidanceRoute }) 
         background: "#0c1c2f", borderTop: "1px solid #1c385a",
         letterSpacing: "0.18em", fontSize: 22, color: "#61809f",
       }}>
-        <span>ADVISORY — FOLLOW YOUR TEACHER AND THE POSTED DIAGRAM</span>
-        <span style={{ color: "#e8a317" }}>DEMONSTRATION · NO LIVE INCIDENT</span>
+        <span>{live ? "FOLLOW THIS ROUTE" : "ADVISORY — FOLLOW YOUR TEACHER AND THE POSTED DIAGRAM"}</span>
+        <span style={{ color: live ? "#35cc72" : "#e8a317" }}>{live ? "LIVE · WHOLE SCHOOL" : "DEMONSTRATION · NO LIVE INCIDENT"}</span>
       </div>
     </div>
   );
